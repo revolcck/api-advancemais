@@ -1,5 +1,6 @@
 import * as jose from "jose";
 import { env } from "@/config/environment";
+import { logger } from "./logger.utils";
 
 /**
  * Interface para payload do token JWT
@@ -9,6 +10,8 @@ export interface TokenPayload {
   name?: string; // Nome do usuário
   email?: string; // Email do usuário
   role?: string; // Papel do usuário
+  jti?: string; // ID único do token
+  type?: string; // Tipo de token (access/refresh)
   [key: string]: any; // Propriedades adicionais
 }
 
@@ -19,6 +22,7 @@ export interface VerifyResult {
   valid: boolean; // Se o token é válido
   expired: boolean; // Se o token está expirado
   payload?: TokenPayload; // Payload do token, se válido
+  error?: Error; // Erro original, se houver
 }
 
 /**
@@ -27,10 +31,27 @@ export interface VerifyResult {
  */
 export class JwtUtils {
   /**
+   * Algoritmo utilizado para assinatura dos tokens
+   */
+  private static readonly ALGORITHM = "HS256";
+
+  /**
    * Chave secreta compartilhada para assinar tokens
    * Convertida para TextEncoder para compatibilidade com jose
    */
-  private static secretKey = new TextEncoder().encode(env.jwt.secret);
+  private static get secretKey(): Uint8Array {
+    return new TextEncoder().encode(env.jwt.secret);
+  }
+
+  /**
+   * Gera um ID único para o token
+   */
+  private static generateTokenId(): string {
+    // Gera um UUID v4 ou ID aleatório para o token
+    return crypto.randomUUID
+      ? crypto.randomUUID()
+      : Date.now().toString(36) + Math.random().toString(36).substring(2);
+  }
 
   /**
    * Gera um token JWT de acesso
@@ -38,16 +59,27 @@ export class JwtUtils {
    * @returns Token JWT gerado
    */
   public static async generateAccessToken(
-    payload: TokenPayload
+    payload: Omit<TokenPayload, "type" | "jti">
   ): Promise<string> {
-    const jwt = await new jose.SignJWT(payload)
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime(env.jwt.expiresIn)
-      .setSubject(payload.sub)
-      .sign(this.secretKey);
+    try {
+      const jwt = await new jose.SignJWT({
+        ...payload,
+        type: "access",
+        jti: this.generateTokenId(),
+      })
+        .setProtectedHeader({ alg: this.ALGORITHM })
+        .setIssuedAt()
+        .setExpirationTime(env.jwt.expiresIn)
+        .setSubject(payload.sub)
+        .setIssuer("api-projeto")
+        .setAudience("api-clients")
+        .sign(this.secretKey);
 
-    return jwt;
+      return jwt;
+    } catch (error) {
+      logger.error("Erro ao gerar access token:", error);
+      throw new Error("Falha ao gerar token de acesso");
+    }
   }
 
   /**
@@ -56,14 +88,24 @@ export class JwtUtils {
    * @returns Token JWT de refresh
    */
   public static async generateRefreshToken(userId: string): Promise<string> {
-    const jwt = await new jose.SignJWT({ type: "refresh" })
-      .setProtectedHeader({ alg: "HS256" })
-      .setIssuedAt()
-      .setExpirationTime(env.jwt.refreshExpiresIn)
-      .setSubject(userId)
-      .sign(this.secretKey);
+    try {
+      const jwt = await new jose.SignJWT({
+        type: "refresh",
+        jti: this.generateTokenId(),
+      })
+        .setProtectedHeader({ alg: this.ALGORITHM })
+        .setIssuedAt()
+        .setExpirationTime(env.jwt.refreshExpiresIn)
+        .setSubject(userId)
+        .setIssuer("api-projeto")
+        .setAudience("api-clients")
+        .sign(this.secretKey);
 
-    return jwt;
+      return jwt;
+    } catch (error) {
+      logger.error("Erro ao gerar refresh token:", error);
+      throw new Error("Falha ao gerar token de refresh");
+    }
   }
 
   /**
@@ -75,7 +117,9 @@ export class JwtUtils {
     try {
       // Verifica a assinatura e validade do token
       const { payload } = await jose.jwtVerify(token, this.secretKey, {
-        algorithms: ["HS256"],
+        algorithms: [this.ALGORITHM],
+        issuer: "api-projeto",
+        audience: "api-clients",
       });
 
       // Converte o payload para o formato esperado
@@ -95,13 +139,20 @@ export class JwtUtils {
         return {
           valid: false,
           expired: true,
+          error,
         };
       }
+
+      // Log do erro específico
+      logger.debug(
+        `Erro ao verificar token: ${error instanceof Error ? error.message : String(error)}`
+      );
 
       // Qualquer outro erro de validação
       return {
         valid: false,
         expired: false,
+        error: error instanceof Error ? error : new Error(String(error)),
       };
     }
   }
@@ -121,8 +172,22 @@ export class JwtUtils {
         sub: decoded.sub as string,
         ...decoded,
       };
-    } catch {
+    } catch (error) {
+      logger.debug(
+        `Erro ao decodificar token: ${error instanceof Error ? error.message : String(error)}`
+      );
       return null;
     }
+  }
+
+  /**
+   * Extrai ID do usuário de um token jwt
+   * Não verifica a validade do token, apenas extrai o subject
+   * @param token Token JWT
+   * @returns ID do usuário ou null se inválido
+   */
+  public static extractUserId(token: string): string | null {
+    const payload = this.decodeToken(token);
+    return payload?.sub || null;
   }
 }

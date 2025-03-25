@@ -1,13 +1,14 @@
 import { prisma } from "@/config/database";
-import { redisService } from "@/config/redis";
-import { env } from "@/config/environment";
-import { HashUtils } from "@/shared/utils/hash.utils";
-import { JwtUtils } from "@/shared/utils/jwt.utils";
+import { logger } from "@/shared/utils/logger.utils";
 import {
   UnauthorizedError,
   ConflictError,
   NotFoundError,
+  ValidationError,
 } from "@/shared/errors/AppError";
+import { TokenService } from "./token.service";
+import { UserService } from "./user.service";
+import { AuditService, AuditAction } from "@/shared/services/audit.service";
 import {
   LoginRequestDto,
   LoginResponseDto,
@@ -18,38 +19,29 @@ import {
   ChangePasswordRequestDto,
   SuccessResponseDto,
 } from "../dto/auth.dto";
-import { logger } from "@/shared/utils/logger.utils";
-import { AuditService, AuditAction } from "@/shared/services/audit.service";
-import { ValidationError } from "@/shared/errors/AppError";
+
 /**
- * Classe de serviço que implementa a lógica de autenticação
- * Responsável por autenticar usuários, gerar e validar tokens, etc.
+ * Serviço principal de autenticação
+ * Orquestra os outros serviços para operações de autenticação
  */
 export class AuthService {
-  /**
-   * Prefixo para chaves de token de blacklist no Redis
-   */
-  private static readonly BLACKLIST_PREFIX = "token:blacklist:";
+  private tokenService: TokenService;
+  private userService: UserService;
 
-  /**
-   * TTL para tokens na blacklist (em segundos)
-   * Deve ser maior que o tempo de expiração do token de acesso
-   */
-  private static readonly BLACKLIST_TTL = 60 * 60 * 24 * 7; // 7 dias
+  constructor() {
+    this.tokenService = new TokenService();
+    this.userService = new UserService();
+  }
 
   /**
    * Autentica um usuário e retorna tokens de acesso e refresh
-   * @param data Dados de login (email e senha)
-   * @returns Tokens de acesso e refresh e dados do usuário
    */
   public async login(data: LoginRequestDto): Promise<LoginResponseDto> {
     try {
       logger.info(`Tentativa de login para o usuário: ${data.email}`);
 
       // Busca o usuário pelo email
-      const user = await prisma.user.findUnique({
-        where: { email: data.email },
-      });
+      const user = await this.userService.findByEmail(data.email);
 
       // Verifica se o usuário existe
       if (!user) {
@@ -66,8 +58,8 @@ export class AuthService {
         throw new UnauthorizedError("Credenciais inválidas");
       }
 
-      // Verifica se a senha está correta
-      const isPasswordValid = await HashUtils.compare(
+      // Verifica a senha
+      const isPasswordValid = await this.userService.validatePassword(
         data.password,
         user.password
       );
@@ -80,22 +72,18 @@ export class AuthService {
         throw new UnauthorizedError("Credenciais inválidas");
       }
 
-      logger.debug(`Gerando tokens para usuário ${user.id}`);
-
       // Gera tokens
-      const accessToken = await this.generateAccessToken(
+      const accessToken = await this.tokenService.generateAccessToken(
         user.id,
         user.email,
         user.role
       );
-      const refreshToken = await this.generateRefreshToken(user.id);
+      const refreshToken = await this.tokenService.generateRefreshToken(
+        user.id
+      );
 
-      // Atualiza o refresh token no banco de dados
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { refreshToken },
-      });
-      logger.debug(`Refresh token atualizado no banco para usuário ${user.id}`);
+      // Atualiza o refresh token no banco
+      await this.userService.updateRefreshToken(user.id, refreshToken);
 
       // Registra log de auditoria para login bem-sucedido
       AuditService.log(
@@ -122,7 +110,6 @@ export class AuthService {
         },
       };
     } catch (error) {
-      // Captura erros não esperados durante o login
       if (!(error instanceof UnauthorizedError)) {
         logger.error(`Erro inesperado durante login para ${data.email}`, error);
       }
@@ -132,8 +119,6 @@ export class AuthService {
 
   /**
    * Registra um novo usuário
-   * @param data Dados do novo usuário
-   * @returns Dados do usuário registrado
    */
   public async register(
     data: RegisterRequestDto
@@ -141,45 +126,17 @@ export class AuthService {
     try {
       logger.info(`Tentativa de registro para o email: ${data.email}`);
 
-      // Verifica se já existe um usuário com o mesmo email
-      const existingUser = await prisma.user.findUnique({
-        where: { email: data.email },
-      });
-
-      if (existingUser) {
-        logger.warn(`Falha no registro: email ${data.email} já está em uso`);
-        AuditService.log("register_failed", "user", undefined, undefined, {
-          email: data.email,
-          reason: "email_in_use",
-        });
-        throw new ConflictError("Email já está em uso");
-      }
+      // Verifica se o email já está em uso
+      await this.userService.validateUniqueEmail(data.email);
 
       // Verifica força da senha
-      if (!HashUtils.isStrongPassword(data.password)) {
-        logger.warn(`Falha no registro: senha fraca para ${data.email}`);
-        AuditService.log("register_failed", "user", undefined, undefined, {
-          email: data.email,
-          reason: "weak_password",
-        });
-        throw new ValidationError(
-          "Senha não atende aos requisitos de segurança"
-        );
-      }
-
-      // Hash da senha
-      logger.debug(`Gerando hash da senha para ${data.email}`);
-      const hashedPassword = await HashUtils.hash(data.password);
+      await this.userService.validatePasswordStrength(data.password);
 
       // Cria o usuário
-      logger.debug(`Criando novo usuário para ${data.email}`);
-      const user = await prisma.user.create({
-        data: {
-          name: data.name,
-          email: data.email,
-          password: hashedPassword,
-          role: "USER", // Papel padrão para novos usuários
-        },
+      const user = await this.userService.createUser({
+        name: data.name,
+        email: data.email,
+        password: data.password,
       });
 
       // Registra log de auditoria para registro bem-sucedido
@@ -190,7 +147,6 @@ export class AuthService {
       });
       logger.info(`Usuário registrado com sucesso: ${user.email}`, {
         userId: user.id,
-        role: user.role,
       });
 
       // Retorna os dados do usuário registrado
@@ -202,7 +158,6 @@ export class AuthService {
         createdAt: user.createdAt,
       };
     } catch (error) {
-      // Registra erros inesperados
       if (!(error instanceof ConflictError)) {
         logger.error(
           `Erro inesperado durante registro para ${data.email}`,
@@ -215,8 +170,6 @@ export class AuthService {
 
   /**
    * Atualiza o token de acesso usando o token de refresh
-   * @param data Token de refresh
-   * @returns Novos tokens de acesso e refresh
    */
   public async refreshToken(
     data: RefreshTokenRequestDto
@@ -224,54 +177,27 @@ export class AuthService {
     try {
       logger.debug(`Tentativa de refresh de token`);
 
-      // Verifica se o token está na blacklist
-      const isBlacklisted = await this.isTokenBlacklisted(data.refreshToken);
-      if (isBlacklisted) {
-        logger.warn(`Tentativa de refresh com token na blacklist`);
-        AuditService.log(
-          "token_refresh_failed",
-          "authentication",
-          undefined,
-          undefined,
-          { reason: "blacklisted_token" }
-        );
-        throw new UnauthorizedError("Token inválido");
-      }
-
       // Verifica se o token é válido
-      const verifyResult = await JwtUtils.verifyToken(data.refreshToken);
+      const tokenResult = await this.tokenService.verifyToken(
+        data.refreshToken
+      );
 
-      if (!verifyResult.valid) {
+      if (!tokenResult.valid || !tokenResult.userId) {
         logger.warn(`Tentativa de refresh com token inválido ou expirado`);
         AuditService.log(
           "token_refresh_failed",
           "authentication",
           undefined,
           undefined,
-          { reason: verifyResult.expired ? "expired_token" : "invalid_token" }
+          { reason: tokenResult.expired ? "expired_token" : "invalid_token" }
         );
         throw new UnauthorizedError("Token inválido ou expirado");
       }
 
-      const userId = verifyResult.payload?.sub;
-
-      if (!userId) {
-        logger.warn(`Tentativa de refresh com token sem usuário`);
-        AuditService.log(
-          "token_refresh_failed",
-          "authentication",
-          undefined,
-          undefined,
-          { reason: "missing_user_id" }
-        );
-        throw new UnauthorizedError("Token inválido");
-      }
+      const userId = tokenResult.userId;
 
       // Busca o usuário
-      logger.debug(`Buscando usuário ${userId} para refresh de token`);
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-      });
+      const user = await this.userService.findById(userId);
 
       if (!user) {
         logger.warn(
@@ -303,27 +229,22 @@ export class AuthService {
       }
 
       // Gera novos tokens
-      logger.debug(`Gerando novos tokens para usuário ${userId}`);
-      const accessToken = await this.generateAccessToken(
+      const accessToken = await this.tokenService.generateAccessToken(
         user.id,
         user.email,
         user.role
       );
-      const refreshToken = await this.generateRefreshToken(user.id);
-
-      // Atualiza o refresh token no banco de dados
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { refreshToken },
-      });
-
-      // Adiciona o token antigo à blacklist
-      await this.blacklistToken(data.refreshToken);
-      logger.debug(
-        `Token antigo adicionado à blacklist para usuário ${userId}`
+      const refreshToken = await this.tokenService.generateRefreshToken(
+        user.id
       );
 
-      // Registra log de auditoria para refresh bem-sucedido
+      // Atualiza o refresh token no banco
+      await this.userService.updateRefreshToken(user.id, refreshToken);
+
+      // Adiciona o token antigo à blacklist
+      await this.tokenService.blacklistToken(data.refreshToken);
+
+      // Registra log de auditoria
       AuditService.log(
         AuditAction.TOKEN_REFRESH,
         "authentication",
@@ -339,7 +260,6 @@ export class AuthService {
         refreshToken,
       };
     } catch (error) {
-      // Registra erros inesperados
       if (
         !(error instanceof UnauthorizedError) &&
         !(error instanceof NotFoundError)
@@ -351,10 +271,7 @@ export class AuthService {
   }
 
   /**
-   * Realiza o logout do usuário, invalidando seus tokens
-   * @param userId ID do usuário
-   * @param refreshToken Token de refresh atual
-   * @returns Resposta de sucesso
+   * Realiza o logout do usuário
    */
   public async logout(
     userId: string,
@@ -364,17 +281,12 @@ export class AuthService {
       logger.info(`Iniciando logout para usuário ID: ${userId}`);
 
       // Adiciona o token à blacklist
-      await this.blacklistToken(refreshToken);
-      logger.debug(`Token adicionado à blacklist para usuário ${userId}`);
+      await this.tokenService.blacklistToken(refreshToken);
 
       // Remove o refresh token do usuário
-      await prisma.user.update({
-        where: { id: userId },
-        data: { refreshToken: null },
-      });
-      logger.debug(`Refresh token removido do banco para usuário ${userId}`);
+      await this.userService.updateRefreshToken(userId, null);
 
-      // Registra log de auditoria para logout
+      // Registra log de auditoria
       AuditService.log(AuditAction.LOGOUT, "authentication", undefined, userId);
       logger.info(`Logout concluído com sucesso para usuário ${userId}`);
 
@@ -390,9 +302,6 @@ export class AuthService {
 
   /**
    * Altera a senha do usuário
-   * @param userId ID do usuário
-   * @param data Senha atual e nova senha
-   * @returns Resposta de sucesso
    */
   public async changePassword(
     userId: string,
@@ -402,9 +311,7 @@ export class AuthService {
       logger.info(`Tentativa de alteração de senha para usuário ID: ${userId}`);
 
       // Busca o usuário
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-      });
+      const user = await this.userService.findById(userId);
 
       if (!user) {
         logger.warn(
@@ -417,7 +324,7 @@ export class AuthService {
       }
 
       // Verifica se a senha atual está correta
-      const isPasswordValid = await HashUtils.compare(
+      const isPasswordValid = await this.userService.validatePassword(
         data.currentPassword,
         user.password
       );
@@ -432,43 +339,30 @@ export class AuthService {
         throw new UnauthorizedError("Senha atual incorreta");
       }
 
-      // Verifica força da nova senha
-      if (!HashUtils.isStrongPassword(data.newPassword)) {
+      // Verifica se a nova senha é forte o suficiente
+      await this.userService.validatePasswordStrength(data.newPassword);
+
+      // Garante que a nova senha é diferente da atual
+      if (data.currentPassword === data.newPassword) {
         logger.warn(
-          `Nova senha fraca durante alteração de senha para usuário ${userId}`
+          `Nova senha igual à atual durante alteração para usuário ${userId}`
         );
         AuditService.log("password_change_failed", "user", userId, userId, {
-          reason: "weak_password",
+          reason: "same_password",
         });
-        throw new ValidationError(
-          "Nova senha não atende aos requisitos de segurança"
-        );
+        throw new ValidationError("Nova senha deve ser diferente da atual");
       }
-
-      // Hash da nova senha
-      logger.debug(`Gerando hash da nova senha para usuário ${userId}`);
-      const hashedPassword = await HashUtils.hash(data.newPassword);
 
       // Atualiza a senha
-      await prisma.user.update({
-        where: { id: userId },
-        data: { password: hashedPassword },
-      });
-      logger.debug(`Senha atualizada no banco para usuário ${userId}`);
+      await this.userService.updatePassword(userId, data.newPassword);
 
-      // Invalida todos os tokens de refresh do usuário
+      // Invalida tokens de refresh
       if (user.refreshToken) {
-        await this.blacklistToken(user.refreshToken);
-        await prisma.user.update({
-          where: { id: userId },
-          data: { refreshToken: null },
-        });
-        logger.debug(
-          `Tokens invalidados após alteração de senha para usuário ${userId}`
-        );
+        await this.tokenService.blacklistToken(user.refreshToken);
+        await this.userService.updateRefreshToken(userId, null);
       }
 
-      // Registra log de auditoria para alteração de senha
+      // Registra log de auditoria
       AuditService.log(AuditAction.PASSWORD_CHANGE, "user", userId, userId);
       logger.info(`Senha alterada com sucesso para usuário ${userId}`);
 
@@ -477,7 +371,6 @@ export class AuthService {
         message: "Senha alterada com sucesso",
       };
     } catch (error) {
-      // Registra erros inesperados
       if (
         !(error instanceof UnauthorizedError) &&
         !(error instanceof NotFoundError) &&
@@ -488,132 +381,6 @@ export class AuthService {
           error
         );
       }
-      throw error;
-    }
-  }
-
-  /**
-   * Gera um token de acesso para o usuário
-   * @param userId ID do usuário
-   * @param email Email do usuário
-   * @param role Papel do usuário
-   * @returns Token de acesso
-   */
-  private async generateAccessToken(
-    userId: string,
-    email: string,
-    role: string
-  ): Promise<string> {
-    try {
-      logger.debug(`Gerando access token para usuário ${userId}`);
-      return JwtUtils.generateAccessToken({
-        sub: userId,
-        email,
-        role,
-      });
-    } catch (error) {
-      logger.error(`Erro ao gerar access token para usuário ${userId}`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Gera um token de refresh para o usuário
-   * @param userId ID do usuário
-   * @returns Token de refresh
-   */
-  private async generateRefreshToken(userId: string): Promise<string> {
-    try {
-      logger.debug(`Gerando refresh token para usuário ${userId}`);
-      return JwtUtils.generateRefreshToken(userId);
-    } catch (error) {
-      logger.error(`Erro ao gerar refresh token para usuário ${userId}`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Adiciona um token à blacklist
-   * @param token Token a ser adicionado
-   */
-  private async blacklistToken(token: string): Promise<void> {
-    try {
-      // Tenta decodificar o token para obter o ID do usuário para fins de log
-      const decodedToken = JwtUtils.decodeToken(token);
-      const userId = decodedToken?.sub || "desconhecido";
-
-      logger.debug(`Adicionando token à blacklist para usuário ${userId}`);
-
-      if (redisService.isConnected()) {
-        const key = `${AuthService.BLACKLIST_PREFIX}${token}`;
-        await redisService.set(key, "true", AuthService.BLACKLIST_TTL);
-        logger.debug(
-          `Token adicionado à blacklist no Redis para usuário ${userId}`
-        );
-      } else if (env.isDevelopment) {
-        logger.warn(
-          `Redis não está conectado. Ignorando blacklist em ambiente de desenvolvimento para usuário ${userId}`
-        );
-      } else {
-        logger.error(
-          `Falha ao adicionar token à blacklist: Redis não conectado`
-        );
-        throw new Error("Serviço Redis não está disponível");
-      }
-    } catch (error) {
-      logger.error(`Erro ao adicionar token à blacklist`, error);
-
-      // Em desenvolvimento, continuamos mesmo com erro
-      if (!env.isDevelopment) {
-        throw error;
-      }
-    }
-  }
-
-  /**
-   * Verifica se um token está na blacklist
-   * @param token Token a ser verificado
-   * @returns Se o token está na blacklist
-   */
-  private async isTokenBlacklisted(token: string): Promise<boolean> {
-    try {
-      // Tenta decodificar o token para obter o ID do usuário para fins de log
-      const decodedToken = JwtUtils.decodeToken(token);
-      const userId = decodedToken?.sub || "desconhecido";
-
-      logger.debug(
-        `Verificando se token está na blacklist para usuário ${userId}`
-      );
-
-      if (redisService.isConnected()) {
-        const key = `${AuthService.BLACKLIST_PREFIX}${token}`;
-        const result = await redisService.exists(key);
-
-        if (result) {
-          logger.debug(`Token encontrado na blacklist para usuário ${userId}`);
-        }
-
-        return result;
-      } else if (env.isDevelopment) {
-        logger.warn(
-          `Redis não está conectado. Ignorando verificação de blacklist em ambiente de desenvolvimento para usuário ${userId}`
-        );
-        return false;
-      }
-
-      // Em produção, tratamos como erro se o Redis não estiver disponível
-      logger.error(
-        `Falha ao verificar token na blacklist: Redis não conectado`
-      );
-      throw new Error("Serviço Redis não está disponível");
-    } catch (error) {
-      logger.error(`Erro ao verificar token na blacklist`, error);
-
-      // Em desenvolvimento, continuamos mesmo com erro
-      if (env.isDevelopment) {
-        return false;
-      }
-
       throw error;
     }
   }

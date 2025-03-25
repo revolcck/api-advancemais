@@ -1,27 +1,54 @@
-/**
- * Configuração do cliente Redis para cache e tarefas que exigem armazenamento em memória
- * Implementa o padrão Singleton para garantir uma única instância do cliente Redis
- */
-
 import { createClient, RedisClientType } from "redis";
 import { env } from "./environment";
 import { logger } from "@/shared/utils/logger.utils";
 
 /**
- * Classe Singleton para gerenciar a conexão com o Redis
+ * Interface para operações do Redis
+ * Facilita mock em testes e garante o contrato de métodos
  */
-class RedisService {
+export interface IRedisService {
+  isConnected(): boolean;
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+  set(key: string, value: string, expireInSeconds?: number): Promise<void>;
+  get(key: string): Promise<string | null>;
+  delete(key: string): Promise<void>;
+  exists(key: string): Promise<boolean>;
+}
+
+/**
+ * Classe Singleton para gerenciar a conexão com o Redis
+ * Implementa a interface IRedisService
+ */
+class RedisService implements IRedisService {
   private static instance: RedisService;
-  private _client: RedisClientType | null = null;
-  private _isConnected: boolean = false;
-  private _isConnecting: boolean = false;
-  private _hasLoggedSuccess: boolean = false;
+  private client: RedisClientType | null = null;
+  private isClientConnected: boolean = false;
+  private isConnecting: boolean = false;
+  private hasLoggedSuccess: boolean = false;
+
+  /**
+   * Tempo de timeout para tentativas de reconexão em produção (ms)
+   */
+  private readonly RECONNECT_TIMEOUT = 5000;
+
+  /**
+   * Número máximo de tentativas de reconexão
+   */
+  private readonly MAX_RECONNECT_ATTEMPTS = 5;
 
   /**
    * Construtor privado que inicializa a configuração do Redis
    */
   private constructor() {
-    const url = this.getRedisUrl();
+    this.initializeClient();
+  }
+
+  /**
+   * Inicializa o cliente Redis com configurações adequadas para o ambiente
+   */
+  private initializeClient(): void {
+    const url = this.buildRedisUrl();
 
     // Se não tem URL configurada, não inicializa o cliente
     if (!url) {
@@ -29,19 +56,14 @@ class RedisService {
       return;
     }
 
-    logger.debug(
-      `Inicializando cliente Redis com URL: ${this.getSafeUrl(url)}`
-    );
+    logger.debug(`Inicializando cliente Redis: ${this.getSafeUrl(url)}`);
 
-    // Cria o cliente Redis com configurações adequadas para cada ambiente
-    this._client = createClient({
+    // Cria o cliente Redis com configurações adequadas
+    this.client = createClient({
       url,
       socket: {
-        // Em desenvolvimento, sem reconexão automática
-        // Em produção, reconexão limitada para evitar ciclos infinitos
-        reconnectStrategy: env.isDevelopment
-          ? false
-          : (retries) => (retries > 5 ? 5000 : Math.min(retries * 500, 3000)),
+        // Estratégia de reconexão adaptativa ao ambiente
+        reconnectStrategy: this.getReconnectStrategy(),
         connectTimeout: 10000, // 10 segundos de timeout na conexão
       },
     });
@@ -51,61 +73,78 @@ class RedisService {
   }
 
   /**
+   * Retorna uma estratégia de reconexão apropriada para o ambiente
+   */
+  private getReconnectStrategy(): false | ((retries: number) => number) {
+    if (env.isDevelopment) {
+      // Em desenvolvimento, não tentamos reconectar automaticamente
+      return false;
+    }
+
+    // Em produção, reconexão adaptativa com limite de tentativas
+    return (retries) => {
+      if (retries > this.MAX_RECONNECT_ATTEMPTS) {
+        return this.RECONNECT_TIMEOUT;
+      }
+      // Backoff exponencial limitado
+      return Math.min(retries * 500, 3000);
+    };
+  }
+
+  /**
    * Configura os listeners de eventos para o cliente Redis
    */
   private setupEventListeners(): void {
-    if (!this._client) return;
+    if (!this.client) return;
 
-    this._client.on("connect", () => {
-      if (!this._hasLoggedSuccess) {
+    this.client.on("connect", () => {
+      if (!this.hasLoggedSuccess) {
         logger.info("🔄 Redis: Iniciando conexão...");
       }
     });
 
-    this._client.on("ready", () => {
-      this._isConnected = true;
-      if (!this._hasLoggedSuccess) {
+    this.client.on("ready", () => {
+      this.isClientConnected = true;
+      if (!this.hasLoggedSuccess) {
         logger.info("✅ Redis: Conexão estabelecida com sucesso");
-        this._hasLoggedSuccess = true;
+        this.hasLoggedSuccess = true;
       }
     });
 
-    this._client.on("error", (err) => {
-      // Log mais detalhado do erro
-      if (!(env.isDevelopment && err.code === "ECONNREFUSED")) {
+    this.client.on("error", (err) => {
+      // Em desenvolvimento, evitamos mensagens de erro repetidas para conexão recusada
+      if (env.isDevelopment && err.code === "ECONNREFUSED") {
+        if (!this.hasLoggedSuccess) {
+          logger.warn(
+            "⚠️ Redis: Não foi possível conectar em ambiente de desenvolvimento",
+            { code: err.code }
+          );
+        }
+      } else {
         logger.error("❌ Redis: Erro na conexão", {
           message: err.message,
           code: err.code,
           stack: err.stack,
         });
-      } else {
-        logger.warn(
-          "⚠️ Redis: Não foi possível conectar em ambiente de desenvolvimento",
-          {
-            code: err.code,
-          }
-        );
       }
-      this._isConnected = false;
+      this.isClientConnected = false;
     });
 
-    this._client.on("end", () => {
-      this._isConnected = false;
-      this._hasLoggedSuccess = false;
+    this.client.on("end", () => {
+      this.isClientConnected = false;
+      this.hasLoggedSuccess = false;
       logger.info("🔌 Redis: Conexão encerrada");
     });
 
-    // Adiciona listener para reconexões
-    this._client.on("reconnecting", () => {
+    this.client.on("reconnecting", () => {
       logger.info("🔄 Redis: Tentando reconectar...");
     });
   }
 
   /**
    * Constrói a URL de conexão com o Redis baseada nas variáveis de ambiente
-   * @returns URL formatada para conexão com o Redis ou null se não configurado
    */
-  private getRedisUrl(): string | null {
+  private buildRedisUrl(): string | null {
     const { host, port, password } = env.redis;
 
     // Se não houver host configurado, retorna nulo
@@ -122,12 +161,12 @@ class RedisService {
    */
   private getSafeUrl(url: string | null): string {
     if (!url) return "none";
-    return url.replace(/(:.*@)/, ":***@");
+    // Substitui a senha por asteriscos usando uma abordagem mais robusta
+    return url.replace(/(:.*?@)/g, ":***@");
   }
 
   /**
    * Método estático para obter a instância única do RedisService
-   * @returns Instância do RedisService
    */
   public static getInstance(): RedisService {
     if (!RedisService.instance) {
@@ -137,19 +176,10 @@ class RedisService {
   }
 
   /**
-   * Getter para acessar o cliente Redis
-   * @returns Instância do cliente Redis
-   */
-  public get client(): RedisClientType | null {
-    return this._client;
-  }
-
-  /**
    * Verifica se a conexão com o Redis está ativa
-   * @returns Verdadeiro se conectado, falso caso contrário
    */
   public isConnected(): boolean {
-    return this._isConnected;
+    return this.isClientConnected;
   }
 
   /**
@@ -158,17 +188,11 @@ class RedisService {
    */
   public async connect(): Promise<void> {
     // Evita múltiplas tentativas de conexão simultâneas
-    if (this._isConnected || this._isConnecting || !this._client) {
+    if (this.isClientConnected || this.isConnecting || !this.client) {
       return;
     }
 
-    // Se não tiver cliente criado, não tenta conectar
-    if (!this._client) {
-      logger.warn("⚠️ Redis: Cliente não inicializado. Operando sem Redis.");
-      return;
-    }
-
-    this._isConnecting = true;
+    this.isConnecting = true;
 
     try {
       logger.info("🔄 Redis: Tentando conectar...", {
@@ -177,13 +201,14 @@ class RedisService {
       });
 
       // Tenta estabelecer a conexão
-      await this._client.connect();
+      await this.client.connect();
 
       // Se não lançou exceção, a conexão foi bem sucedida
-      this._isConnected = true;
+      this.isClientConnected = true;
+      this.hasLoggedSuccess = true;
       logger.info("✅ Redis: Conexão estabelecida com sucesso");
     } catch (error) {
-      this._isConnected = false;
+      this.isClientConnected = false;
 
       if (env.isDevelopment) {
         logger.warn(
@@ -198,7 +223,7 @@ class RedisService {
         throw error;
       }
     } finally {
-      this._isConnecting = false;
+      this.isConnecting = false;
     }
   }
 
@@ -207,11 +232,11 @@ class RedisService {
    * Deve ser chamado quando a aplicação for encerrada
    */
   public async disconnect(): Promise<void> {
-    if (this._isConnected && this._client) {
+    if (this.isClientConnected && this.client) {
       try {
-        await this._client.disconnect();
-        this._isConnected = false;
-        this._hasLoggedSuccess = false;
+        await this.client.disconnect();
+        this.isClientConnected = false;
+        this.hasLoggedSuccess = false;
         logger.info("🔌 Redis: Conexão encerrada com sucesso");
       } catch (error) {
         logger.error("❌ Redis: Erro ao desconectar", error);
@@ -222,31 +247,22 @@ class RedisService {
 
   /**
    * Armazena um valor no Redis com uma chave especificada
-   * @param key Chave para identificar o valor
-   * @param value Valor a ser armazenado
-   * @param expireInSeconds Tempo de expiração em segundos (opcional)
    */
   public async set(
     key: string,
     value: string,
     expireInSeconds?: number
   ): Promise<void> {
-    if (!this._isConnected || !this._client) {
-      if (env.isDevelopment) {
-        logger.debug(
-          `Redis não conectado: SET ${key} (ignorado em desenvolvimento)`
-        );
-        return; // Silenciosamente não faz nada em desenvolvimento
-      }
-      throw new Error("Redis não está conectado");
+    if (!this.isAvailable()) {
+      return;
     }
 
     try {
       if (expireInSeconds) {
-        await this._client.set(key, value, { EX: expireInSeconds });
+        await this.client!.set(key, value, { EX: expireInSeconds });
         logger.debug(`Redis: SET ${key} (expira em ${expireInSeconds}s)`);
       } else {
-        await this._client.set(key, value);
+        await this.client!.set(key, value);
         logger.debug(`Redis: SET ${key}`);
       }
     } catch (error) {
@@ -256,22 +272,14 @@ class RedisService {
 
   /**
    * Recupera um valor do Redis pela chave
-   * @param key Chave do valor a ser recuperado
-   * @returns Valor armazenado ou null se não existir
    */
   public async get(key: string): Promise<string | null> {
-    if (!this._isConnected || !this._client) {
-      if (env.isDevelopment) {
-        logger.debug(
-          `Redis não conectado: GET ${key} (ignorado em desenvolvimento)`
-        );
-        return null; // Silenciosamente retorna null em desenvolvimento
-      }
-      throw new Error("Redis não está conectado");
+    if (!this.isAvailable()) {
+      return null;
     }
 
     try {
-      const value = await this._client.get(key);
+      const value = await this.client!.get(key);
       logger.debug(
         `Redis: GET ${key} ${value ? "(encontrado)" : "(não encontrado)"}`
       );
@@ -283,21 +291,14 @@ class RedisService {
 
   /**
    * Remove um valor do Redis pela chave
-   * @param key Chave do valor a ser removido
    */
   public async delete(key: string): Promise<void> {
-    if (!this._isConnected || !this._client) {
-      if (env.isDevelopment) {
-        logger.debug(
-          `Redis não conectado: DEL ${key} (ignorado em desenvolvimento)`
-        );
-        return; // Silenciosamente não faz nada em desenvolvimento
-      }
-      throw new Error("Redis não está conectado");
+    if (!this.isAvailable()) {
+      return;
     }
 
     try {
-      await this._client.del(key);
+      await this.client!.del(key);
       logger.debug(`Redis: DEL ${key}`);
     } catch (error) {
       this.handleOperationError("delete", error);
@@ -306,22 +307,14 @@ class RedisService {
 
   /**
    * Verifica se uma chave existe no Redis
-   * @param key Chave a ser verificada
-   * @returns Verdadeiro se existir, falso caso contrário
    */
   public async exists(key: string): Promise<boolean> {
-    if (!this._isConnected || !this._client) {
-      if (env.isDevelopment) {
-        logger.debug(
-          `Redis não conectado: EXISTS ${key} (ignorado em desenvolvimento)`
-        );
-        return false; // Silenciosamente retorna false em desenvolvimento
-      }
-      throw new Error("Redis não está conectado");
+    if (!this.isAvailable()) {
+      return false;
     }
 
     try {
-      const result = await this._client.exists(key);
+      const result = await this.client!.exists(key);
       logger.debug(`Redis: EXISTS ${key} (${result === 1 ? "sim" : "não"})`);
       return result === 1;
     } catch (error) {
@@ -330,11 +323,20 @@ class RedisService {
   }
 
   /**
+   * Verifica se o Redis está disponível para operações
+   */
+  private isAvailable(): boolean {
+    if (!this.isClientConnected || !this.client) {
+      if (env.isDevelopment) {
+        return false; // Em desenvolvimento, simplesmente retorna falso
+      }
+      throw new Error("Redis não está conectado");
+    }
+    return true;
+  }
+
+  /**
    * Manipula erros de operações do Redis de forma consistente
-   * @param operation Nome da operação que falhou
-   * @param error Erro que ocorreu
-   * @returns Valor padrão para o tipo de operação em ambiente de desenvolvimento
-   * @throws Erro em ambiente de produção
    */
   private handleOperationError<T>(operation: string, error: unknown): T {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -360,4 +362,4 @@ class RedisService {
 }
 
 // Exporta uma instância única do serviço Redis
-export const redisService = RedisService.getInstance();
+export const redisService: IRedisService = RedisService.getInstance();

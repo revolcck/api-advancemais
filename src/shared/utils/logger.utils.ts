@@ -3,23 +3,38 @@ import path from "path";
 import { createWriteStream, WriteStream } from "fs";
 import { format as formatDate } from "date-fns";
 import { env } from "@/config/environment";
-import * as chalk from "chalk";
+import chalk from "chalk";
 import { inspect } from "util";
+
+/**
+ * Tipo que define os níveis de log disponíveis
+ */
+export type LogLevel = "debug" | "info" | "warn" | "error" | "audit" | "access";
 
 /**
  * Interface para definir a configuração de cada nível de log
  */
 interface LogLevelConfig {
   label: string;
-  color: typeof chalk.green;
+  color: Function; // Usa Function em vez de typeof chalk.green
   console: boolean;
   file: boolean;
 }
 
 /**
- * Tipo que define os níveis de log disponíveis
+ * Interface para definir campos de auditoria
  */
-export type LogLevel = "debug" | "info" | "warn" | "error" | "audit" | "access";
+export interface AuditData {
+  userId?: string;
+  action: string;
+  resource: string;
+  resourceId?: string;
+  details?: object;
+  ip?: string;
+  statusCode?: number;
+  method?: string;
+  path?: string;
+}
 
 /**
  * Configuração dos níveis de log com suas cores e comportamentos
@@ -64,22 +79,8 @@ const LOG_LEVELS: Record<LogLevel, LogLevelConfig> = {
 };
 
 /**
- * Interface para definir campos de auditoria
- */
-export interface AuditData {
-  userId?: string;
-  action: string;
-  resource: string;
-  resourceId?: string;
-  details?: object;
-  ip?: string;
-  statusCode?: number;
-  method?: string;
-  path?: string;
-}
-
-/**
  * Classe Logger que gerencia os logs da aplicação
+ * Implementa o padrão Singleton para garantir uma única instância
  */
 export class Logger {
   private static instance: Logger;
@@ -94,7 +95,7 @@ export class Logger {
    * Construtor privado para implementar o padrão Singleton
    */
   private constructor() {
-    // Obtem nome e versão do projeto do package.json
+    // Obtém nome e versão do projeto do package.json
     const packageJson = require(path.join(process.cwd(), "package.json"));
     this.projectName = packageJson.name;
     this.projectVersion = packageJson.version;
@@ -256,8 +257,8 @@ export class Logger {
     const envColor = env.isDevelopment
       ? chalk.yellow
       : env.isProduction
-        ? chalk.green
-        : chalk.blue;
+      ? chalk.green
+      : chalk.blue;
 
     const dbStatus = connections.database
       ? chalk.green("✓ Conectado")
@@ -276,75 +277,90 @@ export class Logger {
     const memoryUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
     const memoryTotalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024);
 
-    // Criar o banner sem barras verticais no lado direito
-    const border = chalk.cyan("═".repeat(70));
-    const sideBorder = chalk.cyan("║");
+    // Estilo e cores consistentes
+    const titleStyle = chalk.cyan.bold;
+    const sectionStyle = chalk.cyan;
+    const labelStyle = chalk.dim;
+    const valueStyle = chalk.white;
+    const highlightStyle = chalk.cyan;
+    const separatorLine = "  " + chalk.dim("─".repeat(50));
 
-    // Banner com design limpo sem barras verticais extras
-    const banner = [
-      "",
-      chalk.cyan("╔" + border + "╗"),
-      `${sideBorder}${chalk.bold.white(
-        ` ${this.projectName.toUpperCase()}`
-      )}${" ".repeat(69 - this.projectName.length)}${sideBorder}`,
-      `${sideBorder}${chalk.white(` v${this.projectVersion}`)}${" ".repeat(
-        68 - this.projectVersion.length - 1
-      )}${sideBorder}`,
-      `${sideBorder}${" ".repeat(70)}${sideBorder}`,
-      `${sideBorder} ${chalk.cyan("Sistema")}${" ".repeat(62)}${sideBorder}`,
-      `${sideBorder} ${chalk.white(
-        `→ Node.js: ${process.version}`
-      )}${" ".repeat(57 - process.version.length)}${sideBorder}`,
-      `${sideBorder} ${envColor(`→ Ambiente: ${env.nodeEnv}`)}${" ".repeat(
-        58 - env.nodeEnv.length
-      )}${sideBorder}`,
-      `${sideBorder} ${chalk.white(`→ Porta: ${env.port}`)}${" ".repeat(
-        60 - String(env.port).length
-      )}${sideBorder}`,
-      `${sideBorder} ${chalk.white(
-        `→ Memória: ${memoryUsedMB}MB / ${memoryTotalMB}MB`
-      )}${" ".repeat(
-        52 - String(memoryUsedMB).length - String(memoryTotalMB).length
-      )}${sideBorder}`,
-      `${sideBorder}${" ".repeat(70)}${sideBorder}`,
-      `${sideBorder} ${chalk.cyan("Conexões")}${" ".repeat(60)}${sideBorder}`,
-      `${sideBorder} ${chalk.white(
-        `→ Banco de Dados: ${dbStatus} ${connectionInfo}`
-      )}${" ".repeat(45 - connectionInfo.length)}${sideBorder}`,
-      `${sideBorder} ${chalk.white(`→ Redis: ${redisStatus}`)}${" ".repeat(
-        60
-      )}${sideBorder}`,
-      `${sideBorder}${" ".repeat(70)}${sideBorder}`,
-      `${sideBorder} ${chalk.white(
-        `Iniciado em: ${formatDate(new Date(), "dd/MM/yyyy HH:mm:ss")}`
-      )}${" ".repeat(43)}${sideBorder}`,
-      chalk.cyan("╚" + border + "╝"),
-      "",
-    ].join("\n");
+    console.log("\n");
+    console.log(titleStyle(`  🚀 ${this.projectName.toUpperCase()} `));
+    console.log(valueStyle(`  ${this.projectVersion}`));
+    console.log(separatorLine);
 
-    console.log(banner);
+    // Seção do Sistema
+    console.log(sectionStyle("\n  📊 Sistema"));
+    console.log(
+      `  ${labelStyle("Node.js:")}     ${valueStyle(process.version)}`
+    );
+    console.log(`  ${labelStyle("Ambiente:")}    ${envColor(env.nodeEnv)}`);
+    console.log(
+      `  ${labelStyle("Porta:")}       ${valueStyle(env.port.toString())}`
+    );
+    console.log(
+      `  ${labelStyle("Memória:")}     ${valueStyle(
+        `${memoryUsedMB}MB / ${memoryTotalMB}MB`
+      )} ${labelStyle("(utilizada/alocada)")}`
+    );
 
-    // Adicionar informações técnicas específicas no modo de desenvolvimento
+    // Seção de Conexões
+    console.log(sectionStyle("\n  🔌 Conexões"));
+    console.log(
+      `  ${labelStyle("Banco de Dados:")} ${dbStatus} ${
+        connectionInfo ? highlightStyle(connectionInfo) : ""
+      }`
+    );
+    console.log(`  ${labelStyle("Redis:")}         ${redisStatus}`);
+
+    // Data de Início
+    console.log(separatorLine);
+    console.log(
+      `  ${labelStyle("Iniciado em:")}  ${valueStyle(
+        formatDate(new Date(), "dd/MM/yyyy HH:mm:ss")
+      )}`
+    );
+
+    // Informações Técnicas
     if (env.isDevelopment) {
-      console.log(chalk.cyan("📊 Informações Técnicas:"));
-      console.log(chalk.white("  → PID: ") + process.pid);
-      console.log(chalk.white("  → Plataforma: ") + process.platform);
-      console.log(chalk.white("  → Arquitetura: ") + process.arch);
-      console.log(chalk.white("  → Versões:"));
+      console.log(sectionStyle("\n  🔧 Informações Técnicas"));
+      console.log(
+        `  ${labelStyle("PID:")}          ${valueStyle(process.pid.toString())}`
+      );
+      console.log(
+        `  ${labelStyle("Plataforma:")}   ${valueStyle(process.platform)}`
+      );
+      console.log(
+        `  ${labelStyle("Arquitetura:")}  ${valueStyle(process.arch)}`
+      );
 
-      const dependencies = require(
-        path.join(process.cwd(), "package.json")
-      ).dependencies;
-      const keyDeps = ["express", "@prisma/client", "jose", "joi"];
+      console.log(sectionStyle("\n  📦 Dependências"));
+      const dependencies = require(path.join(
+        process.cwd(),
+        "package.json"
+      )).dependencies;
+      const keyDeps = [
+        "express",
+        "@prisma/client",
+        "jose",
+        "joi",
+        "bcryptjs",
+        "redis",
+      ];
 
       keyDeps.forEach((dep) => {
         if (dependencies[dep]) {
-          console.log(chalk.white(`    • ${dep}: `) + dependencies[dep]);
+          console.log(
+            `  ${labelStyle("•")} ${labelStyle(dep + ":")} ${valueStyle(
+              dependencies[dep]
+            )}`
+          );
         }
       });
-
-      console.log("");
     }
+
+    console.log("\n");
   }
 
   /**
@@ -430,3 +446,39 @@ export class Logger {
 
 // Exporta uma instância do Logger
 export const logger = Logger.getInstance();
+
+// Adaptador para integração com Morgan
+export const morganMiddleware = () => {
+  const format =
+    ":method :url :status :res[content-length] - :response-time ms";
+  const stream = {
+    write: (message: string) => {
+      const trimmedMessage = message.trim();
+      if (env.isDevelopment) {
+        logger.debug(`HTTP: ${trimmedMessage}`);
+      }
+    },
+  };
+
+  const morgan = require("morgan");
+  return morgan(format, { stream });
+};
+
+// Middleware para logging de erros
+export const errorLogger = (
+  err: Error,
+  req: any,
+  res: any,
+  next: any
+): void => {
+  logger.error(`${req.method} ${req.url} - Erro processando requisição`, err);
+  next(err);
+};
+
+// Re-exportamos funções individuais para compatibilidade
+export const {
+  info: logInfo,
+  error: logError,
+  warn: logWarn,
+  debug: logDebug,
+} = logger;

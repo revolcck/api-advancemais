@@ -1,6 +1,6 @@
 /**
- * Classe customizada para erros da aplicação
- * Permite tratar erros de negócio de forma padronizada, com status HTTP e mensagens claras
+ * Classe base para erros da aplicação
+ * Permite tratar erros de negócio de forma padronizada
  */
 export class AppError extends Error {
   /**
@@ -9,22 +9,53 @@ export class AppError extends Error {
   public readonly statusCode: number;
 
   /**
+   * Código de erro para identificação programática
+   */
+  public readonly errorCode: string;
+
+  /**
+   * Metadados adicionais do erro
+   */
+  public readonly meta?: Record<string, any>;
+
+  /**
    * Construtor da classe de erro
    * @param message Mensagem de erro descritiva
    * @param statusCode Código de status HTTP (default: 400 Bad Request)
+   * @param errorCode Código de erro para identificação programática
+   * @param meta Metadados adicionais do erro
    */
-  constructor(message: string, statusCode = 400) {
+  constructor(
+    message: string,
+    statusCode = 400,
+    errorCode = "BAD_REQUEST",
+    meta?: Record<string, any>
+  ) {
     super(message);
     this.statusCode = statusCode;
-    this.name = "AppError";
+    this.errorCode = errorCode;
+    this.meta = meta;
+    this.name = this.constructor.name;
 
-    // Necessário para manter a cadeia de protótipos adequada para instâncias da classe
+    // Necessário para manter a cadeia de protótipos adequada
     Object.setPrototypeOf(this, AppError.prototype);
 
-    // Captura a stack trace (compatível com Node.js)
+    // Captura a stack trace
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, this.constructor);
     }
+  }
+
+  /**
+   * Serializa o erro para resposta HTTP
+   */
+  public serialize(): Record<string, any> {
+    return {
+      status: "error",
+      code: this.errorCode,
+      message: this.message,
+      ...(this.meta ? { meta: this.meta } : {}),
+    };
   }
 }
 
@@ -32,9 +63,12 @@ export class AppError extends Error {
  * Erro específico para quando o usuário não está autenticado
  */
 export class UnauthorizedError extends AppError {
-  constructor(message = "Não autorizado. Autenticação necessária.") {
-    super(message, 401);
-    this.name = "UnauthorizedError";
+  constructor(
+    message = "Não autorizado. Autenticação necessária.",
+    errorCode = "UNAUTHORIZED",
+    meta?: Record<string, any>
+  ) {
+    super(message, 401, errorCode, meta);
   }
 }
 
@@ -43,10 +77,11 @@ export class UnauthorizedError extends AppError {
  */
 export class ForbiddenError extends AppError {
   constructor(
-    message = "Acesso proibido. Você não tem permissão para acessar este recurso."
+    message = "Acesso proibido. Você não tem permissão para acessar este recurso.",
+    errorCode = "FORBIDDEN",
+    meta?: Record<string, any>
   ) {
-    super(message, 403);
-    this.name = "ForbiddenError";
+    super(message, 403, errorCode, meta);
   }
 }
 
@@ -54,9 +89,12 @@ export class ForbiddenError extends AppError {
  * Erro específico para quando o recurso não é encontrado
  */
 export class NotFoundError extends AppError {
-  constructor(resource = "Recurso") {
-    super(`${resource} não encontrado.`, 404);
-    this.name = "NotFoundError";
+  constructor(
+    resource = "Recurso",
+    errorCode = "NOT_FOUND",
+    meta?: Record<string, any>
+  ) {
+    super(`${resource} não encontrado.`, 404, errorCode, meta);
   }
 }
 
@@ -64,9 +102,12 @@ export class NotFoundError extends AppError {
  * Erro específico para quando ocorre um conflito com o estado atual do recurso
  */
 export class ConflictError extends AppError {
-  constructor(message = "Conflito com o estado atual do recurso.") {
-    super(message, 409);
-    this.name = "ConflictError";
+  constructor(
+    message = "Conflito com o estado atual do recurso.",
+    errorCode = "CONFLICT",
+    meta?: Record<string, any>
+  ) {
+    super(message, 409, errorCode, meta);
   }
 }
 
@@ -81,11 +122,22 @@ export class ValidationError extends AppError {
 
   constructor(
     message = "Dados de entrada inválidos.",
-    errors: Record<string, string[]> = {}
+    errors: Record<string, string[]> = {},
+    errorCode = "VALIDATION_ERROR",
+    meta?: Record<string, any>
   ) {
-    super(message, 422);
-    this.name = "ValidationError";
+    super(message, 422, errorCode, meta);
     this.errors = errors;
+  }
+
+  /**
+   * Sobrescreve o método para incluir erros de validação
+   */
+  public serialize(): Record<string, any> {
+    return {
+      ...super.serialize(),
+      errors: this.errors,
+    };
   }
 }
 
@@ -93,8 +145,37 @@ export class ValidationError extends AppError {
  * Erro específico para quando ocorre uma falha no servidor
  */
 export class InternalServerError extends AppError {
-  constructor(message = "Erro interno do servidor.") {
-    super(message, 500);
-    this.name = "InternalServerError";
+  constructor(
+    message = "Erro interno do servidor.",
+    errorCode = "INTERNAL_SERVER_ERROR",
+    meta?: Record<string, any>
+  ) {
+    super(message, 500, errorCode, meta);
+  }
+}
+
+/**
+ * Erro específico para quando um serviço externo falha
+ */
+export class ServiceUnavailableError extends AppError {
+  constructor(
+    message = "Serviço temporariamente indisponível.",
+    errorCode = "SERVICE_UNAVAILABLE",
+    meta?: Record<string, any>
+  ) {
+    super(message, 503, errorCode, meta);
+  }
+}
+
+/**
+ * Erro específico para quando uma requisição é retornada muito rapidamente
+ */
+export class TooManyRequestsError extends AppError {
+  constructor(
+    message = "Muitas requisições. Por favor, tente novamente mais tarde.",
+    errorCode = "TOO_MANY_REQUESTS",
+    meta?: Record<string, any>
+  ) {
+    super(message, 429, errorCode, meta);
   }
 }

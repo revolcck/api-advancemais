@@ -1,16 +1,6 @@
-/**
- * Controlador de autenticação
- * Lida com as requisições HTTP relacionadas a autenticação de usuários
- */
-
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
-import {
-  LoginRequestDto,
-  RefreshTokenRequestDto,
-  RegisterRequestDto,
-  ChangePasswordRequestDto,
-} from "../dto/auth.dto";
+import { ApiResponse } from "@/shared/utils/api-response.utils";
 
 /**
  * Controlador que implementa os endpoints de autenticação
@@ -30,87 +20,89 @@ export class AuthController {
 
   /**
    * Realiza login do usuário
-   * @param req Objeto de requisição
-   * @param res Objeto de resposta
+   * @route POST /api/auth/login
    */
   public login = async (req: Request, res: Response): Promise<void> => {
-    const loginData: LoginRequestDto = req.body;
-    const result = await this.authService.login(loginData);
+    try {
+      const result = await this.authService.login(req.body);
 
-    res.status(200).json({
-      status: "success",
-      data: result,
-    });
+      ApiResponse.success(res, result, {
+        message: "Login realizado com sucesso",
+        statusCode: 200,
+      });
+    } catch (error) {
+      // Erro será tratado pelo middleware global de erros
+      throw error;
+    }
   };
 
   /**
    * Registra um novo usuário
-   * @param req Objeto de requisição
-   * @param res Objeto de resposta
+   * @route POST /api/auth/register
    */
   public register = async (req: Request, res: Response): Promise<void> => {
-    const registerData: RegisterRequestDto = req.body;
-    const result = await this.authService.register(registerData);
+    try {
+      const result = await this.authService.register(req.body);
 
-    res.status(201).json({
-      status: "success",
-      data: result,
-    });
+      ApiResponse.success(res, result, {
+        message: "Usuário registrado com sucesso",
+        statusCode: 201,
+      });
+    } catch (error) {
+      throw error;
+    }
   };
 
   /**
    * Atualiza o token de acesso usando o token de refresh
-   * @param req Objeto de requisição
-   * @param res Objeto de resposta
+   * @route POST /api/auth/refresh
    */
   public refreshToken = async (req: Request, res: Response): Promise<void> => {
-    const refreshData: RefreshTokenRequestDto = req.body;
-    const result = await this.authService.refreshToken(refreshData);
+    try {
+      const result = await this.authService.refreshToken(req.body);
 
-    res.status(200).json({
-      status: "success",
-      data: result,
-    });
+      ApiResponse.success(res, result, {
+        message: "Token atualizado com sucesso",
+      });
+    } catch (error) {
+      throw error;
+    }
   };
 
   /**
    * Realiza o logout do usuário
-   * @param req Objeto de requisição
-   * @param res Objeto de resposta
+   * @route POST /api/auth/logout
    */
   public logout = async (req: Request, res: Response): Promise<void> => {
-    // Usuário já foi validado pelo middleware authenticate
-    const userId = req.user!.id;
+    try {
+      // Usuário já foi validado pelo middleware authenticate
+      const userId = req.user!.id;
+      const { refreshToken } = req.body;
 
-    // Obtém o token de refresh da requisição
-    const refreshToken = req.body.refreshToken;
+      const result = await this.authService.logout(userId, refreshToken);
 
-    const result = await this.authService.logout(userId, refreshToken);
-
-    res.status(200).json({
-      status: "success",
-      data: result,
-    });
+      ApiResponse.success(res, result);
+    } catch (error) {
+      throw error;
+    }
   };
 
   /**
    * Altera a senha do usuário
-   * @param req Objeto de requisição
-   * @param res Objeto de resposta
+   * @route POST /api/auth/change-password
    */
   public changePassword = async (
     req: Request,
     res: Response
   ): Promise<void> => {
-    // Usuário já foi validado pelo middleware authenticate
-    const userId = req.user!.id;
+    try {
+      // Usuário já foi validado pelo middleware authenticate
+      const userId = req.user!.id;
+      const result = await this.authService.changePassword(userId, req.body);
 
-    const passwordData: ChangePasswordRequestDto = req.body;
-    const result = await this.authService.changePassword(userId, passwordData);
-
-    res.status(200).json({
-      status: "success",
-      data: result,
-    });
+      ApiResponse.success(res, result);
+    } catch (error) {
+      throw error;
+    }
   };
 }
