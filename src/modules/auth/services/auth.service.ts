@@ -1,9 +1,9 @@
 import { prisma } from "@/config/database";
 import { redisService } from "@/config/redis";
+import { env } from "@/config/environment";
 import { HashUtils } from "@/shared/utils/hash.utils";
 import { JwtUtils } from "@/shared/utils/jwt.utils";
 import {
-  AppError,
   UnauthorizedError,
   ConflictError,
   NotFoundError,
@@ -302,8 +302,14 @@ export class AuthService {
    * @param token Token a ser adicionado
    */
   private async blacklistToken(token: string): Promise<void> {
-    const key = `${AuthService.BLACKLIST_PREFIX}${token}`;
-    await redisService.set(key, "true", AuthService.BLACKLIST_TTL);
+    if (redisService.isConnected()) {
+      const key = `${AuthService.BLACKLIST_PREFIX}${token}`;
+      await redisService.set(key, "true", AuthService.BLACKLIST_TTL);
+    } else if (env.isDevelopment) {
+      console.warn(
+        "⚠️ Redis não está conectado. Ignorando blacklist em ambiente de desenvolvimento."
+      );
+    }
   }
 
   /**
@@ -312,7 +318,17 @@ export class AuthService {
    * @returns Se o token está na blacklist
    */
   private async isTokenBlacklisted(token: string): Promise<boolean> {
-    const key = `${AuthService.BLACKLIST_PREFIX}${token}`;
-    return await redisService.exists(key);
+    if (redisService.isConnected()) {
+      const key = `${AuthService.BLACKLIST_PREFIX}${token}`;
+      return await redisService.exists(key);
+    } else if (env.isDevelopment) {
+      console.warn(
+        "⚠️ Redis não está conectado. Ignorando verificação de blacklist em ambiente de desenvolvimento."
+      );
+      return false;
+    }
+
+    // Em produção, tratamos como erro se o Redis não estiver disponível
+    throw new Error("Serviço Redis não está disponível");
   }
 }

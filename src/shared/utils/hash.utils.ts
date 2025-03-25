@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import bcryptjs from "bcryptjs";
 
 /**
  * Classe para manipulação de hashes de senha
@@ -6,7 +6,7 @@ import bcrypt from "bcrypt";
  */
 export class HashUtils {
   /**
-   * Número de rounds para o bcrypt
+   * Número de rounds para o bcryptjs
    * Valores mais altos são mais seguros, mas mais lentos
    * 12 é um bom equilíbrio entre segurança e performance
    */
@@ -18,7 +18,7 @@ export class HashUtils {
    * @returns Senha hasheada
    */
   public static async hash(password: string): Promise<string> {
-    return bcrypt.hash(password, this.SALT_ROUNDS);
+    return bcryptjs.hash(password, this.SALT_ROUNDS);
   }
 
   /**
@@ -31,7 +31,7 @@ export class HashUtils {
     password: string,
     hash: string
   ): Promise<boolean> {
-    return bcrypt.compare(password, hash);
+    return bcryptjs.compare(password, hash);
   }
 
   /**

@@ -1,3 +1,8 @@
+/**
+ * Ponto de entrada da aplicação
+ * Inicializa o servidor e gerencia o ciclo de vida da aplicação
+ */
+
 import { createApp } from "@/config/app";
 import { env } from "@/config/environment";
 import { db } from "@/config/database";
@@ -17,7 +22,15 @@ async function initializeConnections(): Promise<void> {
 
     // Conecta ao Redis se estiver configurado
     if (env.redis.host) {
-      await redisService.connect();
+      try {
+        await redisService.connect();
+      } catch (error) {
+        // Erro já foi registrado no serviço Redis
+        // Em desenvolvimento, continuamos mesmo sem Redis
+        if (!env.isDevelopment) {
+          throw error;
+        }
+      }
     }
   } catch (error) {
     logError("Falha ao inicializar conexões:", error);
