@@ -5,6 +5,7 @@ import "express-async-errors";
 import { morganMiddleware, errorLogger } from "./logger";
 import { errorMiddleware } from "@/shared/middleware/error.middleware";
 import { rateLimiterMiddleware } from "@/shared/middleware/rate-limiter";
+import { accessLoggerMiddleware } from "@/shared/middleware/access-logger.middleware";
 import routes from "@/routes";
 
 /**
@@ -14,7 +15,10 @@ import routes from "@/routes";
 export function createApp(): Express {
   const app = express();
 
-  // Middlewares para logging
+  // Middleware para logging de acesso HTTP detalhado
+  app.use(accessLoggerMiddleware);
+
+  // Middlewares para logging básico com Morgan (desenvolvimento)
   app.use(morganMiddleware());
 
   // Middleware para segurança
@@ -40,7 +44,12 @@ export function createApp(): Express {
 
   // Healthcheck para verificar se a aplicação está funcionando
   app.get("/health", (req, res) => {
-    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+    res.status(200).json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memoryUsage: process.memoryUsage(),
+    });
   });
 
   // Configura todas as rotas da aplicação
