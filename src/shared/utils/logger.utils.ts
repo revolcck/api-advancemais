@@ -3,7 +3,7 @@ import path from "path";
 import { createWriteStream, WriteStream } from "fs";
 import { format as formatDate } from "date-fns";
 import { env } from "@/config/environment";
-import chalk from "chalk";
+import * as chalk from "chalk";
 import { inspect } from "util";
 
 /**
@@ -11,7 +11,7 @@ import { inspect } from "util";
  */
 interface LogLevelConfig {
   label: string;
-  color: typeof chalk.green; // Corrigido o tipo para evitar erro com chalk.Chalk
+  color: typeof chalk.green;
   console: boolean;
   file: boolean;
 }
@@ -256,8 +256,8 @@ export class Logger {
     const envColor = env.isDevelopment
       ? chalk.yellow
       : env.isProduction
-      ? chalk.green
-      : chalk.blue;
+        ? chalk.green
+        : chalk.blue;
 
     const dbStatus = connections.database
       ? chalk.green("✓ Conectado")
@@ -332,10 +332,9 @@ export class Logger {
       console.log(chalk.white("  → Arquitetura: ") + process.arch);
       console.log(chalk.white("  → Versões:"));
 
-      const dependencies = require(path.join(
-        process.cwd(),
-        "package.json"
-      )).dependencies;
+      const dependencies = require(
+        path.join(process.cwd(), "package.json")
+      ).dependencies;
       const keyDeps = ["express", "@prisma/client", "jose", "joi"];
 
       keyDeps.forEach((dep) => {

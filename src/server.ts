@@ -8,7 +8,7 @@ import { env } from "@/config/environment";
 import { db, prisma } from "@/config/database";
 import { redisService } from "@/config/redis";
 import { logger } from "@/shared/utils/logger.utils";
-import chalk from "chalk";
+import * as chalk from "chalk";
 import path from "path";
 import { format as formatDate } from "date-fns";
 
@@ -116,8 +116,8 @@ function showBanner(
   const envColor = env.isDevelopment
     ? chalk.yellow
     : env.isProduction
-    ? chalk.green
-    : chalk.blue;
+      ? chalk.green
+      : chalk.blue;
 
   const dbStatus = connections.database
     ? chalk.green("✓ Conectado")
@@ -311,48 +311,51 @@ process.on("unhandledRejection", (reason) => {
     // Configura relatório periódico de status em desenvolvimento
     if (env.isDevelopment) {
       // A cada 15 minutos, exibe um relatório de status
-      setInterval(() => {
-        const memUsage = process.memoryUsage();
-        const uptime = process.uptime();
+      setInterval(
+        () => {
+          const memUsage = process.memoryUsage();
+          const uptime = process.uptime();
 
-        const days = Math.floor(uptime / 86400);
-        const hours = Math.floor((uptime % 86400) / 3600);
-        const minutes = Math.floor((uptime % 3600) / 60);
+          const days = Math.floor(uptime / 86400);
+          const hours = Math.floor((uptime % 86400) / 3600);
+          const minutes = Math.floor((uptime % 3600) / 60);
 
-        const uptimeStr =
-          days > 0
-            ? `${days}d ${hours}h ${minutes}m`
-            : hours > 0
-            ? `${hours}h ${minutes}m`
-            : `${minutes}m`;
+          const uptimeStr =
+            days > 0
+              ? `${days}d ${hours}h ${minutes}m`
+              : hours > 0
+                ? `${hours}h ${minutes}m`
+                : `${minutes}m`;
 
-        console.log(chalk.cyan("\n📊 Relatório de Status do Servidor"));
-        console.log(chalk.white(`  → Uptime: ${uptimeStr}`));
-        console.log(
-          chalk.white(
-            `  → Memória: ${(memUsage.heapUsed / 1024 / 1024).toFixed(
-              2
-            )}MB / ${(memUsage.heapTotal / 1024 / 1024).toFixed(2)}MB`
-          )
-        );
+          console.log(chalk.cyan("\n📊 Relatório de Status do Servidor"));
+          console.log(chalk.white(`  → Uptime: ${uptimeStr}`));
+          console.log(
+            chalk.white(
+              `  → Memória: ${(memUsage.heapUsed / 1024 / 1024).toFixed(
+                2
+              )}MB / ${(memUsage.heapTotal / 1024 / 1024).toFixed(2)}MB`
+            )
+          );
 
-        // Verifica e relata conexões
-        console.log(
-          chalk.white(
-            `  → Banco de Dados: ${
-              db.prisma ? "✓ Conectado" : "✗ Desconectado"
-            }`
-          )
-        );
-        console.log(
-          chalk.white(
-            `  → Redis: ${
-              redisService.isConnected() ? "✓ Conectado" : "✗ Desconectado"
-            }`
-          )
-        );
-        console.log("");
-      }, 15 * 60 * 1000); // 15 minutos
+          // Verifica e relata conexões
+          console.log(
+            chalk.white(
+              `  → Banco de Dados: ${
+                db.prisma ? "✓ Conectado" : "✗ Desconectado"
+              }`
+            )
+          );
+          console.log(
+            chalk.white(
+              `  → Redis: ${
+                redisService.isConnected() ? "✓ Conectado" : "✗ Desconectado"
+              }`
+            )
+          );
+          console.log("");
+        },
+        15 * 60 * 1000
+      ); // 15 minutos
     }
   } catch (error) {
     logger.error("❌ Falha ao iniciar o servidor", error);

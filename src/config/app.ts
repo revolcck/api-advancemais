@@ -7,6 +7,7 @@ import { errorMiddleware } from "@/shared/middleware/error.middleware";
 import { rateLimiterMiddleware } from "@/shared/middleware/rate-limiter";
 import { accessLoggerMiddleware } from "@/shared/middleware/access-logger.middleware";
 import routes from "@/routes";
+import { env } from "@/config/environment";
 
 /**
  * Inicializa e configura a aplicação Express
@@ -27,9 +28,12 @@ export function createApp(): Express {
   // Middleware para CORS
   app.use(
     cors({
-      origin: "*", // Em produção, defina os domínios permitidos
+      origin: env.isProduction
+        ? process.env.ALLOWED_ORIGINS?.split(",") || ["https://seu-dominio.com"]
+        : "*",
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
       allowedHeaders: ["Content-Type", "Authorization"],
+      credentials: true,
     })
   );
 
