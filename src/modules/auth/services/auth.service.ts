@@ -1,8 +1,3 @@
-/**
- * Serviço de autenticação
- * Implementa a lógica de negócio para operações de autenticação
- */
-
 import { prisma } from "@/config/database";
 import { redisService } from "@/config/redis";
 import { HashUtils } from "@/shared/utils/hash.utils";

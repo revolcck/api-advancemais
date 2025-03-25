@@ -1,8 +1,3 @@
-/**
- * Rotas de autenticação
- * Define os endpoints relacionados a autenticação de usuários
- */
-
 import { Router } from "express";
 import { AuthController } from "../controllers/auth.controller";
 import {
@@ -18,7 +13,7 @@ import {
 import { authenticate } from "@/shared/middleware/auth.middleware";
 
 // Inicializa o router
-const router = Router();
+const router: Router = Router();
 
 // Inicializa o controlador
 const authController = new AuthController();

@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { AppError, ValidationError } from "./AppError";
 import { logError } from "@/config/logger";
 import { env } from "@/config/environment";
-import { ZodError } from "zod";
+import { ValidationError as JoiValidationError } from "joi";
 
 /**
  * Interface para resposta de erro padronizada
@@ -50,21 +50,21 @@ const handlePrismaError = (
 };
 
 /**
- * Processa erros de validação do Zod
- * @param error Erro do Zod
+ * Processa erros de validação do Joi
+ * @param error Erro do Joi
  * @returns ValidationError formatado
  */
-const handleZodError = (error: ZodError): ValidationError => {
+const handleJoiError = (error: JoiValidationError): ValidationError => {
   const formattedErrors: Record<string, string[]> = {};
 
-  error.errors.forEach((err) => {
-    const path = err.path.join(".");
+  error.details.forEach((detail) => {
+    const path = detail.path.join(".");
 
     if (!formattedErrors[path]) {
       formattedErrors[path] = [];
     }
 
-    formattedErrors[path].push(err.message);
+    formattedErrors[path].push(detail.message);
   });
 
   return new ValidationError("Dados de entrada inválidos.", formattedErrors);
@@ -93,9 +93,9 @@ export class ErrorHandler {
     if (error instanceof AppError) {
       // Já é um AppError, mantém como está
       processedError = error;
-    } else if (error instanceof ZodError) {
-      // Erro de validação do Zod
-      processedError = handleZodError(error);
+    } else if (error instanceof JoiValidationError) {
+      // Erro de validação do Joi
+      processedError = handleJoiError(error);
     } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
       // Erro conhecido do Prisma
       processedError = handlePrismaError(error);

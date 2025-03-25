@@ -1,8 +1,3 @@
-/**
- * Middleware para validação de dados das requisições
- * Utiliza Joi para validar os dados enviados pelo cliente
- */
-
 import { Request, Response, NextFunction } from "express";
 import Joi from "joi";
 import { ValidationError } from "@/shared/errors/AppError";

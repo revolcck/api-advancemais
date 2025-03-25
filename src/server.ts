@@ -1,8 +1,3 @@
-/**
- * Ponto de entrada da aplicação
- * Inicializa o servidor e gerencia o ciclo de vida da aplicação
- */
-
 import { createApp } from "@/config/app";
 import { env } from "@/config/environment";
 import { db } from "@/config/database";

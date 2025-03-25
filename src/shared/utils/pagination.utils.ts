@@ -1,9 +1,4 @@
 /**
- * Utilitários para paginação
- * Implementa funções e tipos para facilitar a paginação de resultados
- */
-
-/**
  * Interface para parâmetros de paginação
  */
 export interface PaginationParams {

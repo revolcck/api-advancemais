@@ -1,8 +1,3 @@
-/**
- * Validadores para as operações de autenticação
- * Define os schemas de validação usando Joi
- */
-
 import Joi from "joi";
 
 /**

@@ -5,13 +5,9 @@ import { env } from "./environment";
  * Opções de log baseadas no ambiente
  * Em desenvolvimento, habilitamos logs mais detalhados para facilitar o debug
  */
-const logOptions = env.isDevelopment
-  ? {
-      log: ["query", "info", "warn", "error"],
-    }
-  : {
-      log: ["warn", "error"],
-    };
+const logLevels = env.isDevelopment
+  ? (["query", "info", "warn", "error"] as const)
+  : (["warn", "error"] as const);
 
 /**
  * Classe Singleton para gerenciar a conexão com o banco de dados via Prisma
@@ -24,7 +20,9 @@ class Database {
    * Construtor privado que inicializa a conexão com o banco de dados
    */
   private constructor() {
-    this._prisma = new PrismaClient(logOptions);
+    this._prisma = new PrismaClient({
+      log: [...logLevels],
+    });
   }
 
   /**
