@@ -5,9 +5,6 @@ import { redisService } from "@/config/redis";
 import { logger } from "@/shared/utils/logger.utils";
 import { ServerBannerUtils } from "@/shared/utils/server-banner.utils";
 
-/**
- * Classe responsável pela inicialização e gerenciamento do servidor
- */
 class Server {
   /**
    * Instância da aplicação Express
