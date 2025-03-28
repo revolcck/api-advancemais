@@ -63,6 +63,14 @@ interface Environment {
     csrfProtection: boolean;
     sessionSecret: string | null;
   };
+
+  // Brevo API Configuration
+  brevo: {
+    apiKey: string;
+    senderEmail: string;
+    senderName: string;
+    smsSender: string;
+  };
 }
 
 /**
@@ -120,6 +128,25 @@ const envSchema = joi.object({
   BCRYPT_SALT_ROUNDS: joi.number().min(10).max(20).default(12),
   CSRF_PROTECTION: joi.boolean().default(true),
   SESSION_SECRET: joi.string().allow("").allow(null).default(null),
+
+  // Brevo API
+  BREVO_API_KEY: joi.string().required().messages({
+    "string.empty": "A chave de API da Brevo é obrigatória",
+    "any.required": "A chave de API da Brevo é obrigatória",
+  }),
+  BREVO_SENDER_EMAIL: joi.string().email().required().messages({
+    "string.email": "O e-mail do remetente da Brevo deve ser um e-mail válido",
+    "string.empty": "O e-mail do remetente da Brevo é obrigatório",
+    "any.required": "O e-mail do remetente da Brevo é obrigatório",
+  }),
+  BREVO_SENDER_NAME: joi.string().required().messages({
+    "string.empty": "O nome do remetente da Brevo é obrigatório",
+    "any.required": "O nome do remetente da Brevo é obrigatório",
+  }),
+  BREVO_SMS_SENDER: joi.string().required().messages({
+    "string.empty": "O remetente de SMS da Brevo é obrigatório",
+    "any.required": "O remetente de SMS da Brevo é obrigatório",
+  }),
 });
 
 /**
@@ -207,6 +234,14 @@ export const env: Environment = {
     bcryptSaltRounds: Number(_env.BCRYPT_SALT_ROUNDS),
     csrfProtection: _env.CSRF_PROTECTION,
     sessionSecret: _env.SESSION_SECRET,
+  },
+
+  // Brevo
+  brevo: {
+    apiKey: _env.BREVO_API_KEY,
+    senderEmail: _env.BREVO_SENDER_EMAIL,
+    senderName: _env.BREVO_SENDER_NAME,
+    smsSender: _env.BREVO_SMS_SENDER,
   },
 };
 

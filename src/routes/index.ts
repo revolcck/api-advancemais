@@ -1,6 +1,7 @@
 import { Router } from "express";
 import authRoutes from "@/modules/auth/routes/auth.routes";
 import healthRoutes from "@/shared/routes/health.routes";
+import communicationsRoutes from "@/modules/communications/routes";
 
 const router: Router = Router();
 
@@ -19,5 +20,8 @@ router.use("/heltz", (req, res, next) => {
 
 // Rotas de autenticação
 router.use("/auth", authRoutes);
+
+// Rotas de comunicações (e-mail, SMS, WhatsApp)
+router.use("/communications", communicationsRoutes);
 
 export default router;
