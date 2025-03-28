@@ -2,12 +2,9 @@ import { Router } from "express";
 import authRoutes from "@/modules/auth/routes/auth.routes";
 import healthRoutes from "@/shared/routes/health.routes";
 import communicationsRoutes from "@/modules/communications/routes";
+import mercadoPagoRoutes from "@/modules/mercadopago/routes"; // Importando as novas rotas
 
 const router: Router = Router();
-
-/**
- * Configura as rotas de cada módulo com seus prefixos correspondentes
- */
 
 // Rotas de monitoramento e saúde
 router.use("/health", healthRoutes);
@@ -23,5 +20,8 @@ router.use("/auth", authRoutes);
 
 // Rotas de comunicações (e-mail, SMS, WhatsApp)
 router.use("/communications", communicationsRoutes);
+
+// Rotas do Mercado Pago (pagamentos e assinaturas)
+router.use("/mercadopago", mercadoPagoRoutes);
 
 export default router;

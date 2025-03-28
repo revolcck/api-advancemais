@@ -71,6 +71,14 @@ interface Environment {
     senderName: string;
     smsSender: string;
   };
+
+  // Mercado Pago
+  mercadoPago: {
+    publicKey: string;
+    accessToken: string;
+    enabled: boolean;
+    timeout: number; // em ms (milissegundos)
+  };
 }
 
 /**
@@ -147,6 +155,24 @@ const envSchema = joi.object({
     "string.empty": "O remetente de SMS da Brevo é obrigatório",
     "any.required": "O remetente de SMS da Brevo é obrigatório",
   }),
+
+  // Mercado Pago
+  MERCADOPAGO_PUBLIC_KEY: joi
+    .string()
+    .allow("")
+    .description("Chave pública do Mercado Pago"),
+  MERCADOPAGO_ACCESS_TOKEN: joi
+    .string()
+    .allow("")
+    .description("Token de acesso do Mercado Pago"),
+  MERCADOPAGO_ENABLED: joi
+    .boolean()
+    .default(true)
+    .description("Habilitar/desabilitar integração com Mercado Pago"),
+  MERCADOPAGO_TIMEOUT: joi
+    .number()
+    .default(10000)
+    .description("Timeout para requisições ao Mercado Pago em ms"),
 });
 
 /**
@@ -243,6 +269,14 @@ export const env: Environment = {
     senderName: _env.BREVO_SENDER_NAME,
     smsSender: _env.BREVO_SMS_SENDER,
   },
+
+  // Mercado Pago
+  mercadoPago: {
+    publicKey: _env.MERCADOPAGO_PUBLIC_KEY || "",
+    accessToken: _env.MERCADOPAGO_ACCESS_TOKEN || "",
+    enabled: Boolean(_env.MERCADOPAGO_ENABLED === "true"),
+    timeout: Number(_env.MERCADOPAGO_TIMEOUT || 10000), // 10 segundos por padrão
+  },
 };
 
 // Remova o log usando o logger para evitar dependência circular
@@ -262,5 +296,6 @@ if (env.isDevelopment) {
       max: env.rateLimit.max,
     },
     logLevel: env.log.level,
+    mercadoPagoEnabled: env.mercadoPago.enabled,
   });
 }
