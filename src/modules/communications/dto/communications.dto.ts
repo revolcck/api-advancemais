@@ -1,38 +1,38 @@
 /**
- * Interface para opções de envio de e-mail
+ * Interface para opções de envio de email
  */
 export interface EmailOptions {
-  /** Assunto do e-mail */
+  /** Assunto do email */
   subject: string;
 
-  /** Conteúdo HTML do e-mail */
+  /** Conteúdo HTML do email */
   htmlContent?: string;
 
-  /** Conteúdo em texto plano do e-mail */
+  /** Conteúdo em texto plano do email */
   textContent?: string;
 
-  /** E-mail ou lista de e-mails de destinatários */
+  /** Email ou lista de emails de destinatários */
   to: string | Array<{ email: string; name?: string }>;
 
   /** Nome do destinatário (quando to for string) */
   toName?: string;
 
-  /** E-mail do remetente (opcional, usa o padrão se não informado) */
+  /** Email do remetente (opcional, usa o padrão se não informado) */
   senderEmail?: string;
 
   /** Nome do remetente (opcional, usa o padrão se não informado) */
   senderName?: string;
 
-  /** E-mail para resposta */
+  /** Email para resposta */
   replyTo?: string;
 
-  /** Nome do e-mail para resposta */
+  /** Nome do email para resposta */
   replyToName?: string;
 
-  /** E-mail ou lista de e-mails em cópia */
+  /** Email ou lista de emails em cópia */
   cc?: string | Array<{ email: string; name?: string }>;
 
-  /** E-mail ou lista de e-mails em cópia oculta */
+  /** Email ou lista de emails em cópia oculta */
   bcc?: string | Array<{ email: string; name?: string }>;
 
   /** Parâmetros para substituição em templates */
@@ -47,13 +47,16 @@ export interface EmailOptions {
 
   /** Headers personalizados */
   headers?: Record<string, string>;
+
+  /** ID do usuário que está enviando o email (para auditoria) */
+  userId?: string;
 }
 
 /**
- * Interface para resposta de envio de e-mail
+ * Interface para resposta de envio de email
  */
 export interface EmailResponse {
-  /** Indica se o e-mail foi enviado com sucesso */
+  /** Indica se o email foi enviado com sucesso */
   success: boolean;
 
   /** ID da mensagem (quando enviada com sucesso) */
@@ -87,6 +90,9 @@ export interface SmsOptions {
 
   /** URL para redirecionamento quando aplicável */
   webUrl?: string;
+
+  /** ID do usuário que está enviando o SMS (para auditoria) */
+  userId?: string;
 }
 
 /**
@@ -127,6 +133,9 @@ export interface WhatsAppOptions {
 
   /** Parâmetros para substituição no template */
   params?: Record<string, string>;
+
+  /** ID do usuário que está enviando a mensagem (para auditoria) */
+  userId?: string;
 }
 
 /**
@@ -147,6 +156,9 @@ export interface WhatsAppResponse {
 
   /** Código de erro (quando houver falha) */
   errorCode?: string;
+
+  /** Status HTTP (opcional) */
+  status?: number;
 }
 
 /**
@@ -166,4 +178,30 @@ export interface ConnectivityTestResponse {
 
   /** Mensagem de erro (quando houver falha) */
   error?: string;
+
+  /** Código de erro (quando houver falha) */
+  errorCode?: string;
+}
+
+/**
+ * Interface para resposta de templates WhatsApp
+ */
+export interface WhatsAppTemplatesResponse {
+  /** Indica se a consulta foi bem sucedida */
+  success: boolean;
+
+  /** Templates encontrados */
+  templates?: Array<any>;
+
+  /** Número total de templates */
+  count?: number;
+
+  /** Mensagem de erro (quando houver falha) */
+  error?: string;
+
+  /** Código de erro (quando houver falha) */
+  errorCode?: string;
+
+  /** Status HTTP (opcional) */
+  status?: number;
 }

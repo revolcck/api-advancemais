@@ -1,9 +1,6 @@
 import { Router } from "express";
 import { CommunicationsController } from "./controllers/communications.controller";
-import {
-  validate,
-  ValidateSource,
-} from "@/shared/middleware/validate.middleware";
+import { validate } from "@/shared/middleware/validate.middleware";
 import {
   sendEmailSchema,
   sendTemplateEmailSchema,
@@ -14,10 +11,14 @@ import {
 } from "./validators/communications.validators";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 
-// Inicializa o router
+/**
+ * Inicializa o router para as rotas de comunicações
+ */
 const router: Router = Router();
 
-// Inicializa o controlador
+/**
+ * Inicializa o controlador de comunicações
+ */
 const communicationsController = new CommunicationsController();
 
 /**
@@ -34,7 +35,7 @@ router.get(
 
 /**
  * @route POST /api/communications/email
- * @desc Envia um e-mail
+ * @desc Envia um email
  * @access Privado
  */
 router.post(
@@ -46,7 +47,7 @@ router.post(
 
 /**
  * @route POST /api/communications/email/template
- * @desc Envia um e-mail usando um template
+ * @desc Envia um email usando um template
  * @access Privado
  */
 router.post(
@@ -116,4 +117,7 @@ router.get(
   communicationsController.getWhatsAppTemplates
 );
 
+/**
+ * Exporta o router de comunicações
+ */
 export default router;

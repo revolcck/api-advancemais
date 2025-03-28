@@ -10,9 +10,10 @@ import { emailService } from "../services/email.service";
 import { smsService } from "../services/sms.service";
 import { whatsAppService } from "../services/whatsapp.service";
 import { brevoService } from "../services/brevo.service";
+import { ServiceUnavailableError } from "@/shared/errors/AppError";
 
 /**
- * Controlador para operações de comunicação (e-mail, SMS, WhatsApp)
+ * Controlador para operações de comunicação (email, SMS, WhatsApp)
  */
 export class CommunicationsController {
   /**
@@ -24,7 +25,19 @@ export class CommunicationsController {
     res: Response
   ): Promise<void> => {
     try {
+      if (!brevoService.isAvailable()) {
+        throw new ServiceUnavailableError(
+          "Serviço de comunicações não está configurado",
+          "BREVO_SERVICE_UNAVAILABLE"
+        );
+      }
+
       const accountInfo = await brevoService.getAccountInfo();
+
+      logger.info("Teste de conectividade com a Brevo bem-sucedido", {
+        email: accountInfo.email,
+        company: accountInfo.companyName,
+      });
 
       ApiResponse.success(
         res,
@@ -45,14 +58,18 @@ export class CommunicationsController {
     } catch (error) {
       logger.error("Falha no teste de conectividade com a Brevo", error);
 
-      // Extrair a mensagem de erro com segurança de tipo
       const errorMessage =
         error instanceof Error
           ? error.message
           : "Erro desconhecido na conexão com a Brevo";
 
+      const errorCode =
+        error instanceof ServiceUnavailableError
+          ? error.errorCode
+          : "CONNECTIVITY_FAILED";
+
       ApiResponse.error(res, "Falha na conectividade com a API da Brevo", {
-        code: "CONNECTIVITY_FAILED",
+        code: errorCode,
         statusCode: 503,
         meta: {
           error: errorMessage,
@@ -62,27 +79,51 @@ export class CommunicationsController {
   };
 
   /**
-   * Envia um e-mail
+   * Envia um email
    * @route POST /api/communications/email
    */
   public sendEmail = async (req: Request, res: Response): Promise<void> => {
     try {
-      const emailOptions: EmailOptions = req.body;
+      // Obtém os dados da requisição e adiciona o ID do usuário para auditoria
+      const emailOptions: EmailOptions = {
+        ...req.body,
+        userId: req.user?.id,
+      };
 
       const result = await emailService.sendEmail(emailOptions);
 
+      if (!result.success) {
+        throw new ServiceUnavailableError(
+          result.error || "Falha no envio de email",
+          result.errorCode || "EMAIL_SEND_FAILED"
+        );
+      }
+
       ApiResponse.success(res, result, {
-        message: "E-mail enviado com sucesso",
+        message: "Email enviado com sucesso",
         statusCode: 200,
       });
     } catch (error) {
-      // O serviço já loga os erros, então apenas passamos adiante
-      throw error;
+      if (error instanceof ServiceUnavailableError) {
+        ApiResponse.error(res, error.message, {
+          code: error.errorCode,
+          statusCode: error.statusCode,
+          meta: error.meta,
+        });
+      } else {
+        const message =
+          error instanceof Error ? error.message : "Erro ao enviar email";
+
+        ApiResponse.error(res, message, {
+          code: "EMAIL_SEND_FAILED",
+          statusCode: 503,
+        });
+      }
     }
   };
 
   /**
-   * Envia um e-mail usando um template
+   * Envia um email usando um template
    * @route POST /api/communications/email/template
    */
   public sendTemplateEmail = async (
@@ -90,7 +131,8 @@ export class CommunicationsController {
     res: Response
   ): Promise<void> => {
     try {
-      const { templateId, to, params, options } = req.body;
+      const { templateId, to, params } = req.body;
+      const options = { ...req.body.options, userId: req.user?.id };
 
       const result = await emailService.sendTemplateEmail(
         templateId,
@@ -99,13 +141,35 @@ export class CommunicationsController {
         options
       );
 
+      if (!result.success) {
+        throw new ServiceUnavailableError(
+          result.error || "Falha no envio de email com template",
+          result.errorCode || "EMAIL_TEMPLATE_SEND_FAILED"
+        );
+      }
+
       ApiResponse.success(res, result, {
-        message: "E-mail com template enviado com sucesso",
+        message: "Email com template enviado com sucesso",
         statusCode: 200,
       });
     } catch (error) {
-      // O serviço já loga os erros, então apenas passamos adiante
-      throw error;
+      if (error instanceof ServiceUnavailableError) {
+        ApiResponse.error(res, error.message, {
+          code: error.errorCode,
+          statusCode: error.statusCode,
+          meta: error.meta,
+        });
+      } else {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Erro ao enviar email com template";
+
+        ApiResponse.error(res, message, {
+          code: "EMAIL_TEMPLATE_SEND_FAILED",
+          statusCode: 503,
+        });
+      }
     }
   };
 
@@ -115,9 +179,20 @@ export class CommunicationsController {
    */
   public sendSms = async (req: Request, res: Response): Promise<void> => {
     try {
-      const smsOptions: SmsOptions = req.body;
+      // Obtém os dados da requisição e adiciona o ID do usuário para auditoria
+      const smsOptions: SmsOptions = {
+        ...req.body,
+        userId: req.user?.id,
+      };
 
       const result = await smsService.sendSms(smsOptions);
+
+      if (!result.success) {
+        throw new ServiceUnavailableError(
+          result.error || "Falha no envio de SMS",
+          result.errorCode || "SMS_SEND_FAILED"
+        );
+      }
 
       ApiResponse.success(res, result, {
         message: "SMS enviado com sucesso",
@@ -127,8 +202,21 @@ export class CommunicationsController {
         },
       });
     } catch (error) {
-      // O serviço já loga os erros, então apenas passamos adiante
-      throw error;
+      if (error instanceof ServiceUnavailableError) {
+        ApiResponse.error(res, error.message, {
+          code: error.errorCode,
+          statusCode: error.statusCode,
+          meta: error.meta,
+        });
+      } else {
+        const message =
+          error instanceof Error ? error.message : "Erro ao enviar SMS";
+
+        ApiResponse.error(res, message, {
+          code: "SMS_SEND_FAILED",
+          statusCode: 503,
+        });
+      }
     }
   };
 
@@ -141,7 +229,8 @@ export class CommunicationsController {
     res: Response
   ): Promise<void> => {
     try {
-      const { phoneNumber, templateContent, params, options } = req.body;
+      const { phoneNumber, templateContent, params } = req.body;
+      const options = { ...req.body.options, userId: req.user?.id };
 
       const result = await smsService.sendTemplateSms(
         phoneNumber,
@@ -149,6 +238,13 @@ export class CommunicationsController {
         params,
         options
       );
+
+      if (!result.success) {
+        throw new ServiceUnavailableError(
+          result.error || "Falha no envio de SMS com template",
+          result.errorCode || "SMS_TEMPLATE_SEND_FAILED"
+        );
+      }
 
       ApiResponse.success(res, result, {
         message: "SMS com template enviado com sucesso",
@@ -158,8 +254,23 @@ export class CommunicationsController {
         },
       });
     } catch (error) {
-      // O serviço já loga os erros, então apenas passamos adiante
-      throw error;
+      if (error instanceof ServiceUnavailableError) {
+        ApiResponse.error(res, error.message, {
+          code: error.errorCode,
+          statusCode: error.statusCode,
+          meta: error.meta,
+        });
+      } else {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Erro ao enviar SMS com template";
+
+        ApiResponse.error(res, message, {
+          code: "SMS_TEMPLATE_SEND_FAILED",
+          statusCode: 503,
+        });
+      }
     }
   };
 
@@ -169,17 +280,43 @@ export class CommunicationsController {
    */
   public sendWhatsApp = async (req: Request, res: Response): Promise<void> => {
     try {
-      const whatsappOptions: WhatsAppOptions = req.body;
+      // Obtém os dados da requisição e adiciona o ID do usuário para auditoria
+      const whatsappOptions: WhatsAppOptions = {
+        ...req.body,
+        userId: req.user?.id,
+      };
 
       const result = await whatsAppService.sendWhatsAppMessage(whatsappOptions);
+
+      if (!result.success) {
+        throw new ServiceUnavailableError(
+          result.error || "Falha no envio de mensagem WhatsApp",
+          result.errorCode || "WHATSAPP_SEND_FAILED"
+        );
+      }
 
       ApiResponse.success(res, result, {
         message: "Mensagem WhatsApp enviada com sucesso",
         statusCode: 200,
       });
     } catch (error) {
-      // O serviço já loga os erros, então apenas passamos adiante
-      throw error;
+      if (error instanceof ServiceUnavailableError) {
+        ApiResponse.error(res, error.message, {
+          code: error.errorCode,
+          statusCode: error.statusCode,
+          meta: error.meta,
+        });
+      } else {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Erro ao enviar mensagem WhatsApp";
+
+        ApiResponse.error(res, message, {
+          code: "WHATSAPP_SEND_FAILED",
+          statusCode: 503,
+        });
+      }
     }
   };
 
@@ -192,7 +329,8 @@ export class CommunicationsController {
     res: Response
   ): Promise<void> => {
     try {
-      const { phoneNumber, templateId, params, options } = req.body;
+      const { phoneNumber, templateId, params } = req.body;
+      const options = { ...req.body.options, userId: req.user?.id };
 
       const result = await whatsAppService.sendWhatsAppTemplate(
         phoneNumber,
@@ -201,13 +339,35 @@ export class CommunicationsController {
         options
       );
 
+      if (!result.success) {
+        throw new ServiceUnavailableError(
+          result.error || "Falha no envio de mensagem WhatsApp com template",
+          result.errorCode || "WHATSAPP_TEMPLATE_SEND_FAILED"
+        );
+      }
+
       ApiResponse.success(res, result, {
         message: "Mensagem WhatsApp com template enviada com sucesso",
         statusCode: 200,
       });
     } catch (error) {
-      // O serviço já loga os erros, então apenas passamos adiante
-      throw error;
+      if (error instanceof ServiceUnavailableError) {
+        ApiResponse.error(res, error.message, {
+          code: error.errorCode,
+          statusCode: error.statusCode,
+          meta: error.meta,
+        });
+      } else {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Erro ao enviar mensagem WhatsApp com template";
+
+        ApiResponse.error(res, message, {
+          code: "WHATSAPP_TEMPLATE_SEND_FAILED",
+          statusCode: 503,
+        });
+      }
     }
   };
 
@@ -220,15 +380,37 @@ export class CommunicationsController {
     res: Response
   ): Promise<void> => {
     try {
-      const templates = await whatsAppService.getWhatsAppTemplates();
+      const result = await whatsAppService.getWhatsAppTemplates();
 
-      ApiResponse.success(res, templates, {
+      if (!result.success) {
+        throw new ServiceUnavailableError(
+          result.error || "Falha ao obter templates WhatsApp",
+          result.errorCode || "WHATSAPP_TEMPLATES_FAILED"
+        );
+      }
+
+      ApiResponse.success(res, result, {
         message: "Templates WhatsApp obtidos com sucesso",
         statusCode: 200,
       });
     } catch (error) {
-      // O serviço já loga os erros, então apenas passamos adiante
-      throw error;
+      if (error instanceof ServiceUnavailableError) {
+        ApiResponse.error(res, error.message, {
+          code: error.errorCode,
+          statusCode: error.statusCode,
+          meta: error.meta,
+        });
+      } else {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Erro ao obter templates WhatsApp";
+
+        ApiResponse.error(res, message, {
+          code: "WHATSAPP_TEMPLATES_FAILED",
+          statusCode: 503,
+        });
+      }
     }
   };
 }

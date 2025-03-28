@@ -1,7 +1,7 @@
 import Joi from "joi";
 
 /**
- * Esquema de validação para envio de e-mail
+ * Esquema de validação para envio de email
  */
 export const sendEmailSchema = Joi.object({
   subject: Joi.string().required().messages({
@@ -39,7 +39,7 @@ export const sendEmailSchema = Joi.object({
 
   toName: Joi.string().allow(null, ""),
 
-  senderEmail: Joi.string().email().allow(null).messages({
+  senderEmail: Joi.string().email().allow(null, "").messages({
     "string.email": "E-mail do remetente inválido",
   }),
 
@@ -111,7 +111,7 @@ export const sendEmailSchema = Joi.object({
   });
 
 /**
- * Esquema de validação para envio de e-mail com template
+ * Esquema de validação para envio de email com template
  */
 export const sendTemplateEmailSchema = Joi.object({
   templateId: Joi.number().integer().positive().required().messages({
@@ -195,7 +195,7 @@ export const sendTemplateEmailSchema = Joi.object({
  */
 export const sendSmsSchema = Joi.object({
   phoneNumber: Joi.string()
-    .pattern(/^\+[0-9]{10,15}$/)
+    .pattern(/^\+[0-9]{8,15}$/)
     .required()
     .messages({
       "string.pattern.base":
@@ -228,7 +228,7 @@ export const sendSmsSchema = Joi.object({
  */
 export const sendTemplateSmsSchema = Joi.object({
   phoneNumber: Joi.string()
-    .pattern(/^\+[0-9]{10,15}$/)
+    .pattern(/^\+[0-9]{8,15}$/)
     .required()
     .messages({
       "string.pattern.base":
@@ -259,7 +259,7 @@ export const sendTemplateSmsSchema = Joi.object({
  */
 export const sendWhatsAppSchema = Joi.object({
   phoneNumber: Joi.string()
-    .pattern(/^\+[0-9]{10,15}$/)
+    .pattern(/^\+[0-9]{8,15}$/)
     .required()
     .messages({
       "string.pattern.base":
@@ -268,7 +268,7 @@ export const sendWhatsAppSchema = Joi.object({
       "any.required": "Número de telefone é obrigatório",
     }),
 
-  content: Joi.string().allow(null, ""),
+  content: Joi.string().allow("", null),
 
   sender: Joi.string().allow(null, ""),
 
@@ -287,7 +287,7 @@ export const sendWhatsAppSchema = Joi.object({
  */
 export const sendWhatsAppTemplateSchema = Joi.object({
   phoneNumber: Joi.string()
-    .pattern(/^\+[0-9]{10,15}$/)
+    .pattern(/^\+[0-9]{8,15}$/)
     .required()
     .messages({
       "string.pattern.base":
