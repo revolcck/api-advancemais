@@ -1,17 +1,21 @@
-// src/modules/mercadopago/config/mercadopago.config.ts
+/**
+ * Configuração principal do MercadoPago
+ * @module modules/mercadopago/config/mercadopago.config
+ */
 
-import { env } from "@/config/environment";
+import { MercadoPagoConfig as SDKMercadoPagoConfig } from "mercadopago";
+import { credentialsManager, MercadoPagoIntegrationType } from "./credentials";
 import { logger } from "@/shared/utils/logger.utils";
-import { MercadoPagoConfig } from "mercadopago";
+import { env } from "@/config/environment";
 
 /**
- * Classe de configuração para o Mercado Pago
- * Responsável por gerenciar as configurações e validar a disponibilidade da integração
+ * Configuração do SDK do MercadoPago
  */
-export class MercadoPagoConfiguration {
-  private static instance: MercadoPagoConfiguration;
-  private initialized: boolean = false;
-  private _config: MercadoPagoConfig | null = null;
+export class MercadoPagoConfig {
+  private static instance: MercadoPagoConfig;
+  private configs: Map<MercadoPagoIntegrationType, SDKMercadoPagoConfig> =
+    new Map();
+  private isInitialized: boolean = false;
 
   /**
    * Construtor privado para implementar o padrão Singleton
@@ -21,81 +25,107 @@ export class MercadoPagoConfiguration {
   }
 
   /**
-   * Obtém a instância única da configuração
+   * Obtém a instância única da configuração do MercadoPago
    */
-  public static getInstance(): MercadoPagoConfiguration {
-    if (!MercadoPagoConfiguration.instance) {
-      MercadoPagoConfiguration.instance = new MercadoPagoConfiguration();
+  public static getInstance(): MercadoPagoConfig {
+    if (!MercadoPagoConfig.instance) {
+      MercadoPagoConfig.instance = new MercadoPagoConfig();
     }
-    return MercadoPagoConfiguration.instance;
+    return MercadoPagoConfig.instance;
   }
 
   /**
-   * Inicializa a configuração do Mercado Pago
+   * Inicializa as configurações do SDK para os diferentes tipos de integração
    */
   private initialize(): void {
     try {
-      // Verifica se as credenciais estão configuradas
-      if (!env.mercadoPago.accessToken) {
-        logger.warn("Credenciais do Mercado Pago não configuradas");
-        this.initialized = false;
-        return;
+      // Inicializa configuração para assinaturas
+      if (
+        credentialsManager.hasCredentials(
+          MercadoPagoIntegrationType.SUBSCRIPTION
+        )
+      ) {
+        const subscriptionCredentials = credentialsManager.getCredentials(
+          MercadoPagoIntegrationType.SUBSCRIPTION
+        );
+
+        this.configs.set(
+          MercadoPagoIntegrationType.SUBSCRIPTION,
+          new SDKMercadoPagoConfig({
+            accessToken: subscriptionCredentials.accessToken,
+            corporationId: subscriptionCredentials.applicationId,
+            integratorId: env.mercadoPago.integratorId,
+            trackingId: `${env.appName}-subscription`,
+            platformId: env.mercadoPago.platformId,
+            corporationName: "AdvanceMais Assinatura",
+            integrator: env.mercadoPago.integrator,
+          })
+        );
       }
 
-      // Cria a configuração do Mercado Pago
-      this._config = new MercadoPagoConfig({
-        accessToken: env.mercadoPago.accessToken,
-        options: {
-          timeout: env.mercadoPago.timeout,
-        },
-      });
+      // Inicializa configuração para checkout
+      if (
+        credentialsManager.hasCredentials(MercadoPagoIntegrationType.CHECKOUT)
+      ) {
+        const checkoutCredentials = credentialsManager.getCredentials(
+          MercadoPagoIntegrationType.CHECKOUT
+        );
 
-      this.initialized = true;
-      logger.info("Configuração do Mercado Pago inicializada com sucesso");
+        this.configs.set(
+          MercadoPagoIntegrationType.CHECKOUT,
+          new SDKMercadoPagoConfig({
+            accessToken: checkoutCredentials.accessToken,
+            corporationId: checkoutCredentials.applicationId,
+            integratorId: env.mercadoPago.integratorId,
+            trackingId: `${env.appName}-checkout`,
+            platformId: env.mercadoPago.platformId,
+            corporationName: "AdvanceMais Controle Total",
+            integrator: env.mercadoPago.integrator,
+          })
+        );
+      }
+
+      this.isInitialized = true;
+      logger.info("Configuração do MercadoPago inicializada com sucesso");
     } catch (error) {
-      logger.error("Erro ao inicializar configuração do Mercado Pago:", error);
-      this.initialized = false;
+      logger.error("Erro ao inicializar configuração do MercadoPago", error);
+      throw new Error("Falha ao inicializar configuração do MercadoPago");
     }
   }
 
   /**
-   * Obtém a configuração do Mercado Pago
+   * Obtém a configuração do SDK para um tipo específico de integração
+   * @param type Tipo de integração
+   * @returns Configuração do SDK
    */
-  public get config(): MercadoPagoConfig {
-    if (!this._config) {
-      throw new Error("Configuração do Mercado Pago não inicializada");
+  public getConfig(type: MercadoPagoIntegrationType): SDKMercadoPagoConfig {
+    if (!this.isInitialized) {
+      this.initialize();
     }
-    return this._config;
+
+    const config = this.configs.get(type);
+
+    if (!config) {
+      logger.error(
+        `Configuração não encontrada para o tipo de integração: ${type}`
+      );
+      throw new Error(
+        `Configuração não encontrada para o tipo de integração: ${type}`
+      );
+    }
+
+    return config;
   }
 
   /**
-   * Verifica se a integração com o Mercado Pago está disponível
+   * Verifica se a configuração está disponível para um tipo específico
+   * @param type Tipo de integração
+   * @returns Verdadeiro se a configuração estiver disponível
    */
-  public isAvailable(): boolean {
-    return this.initialized && env.mercadoPago.enabled;
-  }
-
-  /**
-   * Obtém a chave pública para uso no frontend
-   */
-  public getPublicKey(): string {
-    return env.mercadoPago.publicKey;
-  }
-
-  /**
-   * Verifica se as credenciais são de teste
-   */
-  public isTestMode(): boolean {
-    return env.mercadoPago.accessToken.startsWith("TEST-");
-  }
-
-  /**
-   * Retorna o tempo de timeout configurado
-   */
-  public getTimeout(): number {
-    return env.mercadoPago.timeout;
+  public hasConfig(type: MercadoPagoIntegrationType): boolean {
+    return this.configs.has(type);
   }
 }
 
-// Exporta uma instância da configuração
-export const mercadoPagoConfig = MercadoPagoConfiguration.getInstance();
+// Exportar a instância da configuração
+export const mercadoPagoConfig = MercadoPagoConfig.getInstance();

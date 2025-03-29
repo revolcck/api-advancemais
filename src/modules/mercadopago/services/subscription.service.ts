@@ -1,496 +1,271 @@
-// src/modules/mercadopago/services/subscription.service.ts
+/**
+ * Serviço para gerenciamento de assinaturas via MercadoPago
+ * @module modules/mercadopago/services/subscription.service
+ */
 
-import { logger } from "@/shared/utils/logger.utils";
-import { mercadoPagoService } from "./mercadopago.service";
-import { mercadoPagoConfig } from "../config/mercadopago.config";
-import { ServiceUnavailableError } from "@/shared/errors/AppError";
-import { AuditService } from "@/shared/services/audit.service";
-import { PreApproval } from "mercadopago";
 import {
-  CreateSubscriptionRequest,
-  CreateSubscriptionResponse,
-  GetSubscriptionInfoRequest,
-  CancelSubscriptionRequest,
-  UpdateSubscriptionStatusRequest,
-  UpdateSubscriptionAmountRequest,
-} from "../dto/mercadopago.dto";
+  PreApproval,
+  PreApprovalCreateData,
+  PreApprovalUpdateData,
+} from "mercadopago";
+import { MercadoPagoBaseService } from "./base.service";
+import { MercadoPagoIntegrationType } from "../config/credentials";
+import { logger } from "@/shared/utils/logger.utils";
+import { AuditService, AuditAction } from "@/shared/services/audit.service";
 
 /**
- * Serviço para gerenciar assinaturas (pagamentos recorrentes) no Mercado Pago
- * Utiliza a API de PreApproval do Mercado Pago para criar e gerenciar assinaturas
+ * Serviço para gerenciamento de assinaturas
  */
-export class SubscriptionService {
-  private static instance: SubscriptionService;
+export class SubscriptionService extends MercadoPagoBaseService {
+  private preApprovalClient: PreApproval;
 
   /**
-   * Construtor privado para implementar o padrão Singleton
+   * Construtor do serviço de assinatura
    */
-  private constructor() {}
-
-  /**
-   * Obtém a instância única do serviço
-   */
-  public static getInstance(): SubscriptionService {
-    if (!SubscriptionService.instance) {
-      SubscriptionService.instance = new SubscriptionService();
-    }
-    return SubscriptionService.instance;
+  constructor() {
+    super(MercadoPagoIntegrationType.SUBSCRIPTION);
+    this.preApprovalClient = this.createPreApprovalClient();
+    logger.debug("Serviço de assinatura do MercadoPago inicializado");
   }
 
   /**
-   * Cria uma nova assinatura (pagamento recorrente)
-   * @param subscriptionData Dados para criação da assinatura
-   * @returns Informações sobre a assinatura criada
+   * Cria uma nova assinatura
+   * @param subscriptionData Dados da assinatura
+   * @param userId ID do usuário para auditoria
+   * @returns Resultado da criação da assinatura
    */
   public async createSubscription(
-    subscriptionData: CreateSubscriptionRequest
-  ): Promise<CreateSubscriptionResponse> {
+    subscriptionData: PreApprovalCreateData,
+    userId?: string
+  ): Promise<any> {
     try {
-      // Validações básicas
-      if (!subscriptionData.preapprovalAmount) {
-        throw new ServiceUnavailableError(
-          "Valor da assinatura é obrigatório",
-          "SUBSCRIPTION_AMOUNT_REQUIRED"
-        );
-      }
-
-      if (!subscriptionData.preapprovalName) {
-        throw new ServiceUnavailableError(
-          "Nome da assinatura é obrigatório",
-          "SUBSCRIPTION_NAME_REQUIRED"
-        );
-      }
-
-      if (!subscriptionData.payer || !subscriptionData.payer.email) {
-        throw new ServiceUnavailableError(
-          "Email do assinante é obrigatório",
-          "SUBSCRIPTION_PAYER_EMAIL_REQUIRED"
-        );
-      }
-
-      if (!subscriptionData.backUrl) {
-        throw new ServiceUnavailableError(
-          "URL de retorno é obrigatória",
-          "SUBSCRIPTION_BACK_URL_REQUIRED"
-        );
-      }
-
-      // Obtém a API de assinaturas (PreApproval)
-      const preApproval = mercadoPagoService.getSubscriptionAPI();
-
-      // Data de início padrão (se não for informada)
-      const startDate =
-        subscriptionData.autoRecurring.startDate ||
-        new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h à frente
-
-      // Formata os dados para o formato esperado pelo Mercado Pago
-      const subscriptionBody = {
-        preapproval_plan_id: undefined, // Plano livre (não vinculado a um plano específico)
-        reason: subscriptionData.reason || subscriptionData.preapprovalName,
-        external_reference: subscriptionData.externalReference,
-        payer_email: subscriptionData.payer.email,
-        card_token_id: undefined, // Será inserido pelo cliente ao autorizar
-        status: "pending",
-        auto_recurring: {
-          frequency: subscriptionData.autoRecurring.frequency,
-          frequency_type: subscriptionData.autoRecurring.frequencyType,
-          start_date: startDate,
-          end_date: subscriptionData.autoRecurring.endDate,
-          currency_id: "BRL", // Moeda em Reais brasileiros
-          amount: subscriptionData.preapprovalAmount,
-          repetitions: subscriptionData.autoRecurring.repetitions,
-        },
-        back_url: subscriptionData.backUrl,
-        metadata: {
-          userId: subscriptionData.userId,
-        },
-      };
-
-      // Cria opções de requisição (para idempotência)
-      const requestOptions = {
-        idempotencyKey: `subscription-${Date.now()}-${Math.random()
-          .toString(36)
-          .substring(2, 10)}`,
-      };
-
-      // Envia a requisição para criar a assinatura
-      const result = await preApproval.create({
-        body: subscriptionBody,
-        requestOptions,
+      logger.info("Iniciando criação de assinatura no MercadoPago", {
+        externalReference: subscriptionData.external_reference,
+        planId: subscriptionData.auto_recurring?.plan_id,
       });
 
-      // Verifica se o resultado é válido
-      if (!result || !result.id) {
-        throw new Error("Resposta inválida do Mercado Pago");
-      }
+      const result = await this.preApprovalClient.create({
+        body: subscriptionData,
+      });
 
-      // Registra a assinatura no log de auditoria
+      // Registra a operação para auditoria
+      AuditService.log(AuditAction.CREATE, "subscription", result.id, userId, {
+        planId: subscriptionData.auto_recurring?.plan_id,
+        amount: subscriptionData.auto_recurring?.transaction_amount,
+        frequency: `${subscriptionData.auto_recurring?.frequency}/${subscriptionData.auto_recurring?.frequency_type}`,
+        status: result.status,
+      });
+
+      logger.info("Assinatura criada com sucesso no MercadoPago", {
+        subscriptionId: result.id,
+        status: result.status,
+      });
+
+      return result;
+    } catch (error) {
+      this.handleError(error, "createSubscription");
+    }
+  }
+
+  /**
+   * Obtém informações de uma assinatura por ID
+   * @param subscriptionId ID da assinatura
+   * @returns Detalhes da assinatura
+   */
+  public async getSubscription(subscriptionId: string): Promise<any> {
+    try {
+      logger.debug(`Obtendo informações da assinatura ${subscriptionId}`);
+
+      const result = await this.preApprovalClient.get({ id: subscriptionId });
+
+      return result;
+    } catch (error) {
+      this.handleError(error, "getSubscription");
+    }
+  }
+
+  /**
+   * Atualiza uma assinatura existente
+   * @param subscriptionId ID da assinatura
+   * @param updateData Dados para atualização
+   * @param userId ID do usuário para auditoria
+   * @returns Resultado da atualização
+   */
+  public async updateSubscription(
+    subscriptionId: string,
+    updateData: PreApprovalUpdateData,
+    userId?: string
+  ): Promise<any> {
+    try {
+      logger.info(`Atualizando assinatura ${subscriptionId}`);
+
+      const result = await this.preApprovalClient.update({
+        id: subscriptionId,
+        body: updateData,
+      });
+
+      // Registra a operação para auditoria
       AuditService.log(
-        "subscription_created",
+        AuditAction.UPDATE,
         "subscription",
-        String(result.id),
-        subscriptionData.userId,
+        subscriptionId,
+        userId,
         {
-          amount: subscriptionData.preapprovalAmount,
-          frequency: `${subscriptionData.autoRecurring.frequency} ${subscriptionData.autoRecurring.frequencyType}`,
+          updatedFields: Object.keys(updateData),
           status: result.status,
         }
       );
 
-      logger.info(`Assinatura criada com sucesso: ${result.id}`, {
-        subscriptionId: result.id,
+      logger.info(`Assinatura atualizada com sucesso`, {
+        subscriptionId,
         status: result.status,
-        amount: subscriptionData.preapprovalAmount,
       });
 
-      return {
-        success: true,
-        subscriptionId: String(result.id),
-        status: result.status,
-        initPoint: result.init_point, // URL para o cliente autorizar a assinatura
-        data: result,
-      };
+      return result;
     } catch (error) {
-      // Trata e formata o erro
-      const formattedError = mercadoPagoService.formatError(
-        error,
-        "create_subscription"
-      );
-
-      logger.error(`Erro ao criar assinatura:`, formattedError);
-
-      return {
-        success: false,
-        error: formattedError.message,
-        errorCode: formattedError.code,
-      };
+      this.handleError(error, "updateSubscription");
     }
   }
 
   /**
-   * Obtém informações de uma assinatura existente
-   * @param request Dados para consulta da assinatura
-   * @returns Informações detalhadas da assinatura
-   */
-  public async getSubscriptionInfo(
-    request: GetSubscriptionInfoRequest
-  ): Promise<CreateSubscriptionResponse> {
-    try {
-      if (!request.subscriptionId) {
-        throw new ServiceUnavailableError(
-          "ID da assinatura é obrigatório",
-          "SUBSCRIPTION_ID_REQUIRED"
-        );
-      }
-
-      // Obtém a API de assinaturas (PreApproval)
-      const preApproval = mercadoPagoService.getSubscriptionAPI();
-
-      // Consulta a assinatura
-      const result = await preApproval.get({ id: request.subscriptionId });
-
-      if (!result || !result.id) {
-        throw new Error("Assinatura não encontrada");
-      }
-
-      logger.info(
-        `Informações da assinatura ${request.subscriptionId} obtidas com sucesso`
-      );
-
-      return {
-        success: true,
-        subscriptionId: String(result.id),
-        status: result.status,
-        data: result,
-      };
-    } catch (error) {
-      // Trata e formata o erro
-      const formattedError = mercadoPagoService.formatError(
-        error,
-        "get_subscription"
-      );
-
-      logger.error(`Erro ao obter informações da assinatura:`, formattedError);
-
-      return {
-        success: false,
-        error: formattedError.message,
-        errorCode: formattedError.code,
-      };
-    }
-  }
-
-  /**
-   * Cancela uma assinatura existente
-   * @param request Dados para cancelamento da assinatura
-   * @returns Informações atualizadas da assinatura
+   * Cancela uma assinatura
+   * @param subscriptionId ID da assinatura
+   * @param userId ID do usuário para auditoria
+   * @returns Resultado do cancelamento
    */
   public async cancelSubscription(
-    request: CancelSubscriptionRequest
-  ): Promise<CreateSubscriptionResponse> {
+    subscriptionId: string,
+    userId?: string
+  ): Promise<any> {
     try {
-      if (!request.subscriptionId) {
-        throw new ServiceUnavailableError(
-          "ID da assinatura é obrigatório",
-          "SUBSCRIPTION_ID_REQUIRED"
-        );
-      }
+      logger.info(`Cancelando assinatura ${subscriptionId}`);
 
-      // Obtém a API de assinaturas (PreApproval)
-      const preApproval = mercadoPagoService.getSubscriptionAPI();
-
-      // Atualiza o status para cancelado
-      const result = await preApproval.update({
-        id: request.subscriptionId,
-        body: {
-          status: "cancelled",
-        },
+      const result = await this.preApprovalClient.update({
+        id: subscriptionId,
+        body: { status: "cancelled" },
       });
 
-      if (!result || !result.id) {
-        throw new Error("Falha ao cancelar assinatura");
-      }
-
-      // Registra o cancelamento no log de auditoria
+      // Registra a operação para auditoria
       AuditService.log(
         "subscription_cancelled",
         "subscription",
-        String(result.id),
-        undefined, // Usuário pode não estar disponível aqui
+        subscriptionId,
+        userId,
         {
-          status: result.status,
+          previousStatus: result.status,
+          newStatus: "cancelled",
         }
       );
 
-      logger.info(`Assinatura ${request.subscriptionId} cancelada com sucesso`);
+      logger.info(`Assinatura cancelada com sucesso`, {
+        subscriptionId,
+      });
 
-      return {
-        success: true,
-        subscriptionId: String(result.id),
-        status: result.status,
-        data: result,
-      };
+      return result;
     } catch (error) {
-      // Trata e formata o erro
-      const formattedError = mercadoPagoService.formatError(
-        error,
-        "cancel_subscription"
-      );
-
-      logger.error(`Erro ao cancelar assinatura:`, formattedError);
-
-      return {
-        success: false,
-        error: formattedError.message,
-        errorCode: formattedError.code,
-      };
+      this.handleError(error, "cancelSubscription");
     }
   }
 
   /**
-   * Atualiza o status de uma assinatura (pausa ou reativa)
-   * @param request Dados para atualização do status da assinatura
-   * @returns Informações atualizadas da assinatura
-   */
-  public async updateSubscriptionStatus(
-    request: UpdateSubscriptionStatusRequest
-  ): Promise<CreateSubscriptionResponse> {
-    try {
-      if (!request.subscriptionId) {
-        throw new ServiceUnavailableError(
-          "ID da assinatura é obrigatório",
-          "SUBSCRIPTION_ID_REQUIRED"
-        );
-      }
-
-      if (
-        !request.status ||
-        !["paused", "authorized"].includes(request.status)
-      ) {
-        throw new ServiceUnavailableError(
-          "Status inválido. Use 'paused' para pausar ou 'authorized' para reativar",
-          "SUBSCRIPTION_INVALID_STATUS"
-        );
-      }
-
-      // Obtém a API de assinaturas (PreApproval)
-      const preApproval = mercadoPagoService.getSubscriptionAPI();
-
-      // Atualiza o status
-      const result = await preApproval.update({
-        id: request.subscriptionId,
-        body: {
-          status: request.status,
-        },
-      });
-
-      if (!result || !result.id) {
-        throw new Error(
-          `Falha ao ${
-            request.status === "paused" ? "pausar" : "reativar"
-          } assinatura`
-        );
-      }
-
-      // Registra a ação no log de auditoria
-      AuditService.log(
-        `subscription_${
-          request.status === "paused" ? "paused" : "reactivated"
-        }`,
-        "subscription",
-        String(result.id),
-        undefined, // Usuário pode não estar disponível aqui
-        {
-          status: result.status,
-        }
-      );
-
-      logger.info(
-        `Status da assinatura ${request.subscriptionId} atualizado para ${request.status} com sucesso`
-      );
-
-      return {
-        success: true,
-        subscriptionId: String(result.id),
-        status: result.status,
-        data: result,
-      };
-    } catch (error) {
-      // Trata e formata o erro
-      const formattedError = mercadoPagoService.formatError(
-        error,
-        "update_subscription_status"
-      );
-
-      logger.error(`Erro ao atualizar status da assinatura:`, formattedError);
-
-      return {
-        success: false,
-        error: formattedError.message,
-        errorCode: formattedError.code,
-      };
-    }
-  }
-
-  /**
-   * Atualiza o valor de uma assinatura
-   * @param request Dados para atualização do valor da assinatura
-   * @returns Informações atualizadas da assinatura
-   */
-  public async updateSubscriptionAmount(
-    request: UpdateSubscriptionAmountRequest
-  ): Promise<CreateSubscriptionResponse> {
-    try {
-      if (!request.subscriptionId) {
-        throw new ServiceUnavailableError(
-          "ID da assinatura é obrigatório",
-          "SUBSCRIPTION_ID_REQUIRED"
-        );
-      }
-
-      if (!request.amount || request.amount <= 0) {
-        throw new ServiceUnavailableError(
-          "Valor da assinatura deve ser maior que zero",
-          "SUBSCRIPTION_INVALID_AMOUNT"
-        );
-      }
-
-      // Obtém a API de assinaturas (PreApproval)
-      const preApproval = mercadoPagoService.getSubscriptionAPI();
-
-      // Obtém a assinatura atual para verificar a configuração de recorrência
-      const currentSubscription = await preApproval.get({
-        id: request.subscriptionId,
-      });
-
-      // Atualiza o valor
-      const result = await preApproval.update({
-        id: request.subscriptionId,
-        body: {
-          auto_recurring: {
-            ...currentSubscription.auto_recurring,
-            amount: request.amount,
-          },
-        },
-      });
-
-      if (!result || !result.id) {
-        throw new Error("Falha ao atualizar valor da assinatura");
-      }
-
-      // Registra a ação no log de auditoria
-      AuditService.log(
-        "subscription_amount_updated",
-        "subscription",
-        String(result.id),
-        undefined, // Usuário pode não estar disponível aqui
-        {
-          previousAmount: currentSubscription.auto_recurring.amount,
-          newAmount: request.amount,
-        }
-      );
-
-      logger.info(
-        `Valor da assinatura ${request.subscriptionId} atualizado para ${request.amount} com sucesso`
-      );
-
-      return {
-        success: true,
-        subscriptionId: String(result.id),
-        status: result.status,
-        data: result,
-      };
-    } catch (error) {
-      // Trata e formata o erro
-      const formattedError = mercadoPagoService.formatError(
-        error,
-        "update_subscription_amount"
-      );
-
-      logger.error(`Erro ao atualizar valor da assinatura:`, formattedError);
-
-      return {
-        success: false,
-        error: formattedError.message,
-        errorCode: formattedError.code,
-      };
-    }
-  }
-
-  /**
-   * Processa uma notificação de assinatura recebida por webhook
+   * Pausa uma assinatura
    * @param subscriptionId ID da assinatura
-   * @param topic Tópico da notificação
-   * @returns Informações atualizadas da assinatura
+   * @param userId ID do usuário para auditoria
+   * @returns Resultado da pausa
    */
-  public async processSubscriptionWebhook(
+  public async pauseSubscription(
     subscriptionId: string,
-    topic: string
-  ): Promise<CreateSubscriptionResponse> {
+    userId?: string
+  ): Promise<any> {
     try {
-      logger.info(
-        `Processando webhook de assinatura: ${topic} - ${subscriptionId}`
+      logger.info(`Pausando assinatura ${subscriptionId}`);
+
+      const result = await this.preApprovalClient.update({
+        id: subscriptionId,
+        body: { status: "paused" },
+      });
+
+      // Registra a operação para auditoria
+      AuditService.log(
+        "subscription_paused",
+        "subscription",
+        subscriptionId,
+        userId,
+        {
+          previousStatus: result.status,
+          newStatus: "paused",
+        }
       );
 
-      // Apenas busca as informações atualizadas da assinatura
-      return await this.getSubscriptionInfo({ subscriptionId });
+      logger.info(`Assinatura pausada com sucesso`, {
+        subscriptionId,
+      });
+
+      return result;
     } catch (error) {
-      // Trata e formata o erro
-      const formattedError = mercadoPagoService.formatError(
-        error,
-        "process_subscription_webhook"
+      this.handleError(error, "pauseSubscription");
+    }
+  }
+
+  /**
+   * Reativa uma assinatura pausada
+   * @param subscriptionId ID da assinatura
+   * @param userId ID do usuário para auditoria
+   * @returns Resultado da reativação
+   */
+  public async resumeSubscription(
+    subscriptionId: string,
+    userId?: string
+  ): Promise<any> {
+    try {
+      logger.info(`Reativando assinatura ${subscriptionId}`);
+
+      const result = await this.preApprovalClient.update({
+        id: subscriptionId,
+        body: { status: "authorized" },
+      });
+
+      // Registra a operação para auditoria
+      AuditService.log(
+        "subscription_resumed",
+        "subscription",
+        subscriptionId,
+        userId,
+        {
+          previousStatus: result.status,
+          newStatus: "authorized",
+        }
       );
 
-      logger.error(`Erro ao processar webhook de assinatura:`, formattedError);
+      logger.info(`Assinatura reativada com sucesso`, {
+        subscriptionId,
+      });
 
-      return {
-        success: false,
-        error: formattedError.message,
-        errorCode: formattedError.code,
-      };
+      return result;
+    } catch (error) {
+      this.handleError(error, "resumeSubscription");
+    }
+  }
+
+  /**
+   * Pesquisa assinaturas por critérios
+   * @param criteria Critérios de pesquisa
+   * @returns Lista de assinaturas
+   */
+  public async searchSubscriptions(criteria: any): Promise<any> {
+    try {
+      logger.debug("Pesquisando assinaturas no MercadoPago", {
+        criteria,
+      });
+
+      const result = await this.preApprovalClient.search({ qs: criteria });
+
+      return result;
+    } catch (error) {
+      this.handleError(error, "searchSubscriptions");
     }
   }
 }
 
-// Exporta uma instância do serviço
-export const subscriptionService = SubscriptionService.getInstance();
+// Exporta a instância do serviço
+export const subscriptionService = new SubscriptionService();

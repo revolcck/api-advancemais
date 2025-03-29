@@ -74,10 +74,17 @@ interface Environment {
 
   // Mercado Pago
   mercadoPago: {
-    publicKey: string;
-    accessToken: string;
-    enabled: boolean;
-    timeout: number; // em ms (milissegundos)
+    subscription: {
+      publicKey: string;
+      accessToken: string;
+    };
+    checkout: {
+      publicKey: string;
+      accessToken: string;
+    };
+    integratorId: string;
+    platformId: string;
+    integrator: string;
   };
 }
 
@@ -157,22 +164,14 @@ const envSchema = joi.object({
   }),
 
   // Mercado Pago
-  MERCADOPAGO_PUBLIC_KEY: joi
+  MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
+  MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
+  MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
+  MERCADOPAGO_CHECKOUT_ACCESS_TOKEN: joi.string().required(),
+  MERCADOPAGO_INTEGRATOR_ID: joi
     .string()
-    .allow("")
-    .description("Chave pública do Mercado Pago"),
-  MERCADOPAGO_ACCESS_TOKEN: joi
-    .string()
-    .allow("")
-    .description("Token de acesso do Mercado Pago"),
-  MERCADOPAGO_ENABLED: joi
-    .boolean()
-    .default(true)
-    .description("Habilitar/desabilitar integração com Mercado Pago"),
-  MERCADOPAGO_TIMEOUT: joi
-    .number()
-    .default(10000)
-    .description("Timeout para requisições ao Mercado Pago em ms"),
+    .default("dev_24c65fb163bf11ea96500242ac130004"),
+  MERCADOPAGO_WEBHOOK_SECRET: joi.string().allow(""),
 });
 
 /**
@@ -272,15 +271,20 @@ export const env: Environment = {
 
   // Mercado Pago
   mercadoPago: {
-    publicKey: _env.MERCADOPAGO_PUBLIC_KEY || "",
-    accessToken: _env.MERCADOPAGO_ACCESS_TOKEN || "",
-    enabled: Boolean(_env.MERCADOPAGO_ENABLED === "true"),
-    timeout: Number(_env.MERCADOPAGO_TIMEOUT || 10000), // 10 segundos por padrão
+    subscription: {
+      publicKey: _env.MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY,
+      accessToken: _env.MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN,
+    },
+    checkout: {
+      publicKey: _env.MERCADOPAGO_CHECKOUT_PUBLIC_KEY,
+      accessToken: _env.MERCADOPAGO_CHECKOUT_ACCESS_TOKEN,
+    },
+    integratorId: _env.MERCADOPAGO_INTEGRATOR_ID,
+    platformId: "nodejs",
+    integrator: "AdvanceMais",
   },
 };
 
-// Remova o log usando o logger para evitar dependência circular
-// Em vez disso, podemos usar console.log em desenvolvimento
 if (env.isDevelopment) {
   console.debug("📊 Configuração de ambiente carregada:", {
     nodeEnv: env.nodeEnv,

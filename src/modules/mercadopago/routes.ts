@@ -1,161 +1,114 @@
-// src/modules/mercadopago/routes.ts
+/**
+ * Rotas para o módulo MercadoPago
+ * @module modules/mercadopago/routes
+ */
 
 import { Router } from "express";
-import MercadoPagoController from "./controllers/mercadopago.controller";
+import { webhookController } from "./controllers/webhook.controller";
+import { paymentController } from "./controllers/payment.controller";
+import { subscriptionController } from "./controllers/subscription.controller";
+import { preferenceController } from "./controllers/preference.controller";
 import { validate } from "@/shared/middleware/validate.middleware";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import {
   createPaymentSchema,
-  capturePaymentSchema,
+  createPreferenceSchema,
   createSubscriptionSchema,
-  updateSubscriptionStatusSchema,
-  updateSubscriptionAmountSchema,
-  webhookSchema,
 } from "./validators/mercadopago.validators";
 
-/**
- * Inicializa o router para as rotas do Mercado Pago
- */
+// Inicializa o router
 const router: Router = Router();
 
 /**
- * @route GET /api/mercadopago/test-connectivity
- * @desc Testa a conectividade com a API do Mercado Pago
- * @access Privado (Admin)
+ * Rotas para webhooks
  */
-router.get(
-  "/test-connectivity",
-  authenticate,
-  authorize(["ADMIN"]),
-  MercadoPagoController.testConnectivity
-);
+router.post("/webhook", webhookController.processWebhook);
 
 /**
- * @route GET /api/mercadopago/public-key
- * @desc Obtém a chave pública para uso no frontend
- * @access Público
+ * Rotas para pagamentos
  */
-router.get("/public-key", MercadoPagoController.getPublicKey);
-
-/**
- * ROTAS DE PAGAMENTOS
- */
-
-/**
- * @route POST /api/mercadopago/payments
- * @desc Cria um novo pagamento
- * @access Privado
- */
+// Criar pagamento
 router.post(
   "/payments",
   authenticate,
   validate(createPaymentSchema),
-  MercadoPagoController.createPayment
+  paymentController.createPayment
 );
 
-/**
- * @route GET /api/mercadopago/payments/:id
- * @desc Obtém informações de um pagamento
- * @access Privado
- */
-router.get("/payments/:id", authenticate, MercadoPagoController.getPaymentInfo);
+// Obter detalhes de um pagamento
+router.get("/payments/:id", authenticate, paymentController.getPayment);
 
-/**
- * @route POST /api/mercadopago/payments/:id/capture
- * @desc Captura um pagamento autorizado
- * @access Privado (Admin/Instructor)
- */
+// Fazer refund de um pagamento
 router.post(
-  "/payments/:id/capture",
+  "/payments/:id/refund",
   authenticate,
-  authorize(["ADMIN", "INSTRUCTOR"]),
-  validate(capturePaymentSchema),
-  MercadoPagoController.capturePayment
+  authorize(["ADMIN"]), // Apenas administradores podem fazer refunds
+  paymentController.refundPayment
 );
 
 /**
- * @route POST /api/mercadopago/payments/:id/cancel
- * @desc Cancela um pagamento
- * @access Privado (Admin/Instructor)
+ * Rotas para preferências de pagamento
  */
+// Criar preferência
 router.post(
-  "/payments/:id/cancel",
+  "/preferences",
   authenticate,
-  authorize(["ADMIN", "INSTRUCTOR"]),
-  MercadoPagoController.cancelPayment
+  validate(createPreferenceSchema),
+  preferenceController.createPreference
+);
+
+// Obter detalhes de uma preferência
+router.get(
+  "/preferences/:id",
+  authenticate,
+  preferenceController.getPreference
 );
 
 /**
- * ROTAS DE ASSINATURAS
+ * Rotas para assinaturas
  */
-
-/**
- * @route POST /api/mercadopago/subscriptions
- * @desc Cria uma nova assinatura
- * @access Privado
- */
+// Criar assinatura
 router.post(
   "/subscriptions",
   authenticate,
   validate(createSubscriptionSchema),
-  MercadoPagoController.createSubscription
+  subscriptionController.createSubscription
 );
 
-/**
- * @route GET /api/mercadopago/subscriptions/:id
- * @desc Obtém informações de uma assinatura
- * @access Privado
- */
+// Obter detalhes de uma assinatura
 router.get(
   "/subscriptions/:id",
   authenticate,
-  MercadoPagoController.getSubscriptionInfo
+  subscriptionController.getSubscription
 );
 
-/**
- * @route POST /api/mercadopago/subscriptions/:id/cancel
- * @desc Cancela uma assinatura
- * @access Privado (Owner/Admin)
- */
+// Atualizar uma assinatura
+router.patch(
+  "/subscriptions/:id",
+  authenticate,
+  subscriptionController.updateSubscription
+);
+
+// Cancelar uma assinatura
 router.post(
   "/subscriptions/:id/cancel",
   authenticate,
-  MercadoPagoController.cancelSubscription
+  subscriptionController.cancelSubscription
 );
 
-/**
- * @route PATCH /api/mercadopago/subscriptions/:id/status
- * @desc Atualiza o status de uma assinatura (pausa ou reativa)
- * @access Privado (Owner/Admin)
- */
-router.patch(
-  "/subscriptions/:id/status",
+// Pausar uma assinatura
+router.post(
+  "/subscriptions/:id/pause",
   authenticate,
-  validate(updateSubscriptionStatusSchema),
-  MercadoPagoController.updateSubscriptionStatus
+  subscriptionController.pauseSubscription
 );
 
-/**
- * @route PATCH /api/mercadopago/subscriptions/:id/amount
- * @desc Atualiza o valor de uma assinatura
- * @access Privado (Admin)
- */
-router.patch(
-  "/subscriptions/:id/amount",
+// Reativar uma assinatura
+router.post(
+  "/subscriptions/:id/resume",
   authenticate,
-  authorize(["ADMIN"]),
-  validate(updateSubscriptionAmountSchema),
-  MercadoPagoController.updateSubscriptionAmount
+  subscriptionController.resumeSubscription
 );
 
-/**
- * @route POST /api/mercadopago/webhook
- * @desc Recebe notificações webhook do Mercado Pago
- * @access Público
- */
-router.post("/webhook", MercadoPagoController.processWebhook);
-
-/**
- * Exporta o router do módulo
- */
+// Exporta as rotas
 export default router;
