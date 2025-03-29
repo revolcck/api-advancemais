@@ -1,7 +1,7 @@
 import { env } from "@/config/environment";
 import { logger } from "@/shared/utils/logger.utils";
 import { brevoService } from "./brevo.service";
-import { SmsOptions, SmsResponse } from "../dto/communications.dto";
+import { SmsOptions, SmsResponse } from "../dtos/communications.dto";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
 import { AuditService } from "@/shared/services/audit.service";
 

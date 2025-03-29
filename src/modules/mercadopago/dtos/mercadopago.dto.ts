@@ -1,5 +1,12 @@
 /**
- * Interface base para respostas das operações do Mercado Pago
+ * Data Transfer Objects (DTOs) para o módulo MercadoPago
+ * Define a estrutura dos dados para comunicação entre camadas
+ *
+ * @module modules/mercadopago/dtos/mercadopago.dto
+ */
+
+/**
+ * Interface base para respostas das operações do MercadoPago
  */
 export interface MercadoPagoBaseResponse {
   /** Indica se a operação foi bem-sucedida */
@@ -63,6 +70,8 @@ export interface PayerInfo {
     federalUnit?: string;
   };
 }
+
+// ===================== DTOs para Pagamentos =====================
 
 /**
  * Interface para criação de um pagamento único
@@ -145,6 +154,8 @@ export interface CancelPaymentRequest {
   /** ID do pagamento */
   paymentId: string;
 }
+
+// ===================== DTOs para Assinaturas =====================
 
 /**
  * Interface para criação de uma assinatura (pagamento recorrente)
@@ -245,6 +256,8 @@ export interface UpdateSubscriptionAmountRequest {
   amount: number;
 }
 
+// ===================== DTOs para Webhooks =====================
+
 /**
  * Interface para webhook de notificações
  */
@@ -276,5 +289,73 @@ export interface WebhookResponse extends MercadoPagoBaseResponse {
   resourceId?: string;
 
   /** Dados adicionais (opcional) */
+  data?: any;
+}
+
+// ===================== DTOs para Preferências de Pagamento =====================
+
+/**
+ * Interface para criação de preferência de pagamento
+ */
+export interface CreatePreferenceRequest {
+  /** Itens incluídos na preferência */
+  items: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    pictureUrl?: string;
+    categoryId?: string;
+    quantity: number;
+    unitPrice: number;
+    currencyId?: string;
+  }>;
+
+  /** Informações do pagador (opcional) */
+  payer?: PayerInfo;
+
+  /** URL de retorno após o pagamento */
+  backUrls?: {
+    success?: string;
+    pending?: string;
+    failure?: string;
+  };
+
+  /** URL para notificações webhook */
+  notificationUrl?: string;
+
+  /** Identificador externo (opcional) */
+  externalReference?: string;
+
+  /** Auto retorno após pagamento */
+  autoReturn?: "approved" | "all";
+
+  /** Métodos de pagamento excluídos (opcional) */
+  excludedPaymentMethods?: Array<{ id: string }>;
+
+  /** Tipos de pagamento excluídos (opcional) */
+  excludedPaymentTypes?: Array<{ id: string }>;
+
+  /** Data de expiração da preferência (opcional) */
+  expirationDateFrom?: string;
+  expirationDateTo?: string;
+
+  /** ID do usuário logado (para auditoria) */
+  userId?: string;
+}
+
+/**
+ * Interface de resposta para criação de preferência
+ */
+export interface CreatePreferenceResponse extends MercadoPagoBaseResponse {
+  /** ID da preferência criada */
+  preferenceId?: string;
+
+  /** URL para iniciar o fluxo de pagamento */
+  initPoint?: string;
+
+  /** URL para iniciar o fluxo de pagamento em sandbox */
+  sandboxInitPoint?: string;
+
+  /** Dados completos da preferência retornada pela API */
   data?: any;
 }

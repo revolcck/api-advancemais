@@ -7,37 +7,48 @@ import { env } from "@/config/environment";
 import { logger } from "@/shared/utils/logger.utils";
 
 /**
- * Tipos de integração suportados
+ * Tipos de integração suportados pelo MercadoPago
  */
 export enum MercadoPagoIntegrationType {
+  /** Integração para assinaturas */
   SUBSCRIPTION = "subscription",
+
+  /** Integração para checkout */
   CHECKOUT = "checkout",
 }
 
 /**
- * Interface para credenciais do Mercado Pago
+ * Interface para credenciais do MercadoPago
  */
 export interface MercadoPagoCredentials {
+  /** Token de acesso à API do MercadoPago */
   accessToken: string;
+
+  /** Chave pública para uso no frontend */
   publicKey: string;
+
+  /** Tipo de integração */
   integrationType: MercadoPagoIntegrationType;
+
+  /** ID da aplicação no MercadoPago */
   applicationId: string;
 }
 
 /**
- * Classe para gerenciar credenciais do Mercado Pago
+ * Gerenciador de credenciais do MercadoPago
  * Permite utilizar diferentes credenciais para diferentes tipos de integração
  */
 export class MercadoPagoCredentialsManager {
   private static instance: MercadoPagoCredentialsManager;
   private credentials: Map<MercadoPagoIntegrationType, MercadoPagoCredentials> =
     new Map();
+  private initialized: boolean = false;
 
   /**
    * Construtor privado para implementar o padrão Singleton
    */
   private constructor() {
-    this.initializeCredentials();
+    this.initialize();
   }
 
   /**
@@ -53,8 +64,13 @@ export class MercadoPagoCredentialsManager {
 
   /**
    * Inicializa as credenciais a partir das variáveis de ambiente
+   * @throws Error se falhar ao inicializar credenciais
    */
-  private initializeCredentials(): void {
+  private initialize(): void {
+    if (this.initialized) {
+      return;
+    }
+
     try {
       // Credenciais para assinaturas - AdvanceMais
       this.credentials.set(MercadoPagoIntegrationType.SUBSCRIPTION, {
@@ -72,6 +88,7 @@ export class MercadoPagoCredentialsManager {
         applicationId: "6908434418374393", // ID fixo da aplicação de checkout
       });
 
+      this.initialized = true;
       logger.info("Credenciais do MercadoPago inicializadas com sucesso");
     } catch (error) {
       logger.error("Erro ao inicializar credenciais do MercadoPago", error);
@@ -83,19 +100,21 @@ export class MercadoPagoCredentialsManager {
    * Obtém as credenciais para um tipo específico de integração
    * @param type Tipo de integração
    * @returns Credenciais para o tipo especificado
+   * @throws Error se credenciais não forem encontradas
    */
   public getCredentials(
     type: MercadoPagoIntegrationType
   ): MercadoPagoCredentials {
+    if (!this.initialized) {
+      this.initialize();
+    }
+
     const credentials = this.credentials.get(type);
 
     if (!credentials) {
-      logger.error(
-        `Credenciais não encontradas para o tipo de integração: ${type}`
-      );
-      throw new Error(
-        `Credenciais não encontradas para o tipo de integração: ${type}`
-      );
+      const errorMessage = `Credenciais não encontradas para o tipo de integração: ${type}`;
+      logger.error(errorMessage);
+      throw new Error(errorMessage);
     }
 
     return credentials;
@@ -107,6 +126,10 @@ export class MercadoPagoCredentialsManager {
    * @returns Verdadeiro se as credenciais estiverem configuradas
    */
   public hasCredentials(type: MercadoPagoIntegrationType): boolean {
+    if (!this.initialized) {
+      this.initialize();
+    }
+
     const credentials = this.credentials.get(type);
     return (
       !!credentials && !!credentials.accessToken && !!credentials.publicKey
@@ -114,7 +137,9 @@ export class MercadoPagoCredentialsManager {
   }
 
   /**
-   * Atualiza as credenciais para um tipo específico (útil para testes)
+   * Atualiza as credenciais para um tipo específico
+   * Útil principalmente para testes ou troca de ambiente
+   *
    * @param type Tipo de integração
    * @param credentials Novas credenciais
    */
@@ -122,6 +147,10 @@ export class MercadoPagoCredentialsManager {
     type: MercadoPagoIntegrationType,
     credentials: Partial<MercadoPagoCredentials>
   ): void {
+    if (!this.initialized) {
+      this.initialize();
+    }
+
     const currentCredentials = this.credentials.get(type);
 
     if (currentCredentials) {
@@ -137,5 +166,4 @@ export class MercadoPagoCredentialsManager {
   }
 }
 
-// Exportar a instância do gerenciador de credenciais
 export const credentialsManager = MercadoPagoCredentialsManager.getInstance();

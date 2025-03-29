@@ -1,6 +1,6 @@
 import { env } from "@/config/environment";
 import { logger } from "@/shared/utils/logger.utils";
-import { WhatsAppOptions, WhatsAppResponse } from "../dto/communications.dto";
+import { WhatsAppOptions, WhatsAppResponse } from "../dtos/communications.dto";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
 import { AuditService } from "@/shared/services/audit.service";
 import axios from "axios";

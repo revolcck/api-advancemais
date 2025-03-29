@@ -85,6 +85,7 @@ interface Environment {
     integratorId: string;
     platformId: string;
     integrator: string;
+    enabled: boolean;
   };
 }
 
@@ -164,6 +165,9 @@ const envSchema = joi.object({
   }),
 
   // Mercado Pago
+  MERCADO_PAGO_ACCESS_TOKEN: joi.string().allow(""),
+  MERCADO_PAGO_PUBLIC_KEY: joi.string().allow(""),
+  MERCADO_PAGO_ENABLED: joi.boolean().default(true),
   MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
   MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
   MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
@@ -282,9 +286,12 @@ export const env: Environment = {
     integratorId: _env.MERCADOPAGO_INTEGRATOR_ID,
     platformId: "nodejs",
     integrator: "AdvanceMais",
+    enabled: _env.MERCADO_PAGO_ENABLED,
   },
 };
 
+// Remova o log usando o logger para evitar dependência circular
+// Em vez disso, podemos usar console.log em desenvolvimento
 if (env.isDevelopment) {
   console.debug("📊 Configuração de ambiente carregada:", {
     nodeEnv: env.nodeEnv,

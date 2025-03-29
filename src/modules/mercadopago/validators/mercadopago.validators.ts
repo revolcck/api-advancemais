@@ -1,4 +1,9 @@
-// src/modules/mercadopago/validators/mercadopago.validators.ts
+/**
+ * Validadores para o módulo MercadoPago
+ * Schemas de validação para as requisições relacionadas ao MercadoPago
+ *
+ * @module modules/mercadopago/validators/mercadopago.validators
+ */
 
 import Joi from "joi";
 
@@ -71,7 +76,7 @@ const payerSchema = Joi.object({
 });
 
 /**
- * Esquema para criação de pagamento
+ * Schema para validação de criação de pagamento
  */
 export const createPaymentSchema = Joi.object({
   transactionAmount: Joi.number().positive().required().messages({
@@ -100,17 +105,36 @@ export const createPaymentSchema = Joi.object({
 });
 
 /**
- * Esquema para captura de pagamento
+ * Schema para validação de pesquisa de pagamentos
  */
-export const capturePaymentSchema = Joi.object({
+export const searchPaymentsSchema = Joi.object({
+  external_reference: Joi.string(),
+  range: Joi.string(),
+  begin_date: Joi.string(),
+  end_date: Joi.string(),
+  status: Joi.string(),
+  payment_method_id: Joi.string(),
+  payment_type_id: Joi.string(),
+  limit: Joi.number().integer().min(1),
+  offset: Joi.number().integer().min(0),
+  sort: Joi.string(),
+  criteria: Joi.string().valid("desc", "asc"),
+  email: Joi.string().email(),
+  page: Joi.number().integer().min(1),
+}).unknown(true);
+
+/**
+ * Schema para validação de refund de pagamento
+ */
+export const refundPaymentSchema = Joi.object({
   amount: Joi.number().positive().allow(null).messages({
-    "number.base": "Valor da captura deve ser um número",
-    "number.positive": "Valor da captura deve ser positivo",
+    "number.base": "Valor da devolução deve ser um número",
+    "number.positive": "Valor da devolução deve ser positivo",
   }),
 });
 
 /**
- * Esquema para configuração de recorrência
+ * Schema para validação de configuração de recorrência
  */
 const autoRecurringSchema = Joi.object({
   frequency: Joi.number().integer().min(1).required().messages({
@@ -124,10 +148,9 @@ const autoRecurringSchema = Joi.object({
     "any.only": "Tipo de frequência deve ser 'days' ou 'months'",
     "any.required": "Tipo de frequência é obrigatório",
   }),
-  startDate: Joi.date().iso().min("now").allow(null, "").messages({
+  startDate: Joi.date().iso().allow(null, "").messages({
     "date.base": "Data de início deve ser uma data válida",
     "date.format": "Data de início deve estar no formato ISO",
-    "date.min": "Data de início deve ser futura",
   }),
   endDate: Joi.date().iso().min(Joi.ref("startDate")).allow(null, "").messages({
     "date.base": "Data de término deve ser uma data válida",
@@ -142,7 +165,7 @@ const autoRecurringSchema = Joi.object({
 });
 
 /**
- * Esquema para criação de assinatura
+ * Schema para validação de criação de assinatura
  */
 export const createSubscriptionSchema = Joi.object({
   preapprovalAmount: Joi.number().positive().required().messages({
@@ -170,7 +193,7 @@ export const createSubscriptionSchema = Joi.object({
 });
 
 /**
- * Esquema para atualização do status da assinatura
+ * Schema para validação de atualização do status da assinatura
  */
 export const updateSubscriptionStatusSchema = Joi.object({
   status: Joi.string().valid("paused", "authorized").required().messages({
@@ -181,7 +204,7 @@ export const updateSubscriptionStatusSchema = Joi.object({
 });
 
 /**
- * Esquema para atualização do valor da assinatura
+ * Schema para validação de atualização do valor da assinatura
  */
 export const updateSubscriptionAmountSchema = Joi.object({
   amount: Joi.number().positive().required().messages({
@@ -192,23 +215,109 @@ export const updateSubscriptionAmountSchema = Joi.object({
 });
 
 /**
- * Esquema para validação de webhook
+ * Schema para validação de item de preferência
+ */
+const preferenceItemSchema = Joi.object({
+  id: Joi.string().required().messages({
+    "string.empty": "ID do item é obrigatório",
+    "any.required": "ID do item é obrigatório",
+  }),
+  title: Joi.string().required().messages({
+    "string.empty": "Título do item é obrigatório",
+    "any.required": "Título do item é obrigatório",
+  }),
+  description: Joi.string().allow(null, ""),
+  pictureUrl: Joi.string().uri().allow(null, "").messages({
+    "string.uri": "URL da imagem deve ser válida",
+  }),
+  categoryId: Joi.string().allow(null, ""),
+  quantity: Joi.number().integer().min(1).required().messages({
+    "number.base": "Quantidade deve ser um número",
+    "number.integer": "Quantidade deve ser um número inteiro",
+    "number.min": "Quantidade deve ser no mínimo 1",
+    "any.required": "Quantidade é obrigatória",
+  }),
+  unitPrice: Joi.number().positive().required().messages({
+    "number.base": "Preço unitário deve ser um número",
+    "number.positive": "Preço unitário deve ser positivo",
+    "any.required": "Preço unitário é obrigatório",
+  }),
+  currencyId: Joi.string().allow(null, ""),
+});
+
+/**
+ * Schema para validação de back_urls
+ */
+const backUrlsSchema = Joi.object({
+  success: Joi.string().uri().allow(null, "").messages({
+    "string.uri": "URL de sucesso deve ser válida",
+  }),
+  pending: Joi.string().uri().allow(null, "").messages({
+    "string.uri": "URL de pendente deve ser válida",
+  }),
+  failure: Joi.string().uri().allow(null, "").messages({
+    "string.uri": "URL de falha deve ser válida",
+  }),
+});
+
+/**
+ * Schema para validação de criação de preferência
+ */
+export const createPreferenceSchema = Joi.object({
+  items: Joi.array().items(preferenceItemSchema).min(1).required().messages({
+    "array.min": "Pelo menos um item é obrigatório",
+    "any.required": "Itens são obrigatórios",
+  }),
+  payer: payerSchema.allow(null),
+  backUrls: backUrlsSchema.allow(null),
+  autoReturn: Joi.string().valid("approved", "all").allow(null, ""),
+  notificationUrl: Joi.string().uri().allow(null, "").messages({
+    "string.uri": "URL de notificação deve ser válida",
+  }),
+  externalReference: Joi.string().allow(null, ""),
+  excludedPaymentMethods: Joi.array()
+    .items(
+      Joi.object({
+        id: Joi.string().required(),
+      })
+    )
+    .allow(null),
+  excludedPaymentTypes: Joi.array()
+    .items(
+      Joi.object({
+        id: Joi.string().required(),
+      })
+    )
+    .allow(null),
+  expirationDateFrom: Joi.date().iso().allow(null, "").messages({
+    "date.base": "Data de expiração inicial deve ser uma data válida",
+    "date.format": "Data de expiração inicial deve estar no formato ISO",
+  }),
+  expirationDateTo: Joi.date()
+    .iso()
+    .min(Joi.ref("expirationDateFrom"))
+    .allow(null, "")
+    .messages({
+      "date.base": "Data de expiração final deve ser uma data válida",
+      "date.format": "Data de expiração final deve estar no formato ISO",
+      "date.min": "Data de expiração final deve ser posterior à data inicial",
+    }),
+});
+
+/**
+ * Schema para validação de webhook
  */
 export const webhookSchema = Joi.object({
   type: Joi.string().required().messages({
     "string.empty": "Tipo da notificação é obrigatório",
     "any.required": "Tipo da notificação é obrigatório",
   }),
-  date_created: Joi.string().required().messages({
-    "string.empty": "Data da notificação é obrigatória",
-    "any.required": "Data da notificação é obrigatória",
-  }),
+  date_created: Joi.string().allow(null, ""),
   id: Joi.string().allow(null, ""),
   data: Joi.object({
-    id: Joi.string().required(),
-  })
-    .allow(null)
-    .messages({
-      "object.base": "Dados da notificação devem ser um objeto",
+    id: Joi.string().required().messages({
+      "string.empty": "ID do recurso é obrigatório",
+      "any.required": "ID do recurso é obrigatório",
     }),
-});
+  }).allow(null),
+}).unknown(true);

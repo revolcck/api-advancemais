@@ -1,6 +1,7 @@
 /**
  * Serviço base para integrações com o MercadoPago
  * Fornece funcionalidades comuns para os serviços específicos
+ *
  * @module modules/mercadopago/services/base.service
  */
 
@@ -11,6 +12,7 @@ import {
   PreApproval,
   Preference,
   MerchantOrder,
+  CardToken,
 } from "mercadopago";
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../config/mercadopago.config";
@@ -18,6 +20,7 @@ import {
   MercadoPagoIntegrationType,
   credentialsManager,
 } from "../config/credentials";
+import { ServiceUnavailableError } from "@/shared/errors/AppError";
 
 /**
  * Classe base para serviços do MercadoPago
@@ -35,15 +38,33 @@ export abstract class MercadoPagoBaseService {
    */
   constructor(integrationType: MercadoPagoIntegrationType) {
     this.integrationType = integrationType;
-    this.config = mercadoPagoConfig.getConfig(integrationType);
+    this.initializeService();
+  }
 
-    const credentials = credentialsManager.getCredentials(integrationType);
-    this.accessToken = credentials.accessToken;
-    this.publicKey = credentials.publicKey;
+  /**
+   * Inicializa o serviço com as configurações do tipo de integração
+   * @throws Error se a configuração não for encontrada
+   */
+  private initializeService(): void {
+    try {
+      // Obtém a configuração do SDK
+      this.config = mercadoPagoConfig.getConfig(this.integrationType);
 
-    logger.debug(
-      `Serviço MercadoPago inicializado para integração: ${integrationType}`
-    );
+      // Obtém as credenciais
+      const credentials = credentialsManager.getCredentials(
+        this.integrationType
+      );
+      this.accessToken = credentials.accessToken;
+      this.publicKey = credentials.publicKey;
+
+      logger.debug(
+        `Serviço MercadoPago inicializado para integração: ${this.integrationType}`
+      );
+    } catch (error) {
+      const errorMessage = `Falha ao inicializar serviço MercadoPago para tipo: ${this.integrationType}`;
+      logger.error(errorMessage, error);
+      throw new Error(errorMessage);
+    }
   }
 
   /**
@@ -87,15 +108,25 @@ export abstract class MercadoPagoBaseService {
   }
 
   /**
+   * Cria uma instância do cliente de token de cartão
+   * @returns Cliente de token de cartão
+   */
+  protected createCardTokenClient(): CardToken {
+    return new CardToken(this.config);
+  }
+
+  /**
    * Trata erros de forma padronizada
-   * @param error Erro a ser tratado
-   * @param operation Nome da operação que gerou o erro
-   * @throws Error com informações detalhadas
+   * @param error Erro original
+   * @param operation Nome da operação
+   * @returns Erro formatado
    */
   protected handleError(error: any, operation: string): never {
+    // Cria uma mensagem de erro detalhada
     const errorMessage = error?.message || "Erro desconhecido";
     const errorDetails = error?.cause || error?.response?.data || {};
 
+    // Registra o erro no log
     logger.error(`Erro no MercadoPago durante ${operation}`, {
       operation,
       error: errorMessage,
@@ -103,7 +134,15 @@ export abstract class MercadoPagoBaseService {
       integrationType: this.integrationType,
     });
 
-    throw new Error(`Erro no MercadoPago - ${operation}: ${errorMessage}`);
+    // Transforma em ServiceUnavailableError para tratamento padronizado pela API
+    throw new ServiceUnavailableError(
+      `Erro no MercadoPago - ${operation}: ${errorMessage}`,
+      `MERCADOPAGO_${operation.toUpperCase()}_ERROR`,
+      {
+        details: errorDetails,
+        integrationType: this.integrationType,
+      }
+    );
   }
 
   /**
@@ -113,6 +152,15 @@ export abstract class MercadoPagoBaseService {
    */
   protected formatAmount(amount: number): number {
     return Math.round(amount * 100);
+  }
+
+  /**
+   * Converte valores de centavos para reais
+   * @param cents Valor em centavos
+   * @returns Valor em reais
+   */
+  protected centsToReais(cents: number): number {
+    return parseFloat((cents / 100).toFixed(2));
   }
 
   /**

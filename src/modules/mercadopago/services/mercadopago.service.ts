@@ -1,6 +1,6 @@
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../config/mercadopago.config";
-import { ConnectivityTestResponse } from "../dto/mercadopago.dto";
+import { ConnectivityTestResponse } from "../dtos/mercadopago.dto";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
 import {
   Payment,

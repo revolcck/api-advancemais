@@ -9,7 +9,8 @@ import { logger } from "@/shared/utils/logger.utils";
 import { env } from "@/config/environment";
 
 /**
- * Configuração do SDK do MercadoPago
+ * Classe de configuração do SDK do MercadoPago
+ * Gerencia diferentes instâncias de configuração para cada tipo de integração
  */
 export class MercadoPagoConfig {
   private static instance: MercadoPagoConfig;
@@ -20,9 +21,7 @@ export class MercadoPagoConfig {
   /**
    * Construtor privado para implementar o padrão Singleton
    */
-  private constructor() {
-    this.initialize();
-  }
+  private constructor() {}
 
   /**
    * Obtém a instância única da configuração do MercadoPago
@@ -36,6 +35,7 @@ export class MercadoPagoConfig {
 
   /**
    * Inicializa as configurações do SDK para os diferentes tipos de integração
+   * @throws Error se a inicialização falhar
    */
   private initialize(): void {
     try {
@@ -55,7 +55,7 @@ export class MercadoPagoConfig {
             accessToken: subscriptionCredentials.accessToken,
             corporationId: subscriptionCredentials.applicationId,
             integratorId: env.mercadoPago.integratorId,
-            trackingId: `${env.appName}-subscription`,
+            trackingId: `${env.appName || "api-projeto"}-subscription`,
             platformId: env.mercadoPago.platformId,
             corporationName: "AdvanceMais Assinatura",
             integrator: env.mercadoPago.integrator,
@@ -77,7 +77,7 @@ export class MercadoPagoConfig {
             accessToken: checkoutCredentials.accessToken,
             corporationId: checkoutCredentials.applicationId,
             integratorId: env.mercadoPago.integratorId,
-            trackingId: `${env.appName}-checkout`,
+            trackingId: `${env.appName || "api-projeto"}-checkout`,
             platformId: env.mercadoPago.platformId,
             corporationName: "AdvanceMais Controle Total",
             integrator: env.mercadoPago.integrator,
@@ -94,24 +94,29 @@ export class MercadoPagoConfig {
   }
 
   /**
-   * Obtém a configuração do SDK para um tipo específico de integração
-   * @param type Tipo de integração
-   * @returns Configuração do SDK
+   * Verifica se a configuração está inicializada e inicializa se necessário
    */
-  public getConfig(type: MercadoPagoIntegrationType): SDKMercadoPagoConfig {
+  private ensureInitialized(): void {
     if (!this.isInitialized) {
       this.initialize();
     }
+  }
+
+  /**
+   * Obtém a configuração do SDK para um tipo específico de integração
+   * @param type Tipo de integração
+   * @returns Configuração do SDK
+   * @throws Error se a configuração não for encontrada
+   */
+  public getConfig(type: MercadoPagoIntegrationType): SDKMercadoPagoConfig {
+    this.ensureInitialized();
 
     const config = this.configs.get(type);
 
     if (!config) {
-      logger.error(
-        `Configuração não encontrada para o tipo de integração: ${type}`
-      );
-      throw new Error(
-        `Configuração não encontrada para o tipo de integração: ${type}`
-      );
+      const errorMessage = `Configuração não encontrada para o tipo de integração: ${type}`;
+      logger.error(errorMessage);
+      throw new Error(errorMessage);
     }
 
     return config;
@@ -123,9 +128,60 @@ export class MercadoPagoConfig {
    * @returns Verdadeiro se a configuração estiver disponível
    */
   public hasConfig(type: MercadoPagoIntegrationType): boolean {
+    this.ensureInitialized();
     return this.configs.has(type);
+  }
+
+  /**
+   * Verifica se o módulo MercadoPago está disponível
+   * @returns Verdadeiro se pelo menos uma configuração estiver disponível
+   */
+  public isAvailable(): boolean {
+    this.ensureInitialized();
+    return this.configs.size > 0;
+  }
+
+  /**
+   * Verifica se estamos em modo de teste
+   * @returns Verdadeiro se estamos usando credenciais de teste
+   */
+  public isTestMode(): boolean {
+    // Verifica se o access token começa com TEST-
+    for (const [_, config] of this.configs.entries()) {
+      if (config.accessToken && config.accessToken.startsWith("TEST-")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Obtém a chave pública para uso no frontend
+   * Prioriza checkout sobre assinatura se ambos estiverem disponíveis
+   * @returns Chave pública do MercadoPago
+   * @throws Error se nenhuma chave estiver disponível
+   */
+  public getPublicKey(): string {
+    this.ensureInitialized();
+
+    // Prioriza checkout se disponível
+    if (this.hasConfig(MercadoPagoIntegrationType.CHECKOUT)) {
+      return credentialsManager.getCredentials(
+        MercadoPagoIntegrationType.CHECKOUT
+      ).publicKey;
+    }
+
+    // Fallback para assinatura
+    if (this.hasConfig(MercadoPagoIntegrationType.SUBSCRIPTION)) {
+      return credentialsManager.getCredentials(
+        MercadoPagoIntegrationType.SUBSCRIPTION
+      ).publicKey;
+    }
+
+    // Erro se nenhuma configuração estiver disponível
+    throw new Error("Nenhuma chave pública do MercadoPago disponível");
   }
 }
 
-// Exportar a instância da configuração
+// Exporta a instância da configuração
 export const mercadoPagoConfig = MercadoPagoConfig.getInstance();

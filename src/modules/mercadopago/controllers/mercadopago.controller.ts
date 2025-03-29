@@ -10,7 +10,7 @@ import {
   CreatePaymentRequest,
   CreateSubscriptionRequest,
   WebhookNotificationRequest,
-} from "../dto/mercadopago.dto";
+} from "../dtos/mercadopago.dto";
 
 export class MercadoPagoController {
   /**

@@ -5,7 +5,7 @@ import {
   EmailOptions,
   SmsOptions,
   WhatsAppOptions,
-} from "../dto/communications.dto";
+} from "../dtos/communications.dto";
 import { emailService } from "../services/email.service";
 import { smsService } from "../services/sms.service";
 import { whatsAppService } from "../services/whatsapp.service";
