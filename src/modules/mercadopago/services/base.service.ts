@@ -6,7 +6,7 @@
  */
 
 import {
-  MercadoPagoConfig,
+  MercadoPagoConfig as SDKMercadoPagoConfig,
   Payment,
   Customer,
   PreApproval,
@@ -27,7 +27,7 @@ import { ServiceUnavailableError } from "@/shared/errors/AppError";
  * Implementa o padrão Factory Method para criar instâncias dos clientes específicos
  */
 export abstract class MercadoPagoBaseService {
-  protected config: MercadoPagoConfig;
+  protected sdkConfig: SDKMercadoPagoConfig;
   protected accessToken: string;
   protected publicKey: string;
   protected integrationType: MercadoPagoIntegrationType;
@@ -48,7 +48,7 @@ export abstract class MercadoPagoBaseService {
   private initializeService(): void {
     try {
       // Obtém a configuração do SDK
-      this.config = mercadoPagoConfig.getConfig(this.integrationType);
+      this.sdkConfig = mercadoPagoConfig.getConfig(this.integrationType);
 
       // Obtém as credenciais
       const credentials = credentialsManager.getCredentials(
@@ -72,7 +72,7 @@ export abstract class MercadoPagoBaseService {
    * @returns Cliente de pagamento
    */
   protected createPaymentClient(): Payment {
-    return new Payment(this.config);
+    return new Payment(this.sdkConfig);
   }
 
   /**
@@ -80,7 +80,7 @@ export abstract class MercadoPagoBaseService {
    * @returns Cliente de cliente
    */
   protected createCustomerClient(): Customer {
-    return new Customer(this.config);
+    return new Customer(this.sdkConfig);
   }
 
   /**
@@ -88,7 +88,7 @@ export abstract class MercadoPagoBaseService {
    * @returns Cliente de pré-aprovação
    */
   protected createPreApprovalClient(): PreApproval {
-    return new PreApproval(this.config);
+    return new PreApproval(this.sdkConfig);
   }
 
   /**
@@ -96,7 +96,7 @@ export abstract class MercadoPagoBaseService {
    * @returns Cliente de preferência
    */
   protected createPreferenceClient(): Preference {
-    return new Preference(this.config);
+    return new Preference(this.sdkConfig);
   }
 
   /**
@@ -104,7 +104,7 @@ export abstract class MercadoPagoBaseService {
    * @returns Cliente de ordem do comerciante
    */
   protected createMerchantOrderClient(): MerchantOrder {
-    return new MerchantOrder(this.config);
+    return new MerchantOrder(this.sdkConfig);
   }
 
   /**
@@ -112,7 +112,7 @@ export abstract class MercadoPagoBaseService {
    * @returns Cliente de token de cartão
    */
   protected createCardTokenClient(): CardToken {
-    return new CardToken(this.config);
+    return new CardToken(this.sdkConfig);
   }
 
   /**

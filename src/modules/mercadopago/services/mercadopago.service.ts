@@ -1,5 +1,6 @@
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../config/mercadopago.config";
+import { MercadoPagoIntegrationType } from "../config/credentials";
 import { ConnectivityTestResponse } from "../dtos/mercadopago.dto";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
 import {
@@ -13,10 +14,6 @@ import {
   PaymentRefund,
 } from "mercadopago";
 
-/**
- * Serviço principal para integração com o Mercado Pago
- * Responsável por inicializar e gerenciar os recursos da API
- */
 export class MercadoPagoService {
   private static instance: MercadoPagoService;
 
@@ -65,7 +62,9 @@ export class MercadoPagoService {
     this.checkAvailability();
 
     if (!this._payment) {
-      this._payment = new Payment(mercadoPagoConfig.config);
+      this._payment = new Payment(
+        mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.CHECKOUT)
+      );
     }
 
     return this._payment;
@@ -78,7 +77,9 @@ export class MercadoPagoService {
     this.checkAvailability();
 
     if (!this._preApproval) {
-      this._preApproval = new PreApproval(mercadoPagoConfig.config);
+      this._preApproval = new PreApproval(
+        mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.SUBSCRIPTION)
+      );
     }
 
     return this._preApproval;
@@ -91,7 +92,9 @@ export class MercadoPagoService {
     this.checkAvailability();
 
     if (!this._preApprovalPlan) {
-      this._preApprovalPlan = new PreApprovalPlan(mercadoPagoConfig.config);
+      this._preApprovalPlan = new PreApprovalPlan(
+        mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.SUBSCRIPTION)
+      );
     }
 
     return this._preApprovalPlan;
@@ -104,7 +107,9 @@ export class MercadoPagoService {
     this.checkAvailability();
 
     if (!this._customer) {
-      this._customer = new Customer(mercadoPagoConfig.config);
+      this._customer = new Customer(
+        mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.CHECKOUT)
+      );
     }
 
     return this._customer;
@@ -117,7 +122,9 @@ export class MercadoPagoService {
     this.checkAvailability();
 
     if (!this._preference) {
-      this._preference = new Preference(mercadoPagoConfig.config);
+      this._preference = new Preference(
+        mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.CHECKOUT)
+      );
     }
 
     return this._preference;
@@ -130,7 +137,9 @@ export class MercadoPagoService {
     this.checkAvailability();
 
     if (!this._merchantOrder) {
-      this._merchantOrder = new MerchantOrder(mercadoPagoConfig.config);
+      this._merchantOrder = new MerchantOrder(
+        mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.CHECKOUT)
+      );
     }
 
     return this._merchantOrder;
@@ -143,7 +152,9 @@ export class MercadoPagoService {
     this.checkAvailability();
 
     if (!this._cardToken) {
-      this._cardToken = new CardToken(mercadoPagoConfig.config);
+      this._cardToken = new CardToken(
+        mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.CHECKOUT)
+      );
     }
 
     return this._cardToken;
@@ -156,7 +167,9 @@ export class MercadoPagoService {
     this.checkAvailability();
 
     if (!this._paymentRefund) {
-      this._paymentRefund = new PaymentRefund(mercadoPagoConfig.config);
+      this._paymentRefund = new PaymentRefund(
+        mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.CHECKOUT)
+      );
     }
 
     return this._paymentRefund;
