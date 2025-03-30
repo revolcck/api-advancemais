@@ -16,6 +16,11 @@ export {
 export { paymentService } from "./services/payment.service";
 export { subscriptionService } from "./services/subscription.service";
 export { preferenceService } from "./services/preference.service";
+export { mercadoPagoNotificationService } from "./services/notification.service";
+export {
+  templateService,
+  EmailTemplateType,
+} from "./services/template.service";
 export {
   checkoutWebhookService,
   subscriptionWebhookService,

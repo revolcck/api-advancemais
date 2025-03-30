@@ -15,6 +15,8 @@ import {
   CreatePaymentResponse,
   MercadoPagoBaseResponse,
 } from "../dtos/mercadopago.dto";
+import { mercadoPagoNotificationService } from "./notification.service";
+import { formatCurrency } from "@/shared/utils/format.utils";
 
 interface PaymentCreateData {
   transaction_amount: number;
@@ -146,6 +148,41 @@ export class PaymentService
           integrationType: this.integrationType,
         });
 
+        // Enviar email de confirmação de compra se o pagamento for aprovado
+        if (result.status === "approved") {
+          try {
+            await mercadoPagoNotificationService.sendPurchaseConfirmation({
+              id: result.id.toString(),
+              customerName: `${mpPaymentData.payer.firstName || ""} ${
+                mpPaymentData.payer.lastName || ""
+              }`.trim(),
+              customerEmail: mpPaymentData.payer.email,
+              productName: mpPaymentData.description,
+              amount: mpPaymentData.transactionAmount,
+              date: new Date(),
+              paymentMethod: this.formatPaymentMethodName(
+                mpPaymentData.paymentMethodId
+              ),
+              reference: mpPaymentData.externalReference,
+              status: result.status,
+            });
+
+            logger.info(
+              `Email de confirmação de compra enviado para ${mpPaymentData.payer.email}`,
+              {
+                paymentId: result.id,
+              }
+            );
+          } catch (emailError) {
+            logger.error("Erro ao enviar email de confirmação de compra", {
+              error: emailError,
+              paymentId: result.id,
+              email: mpPaymentData.payer.email,
+            });
+            // Não interrompe o fluxo em caso de erro no envio de email
+          }
+        }
+
         // Formata a resposta da operação
         return {
           success: true,
@@ -244,12 +281,72 @@ export class PaymentService
         integrationType: this.integrationType,
       });
 
+      // Primeiro, obter os detalhes do pagamento para ter informações para o email
+      const paymentDetails = await this.getPayment(paymentId);
+      if (!paymentDetails.success) {
+        throw new Error(
+          `Não foi possível obter detalhes do pagamento: ${paymentDetails.error}`
+        );
+      }
+
       // Usando o serviço de reembolso do MercadoPago
       const paymentRefund = this.mercadoPagoService.getPaymentRefundAPI();
       const result = await paymentRefund.create({
         payment_id: paymentId,
         amount: refundData.amount,
       });
+
+      // Buscar informações do pedido e cliente para enviar email
+      try {
+        const externalReference = paymentDetails.data.external_reference;
+        if (externalReference) {
+          const prisma = require("@/shared/database/prisma").prismaClient;
+          const order = await prisma.order.findUnique({
+            where: {
+              externalReference,
+            },
+            include: {
+              items: true,
+              customer: true,
+            },
+          });
+
+          if (order && order.customer && order.customer.email) {
+            // Enviar email de notificação de estorno
+            await mercadoPagoNotificationService.sendRefundNotification({
+              id: paymentId.toString(),
+              customerName: `${order.customer.firstName || ""} ${
+                order.customer.lastName || ""
+              }`.trim(),
+              customerEmail: order.customer.email,
+              productName:
+                order.items.length === 1
+                  ? order.items[0].name
+                  : `Pedido #${order.orderNumber || order.id}`,
+              amount: amount || paymentDetails.data.transaction_amount,
+              date: new Date(),
+              reference: order.orderNumber || order.id,
+              status: "refunded",
+            });
+
+            logger.info(
+              `Notificação de estorno enviada para ${order.customer.email}`,
+              {
+                orderId: order.id,
+                paymentId: paymentId.toString(),
+                refundId: result.id,
+              }
+            );
+          }
+        }
+      } catch (emailError) {
+        // Log do erro, mas não interrompe o processamento
+        logger.error(`Erro ao enviar notificação de estorno por email`, {
+          error: emailError,
+          paymentId: paymentId.toString(),
+          refundId: result.id,
+        });
+      }
 
       // Registra a operação para auditoria
       AuditService.log(
@@ -495,29 +592,62 @@ export class PaymentService
         // 3. Enviar notificações para o cliente sobre o status da transação
         if (order.customer && order.customer.email) {
           try {
-            // Utilizar serviço de notificação (por exemplo, usando o Brevo)
-            const notificationService =
-              require("@/modules/notification/services/notification.service").notificationService;
-
-            await notificationService.sendPaymentStatusUpdate({
-              email: order.customer.email,
-              orderNumber: order.orderNumber || order.id,
-              status: orderStatus,
-              paymentDetails: {
-                method: paymentDetails.data.payment_method_id,
+            // Determina qual tipo de notificação enviar com base no status
+            if (paymentStatus === "approved") {
+              // Notificação de compra confirmada
+              await mercadoPagoNotificationService.sendPurchaseConfirmation({
+                id: paymentId,
+                customerName: `${order.customer.firstName || ""} ${
+                  order.customer.lastName || ""
+                }`.trim(),
+                customerEmail: order.customer.email,
+                productName:
+                  order.items.length === 1
+                    ? order.items[0].name
+                    : `Pedido #${order.orderNumber || order.id}`,
                 amount: paymentDetails.data.transaction_amount,
-                currency: paymentDetails.data.currency_id || "BRL",
-                date: new Date().toLocaleDateString("pt-BR"),
-              },
-            });
+                date: new Date(),
+                paymentMethod: this.formatPaymentMethodName(
+                  paymentDetails.data.payment_method_id,
+                  paymentDetails.data.payment_type_id
+                ),
+                reference: order.orderNumber || order.id,
+                status: paymentStatus,
+              });
 
-            logger.info(
-              `Notificação de pagamento enviada para ${order.customer.email}`,
-              {
-                orderId: order.id,
-                status: orderStatus,
-              }
-            );
+              logger.info(
+                `Notificação de compra enviada para ${order.customer.email}`,
+                {
+                  orderId: order.id,
+                  status: orderStatus,
+                }
+              );
+            } else if (paymentStatus === "refunded") {
+              // Notificação de estorno
+              await mercadoPagoNotificationService.sendRefundNotification({
+                id: paymentId,
+                customerName: `${order.customer.firstName || ""} ${
+                  order.customer.lastName || ""
+                }`.trim(),
+                customerEmail: order.customer.email,
+                productName:
+                  order.items.length === 1
+                    ? order.items[0].name
+                    : `Pedido #${order.orderNumber || order.id}`,
+                amount: paymentDetails.data.transaction_amount,
+                date: new Date(),
+                reference: order.orderNumber || order.id,
+                status: paymentStatus,
+              });
+
+              logger.info(
+                `Notificação de estorno enviada para ${order.customer.email}`,
+                {
+                  orderId: order.id,
+                  status: orderStatus,
+                }
+              );
+            }
           } catch (notifyError) {
             // Log do erro, mas não interrompe o processamento
             logger.error(`Erro ao enviar notificação de pagamento`, {
@@ -614,6 +744,46 @@ export class PaymentService
 
       return this.formatErrorResponse(error, "processPaymentWebhook");
     }
+  }
+
+  /**
+   * Formata o nome do método de pagamento para exibição
+   * @param paymentMethodId ID do método de pagamento
+   * @param paymentTypeId Tipo de pagamento
+   * @returns Nome formatado do método de pagamento
+   */
+  private formatPaymentMethodName(
+    paymentMethodId?: string,
+    paymentTypeId?: string
+  ): string {
+    if (paymentTypeId === "credit_card") {
+      // Mapeamento de bandeiras de cartão
+      const cardBrands: Record<string, string> = {
+        visa: "Visa",
+        master: "Mastercard",
+        amex: "American Express",
+        elo: "Elo",
+        hipercard: "Hipercard",
+        diners: "Diners Club",
+      };
+
+      return cardBrands[paymentMethodId || ""] || "Cartão de Crédito";
+    }
+
+    if (paymentTypeId === "debit_card") {
+      return "Cartão de Débito";
+    }
+
+    // Mapeamento de outros métodos de pagamento
+    const paymentMethods: Record<string, string> = {
+      pix: "PIX",
+      bolbradesco: "Boleto Bancário",
+      pec: "Pagamento em Lotérica",
+      account_money: "Saldo MercadoPago",
+      bank_transfer: "Transferência Bancária",
+    };
+
+    return paymentMethods[paymentMethodId || ""] || "Outro método de pagamento";
   }
 
   /**

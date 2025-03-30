@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Confirmação de Compra</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .header {
+        text-align: center;
+        padding: 20px 0;
+        border-bottom: 1px solid #eee;
+      }
+      .content {
+        padding: 20px 0;
+      }
+      .footer {
+        text-align: center;
+        padding: 20px 0;
+        border-top: 1px solid #eee;
+        font-size: 12px;
+        color: #777;
+      }
+      .button {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: #4caf50;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+      }
+      .details {
+        background-color: #f9f9f9;
+        padding: 15px;
+        border-radius: 4px;
+        margin-top: 20px;
+      }
+      .amount {
+        font-size: 18px;
+        font-weight: bold;
+        color: #4caf50;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Compra Confirmada!</h1>
+      </div>
+      <div class="content">
+        <p>Olá{{customerName}}!</p>
+        <p>
+          Sua compra foi processada com sucesso. Aqui estão os detalhes da sua
+          transação:
+        </p>
+
+        <div class="details">
+          <p><strong>Produto:</strong> {{productName}}</p>
+          <p><strong>Valor:</strong> <span class="amount">{{amount}}</span></p>
+          <p><strong>Data:</strong> {{date}}</p>
+          <p><strong>Forma de pagamento:</strong> {{paymentMethod}}</p>
+          <p><strong>Número da transação:</strong> {{transactionId}}</p>
+          {{#reference}}
+          <p><strong>Referência:</strong> {{reference}}</p>
+          {{/reference}}
+        </div>
+
+        <p>
+          Agradecemos pela sua compra! Se tiver alguma dúvida, entre em contato
+          com nossa equipe de suporte.
+        </p>
+
+        <p>Atenciosamente,</p>
+        <p><strong>Equipe AdvanceMais</strong></p>
+      </div>
+      <div class="footer">
+        <p>Este é um email automático, por favor não responda.</p>
+        <p>&copy; {{currentYear}} AdvanceMais - Todos os direitos reservados</p>
+      </div>
+    </div>
+  </body>
+</html>
