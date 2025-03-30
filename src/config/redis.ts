@@ -361,5 +361,4 @@ class RedisService implements IRedisService {
   }
 }
 
-// Exporta uma instância única do serviço Redis
 export const redisService: IRedisService = RedisService.getInstance();

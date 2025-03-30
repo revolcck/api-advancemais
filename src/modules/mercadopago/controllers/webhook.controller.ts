@@ -177,5 +177,4 @@ export class WebhookController {
   }
 }
 
-// Exporta a instância do controlador
 export const webhookController = new WebhookController();

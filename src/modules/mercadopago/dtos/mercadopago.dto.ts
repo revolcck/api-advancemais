@@ -17,6 +17,9 @@ export interface MercadoPagoBaseResponse {
 
   /** Código de erro (quando houver) */
   errorCode?: string;
+
+  /** Dados retornados (quando a operação for bem-sucedida) */
+  data?: any; // Propriedade adicionada para resolver o erro
 }
 
 /**
@@ -123,9 +126,6 @@ export interface CreatePaymentResponse extends MercadoPagoBaseResponse {
 
   /** URL para redirecionamento (quando aplicável) */
   redirectUrl?: string;
-
-  /** Dados completos do pagamento retornado pela API */
-  data?: any;
 }
 
 /**
@@ -213,9 +213,6 @@ export interface CreateSubscriptionResponse extends MercadoPagoBaseResponse {
 
   /** URL para o cliente autorizar a assinatura */
   initPoint?: string;
-
-  /** Dados completos da assinatura retornada pela API */
-  data?: any;
 }
 
 /**
@@ -287,9 +284,6 @@ export interface WebhookResponse extends MercadoPagoBaseResponse {
 
   /** ID do recurso processado */
   resourceId?: string;
-
-  /** Dados adicionais (opcional) */
-  data?: any;
 }
 
 // ===================== DTOs para Preferências de Pagamento =====================
@@ -355,7 +349,4 @@ export interface CreatePreferenceResponse extends MercadoPagoBaseResponse {
 
   /** URL para iniciar o fluxo de pagamento em sandbox */
   sandboxInitPoint?: string;
-
-  /** Dados completos da preferência retornada pela API */
-  data?: any;
 }

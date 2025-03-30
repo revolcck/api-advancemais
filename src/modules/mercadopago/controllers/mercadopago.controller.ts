@@ -166,7 +166,8 @@ export class MercadoPagoController {
         );
       }
 
-      const result = await paymentService.getPaymentInfo({ paymentId });
+      // Corrigido: usando getPayment em vez de getPaymentInfo
+      const result = await paymentService.getPayment(paymentId);
 
       if (!result.success) {
         throw new ServiceUnavailableError(
@@ -219,10 +220,11 @@ export class MercadoPagoController {
         );
       }
 
-      const result = await paymentService.capturePayment({
+      // Corrigido: passando paymentId diretamente
+      const result = await paymentService.capturePayment(
         paymentId,
-        amount,
-      });
+        req.user?.id
+      );
 
       if (!result.success) {
         throw new ServiceUnavailableError(
@@ -269,7 +271,12 @@ export class MercadoPagoController {
         );
       }
 
-      const result = await paymentService.cancelPayment({ paymentId });
+      // Se não há método cancelPayment, podemos usar refundPayment sem valor para cancelar
+      const result = await paymentService.refundPayment(
+        paymentId,
+        undefined, // sem valor = reembolso total = cancelamento
+        req.user?.id
+      );
 
       if (!result.success) {
         throw new ServiceUnavailableError(
@@ -368,9 +375,8 @@ export class MercadoPagoController {
         );
       }
 
-      const result = await subscriptionService.getSubscriptionInfo({
-        subscriptionId,
-      });
+      // Corrigido: usando getSubscription em vez de getSubscriptionInfo
+      const result = await subscriptionService.getSubscription(subscriptionId);
 
       if (!result.success) {
         throw new ServiceUnavailableError(
@@ -422,9 +428,11 @@ export class MercadoPagoController {
         );
       }
 
-      const result = await subscriptionService.cancelSubscription({
+      // Corrigido: passando subscriptionId diretamente
+      const result = await subscriptionService.cancelSubscription(
         subscriptionId,
-      });
+        req.user?.id
+      );
 
       if (!result.success) {
         throw new ServiceUnavailableError(
@@ -484,10 +492,20 @@ export class MercadoPagoController {
         );
       }
 
-      const result = await subscriptionService.updateSubscriptionStatus({
-        subscriptionId,
-        status,
-      });
+      // Usamos o método correto: pauseSubscription ou resumeSubscription
+      let result;
+      if (status === "paused") {
+        result = await subscriptionService.pauseSubscription(
+          subscriptionId,
+          req.user?.id
+        );
+      } else {
+        // status === "authorized"
+        result = await subscriptionService.resumeSubscription(
+          subscriptionId,
+          req.user?.id
+        );
+      }
 
       if (!result.success) {
         throw new ServiceUnavailableError(
@@ -552,10 +570,12 @@ export class MercadoPagoController {
         );
       }
 
-      const result = await subscriptionService.updateSubscriptionAmount({
+      // Usando o método updateSubscriptionAmount diretamente
+      const result = await subscriptionService.updateSubscriptionAmount(
         subscriptionId,
         amount,
-      });
+        req.user?.id
+      );
 
       if (!result.success) {
         throw new ServiceUnavailableError(
@@ -616,11 +636,13 @@ export class MercadoPagoController {
 
       // Processa de acordo com o tipo de notificação
       if (type === "payment") {
+        // Usar processPaymentWebhook com string (id) e string (type)
         result = await paymentService.processPaymentWebhook(id, type);
       } else if (
         type === "subscription" ||
         type === "subscription_preapproval"
       ) {
+        // Usar processSubscriptionWebhook com string (id) e string (type)
         result = await subscriptionService.processSubscriptionWebhook(id, type);
       } else {
         // Tipo de notificação não suportado

@@ -49,18 +49,19 @@ export class MercadoPagoConfig {
           MercadoPagoIntegrationType.SUBSCRIPTION
         );
 
+        // Usando apenas accessToken que é a única propriedade garantida
         this.configs.set(
           MercadoPagoIntegrationType.SUBSCRIPTION,
           new SDKMercadoPagoConfig({
             accessToken: subscriptionCredentials.accessToken,
-            corporationId: subscriptionCredentials.applicationId,
-            integratorId: env.mercadoPago.integratorId,
-            trackingId: `${env.appName || "api-projeto"}-subscription`,
-            platformId: env.mercadoPago.platformId,
-            corporationName: "AdvanceMais Assinatura",
-            integrator: env.mercadoPago.integrator,
           })
         );
+
+        // Log das credenciais inicializadas
+        logger.debug(`Credenciais de SUBSCRIPTION configuradas`, {
+          applicationId: subscriptionCredentials.applicationId,
+          // Não logamos tokens sensíveis
+        });
       }
 
       // Inicializa configuração para checkout
@@ -71,18 +72,19 @@ export class MercadoPagoConfig {
           MercadoPagoIntegrationType.CHECKOUT
         );
 
+        // Usando apenas accessToken que é a única propriedade garantida
         this.configs.set(
           MercadoPagoIntegrationType.CHECKOUT,
           new SDKMercadoPagoConfig({
             accessToken: checkoutCredentials.accessToken,
-            corporationId: checkoutCredentials.applicationId,
-            integratorId: env.mercadoPago.integratorId,
-            trackingId: `${env.appName || "api-projeto"}-checkout`,
-            platformId: env.mercadoPago.platformId,
-            corporationName: "AdvanceMais Controle Total",
-            integrator: env.mercadoPago.integrator,
           })
         );
+
+        // Log das credenciais inicializadas
+        logger.debug(`Credenciais de CHECKOUT configuradas`, {
+          applicationId: checkoutCredentials.applicationId,
+          // Não logamos tokens sensíveis
+        });
       }
 
       this.isInitialized = true;

@@ -27,7 +27,6 @@ export class ApplicationConfig implements IApplicationConfig {
   public createApp(): Express {
     const app = express();
 
-    // Aplica middlewares na ordem correta
     this.configureLogging(app);
     this.configureSecurity(app);
     this.configureRequestParsing(app);

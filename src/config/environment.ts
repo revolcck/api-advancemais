@@ -16,6 +16,9 @@ interface Environment {
   isProduction: boolean;
   isTest: boolean;
 
+  // Nome da aplicação
+  appName: string;
+
   // Domínio da aplicação
   appUrl: string;
   allowedOrigins: string[];
@@ -100,6 +103,9 @@ const envSchema = joi.object({
     .valid("development", "production", "test")
     .default("development"),
   PORT: joi.number().default(3000),
+
+  // Nome da aplicação
+  APP_NAME: joi.string().default("api-projeto"), // Validação adicionada
 
   // URL e origens permitidas
   APP_URL: joi.string().uri().default("http://localhost:3000"),
@@ -215,6 +221,9 @@ export const env: Environment = {
   isProduction: _env.NODE_ENV === "production",
   isTest: _env.NODE_ENV === "test",
 
+  // Nome da aplicação
+  appName: _env.APP_NAME,
+
   // URL e origens permitidas
   appUrl: _env.APP_URL,
   allowedOrigins: _env.ALLOWED_ORIGINS.split(",").map((origin: string) =>
@@ -290,12 +299,12 @@ export const env: Environment = {
   },
 };
 
-// Remova o log usando o logger para evitar dependência circular
-// Em vez disso, podemos usar console.log em desenvolvimento
+// Log de configuração de ambiente
 if (env.isDevelopment) {
   console.debug("📊 Configuração de ambiente carregada:", {
     nodeEnv: env.nodeEnv,
     port: env.port,
+    appName: env.appName, // Log adicional
     databasePoolSize: `${env.databasePoolMin}-${env.databasePoolMax}`,
     redisEnabled: env.redis.enabled,
     jwtExpires: {
