@@ -3,7 +3,7 @@
  * @module modules/mercadopago/services/payment.service
  */
 
-import { Payment, PaymentCreateData, PaymentRefundData } from "mercadopago";
+import { Payment } from "mercadopago";
 import { MercadoPagoBaseService } from "./base.service";
 import { MercadoPagoIntegrationType } from "../config/credentials";
 import { logger } from "@/shared/utils/logger.utils";
@@ -15,6 +15,44 @@ import {
   CreatePaymentResponse,
   MercadoPagoBaseResponse,
 } from "../dtos/mercadopago.dto";
+
+interface PaymentCreateData {
+  transaction_amount: number;
+  description: string;
+  payment_method_id: string;
+  payer: {
+    email: string;
+    first_name?: string;
+    last_name?: string;
+    identification?: {
+      type: string;
+      number: string;
+    };
+  };
+  installments?: number;
+  token?: string;
+  external_reference?: string;
+  callback_url?: string;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Interface para dados de reembolso no MercadoPago
+ */
+interface PaymentRefundData {
+  amount?: number;
+}
+
+/**
+ * Interface para resposta da API de pagamentos do MercadoPago
+ */
+interface PaymentResponse {
+  id?: string | number;
+  status?: string;
+  status_detail?: string;
+  external_reference?: string;
+  [key: string]: any;
+}
 
 /**
  * Serviço para processamento de pagamentos via MercadoPago
@@ -41,7 +79,6 @@ export class PaymentService
   /**
    * Cria um pagamento no MercadoPago
    * @param paymentData Dados do pagamento
-   * @param userId ID do usuário para auditoria
    * @returns Resultado da criação do pagamento
    */
   public async createPayment(
@@ -84,36 +121,42 @@ export class PaymentService
       });
 
       // Chama a API do MercadoPago
-      const result = await this.paymentClient.create({ body: mercadoPagoData });
-
-      // Registra a operação para auditoria
-      AuditService.log(
-        "payment_created",
-        "payment",
-        result.id.toString(),
-        userId,
-        {
-          amount: paymentData.transactionAmount,
-          paymentMethodId: paymentData.paymentMethodId,
-          integrationType: this.integrationType,
-          status: result.status,
-        }
-      );
-
-      logger.info("Pagamento criado com sucesso no MercadoPago", {
-        paymentId: result.id,
-        status: result.status,
-        integrationType: this.integrationType,
+      const result: PaymentResponse = await this.paymentClient.create({
+        body: mercadoPagoData,
       });
 
-      // Formata a resposta da operação
-      return {
-        success: true,
-        paymentId: result.id.toString(),
-        status: result.status,
-        statusDetail: result.status_detail,
-        data: result,
-      };
+      // Registra a operação para auditoria
+      if (result && result.id) {
+        AuditService.log(
+          "payment_created",
+          "payment",
+          result.id.toString(),
+          userId,
+          {
+            amount: paymentData.transactionAmount,
+            paymentMethodId: paymentData.paymentMethodId,
+            integrationType: this.integrationType,
+            status: result.status || "unknown",
+          }
+        );
+
+        logger.info("Pagamento criado com sucesso no MercadoPago", {
+          paymentId: result.id,
+          status: result.status,
+          integrationType: this.integrationType,
+        });
+
+        // Formata a resposta da operação
+        return {
+          success: true,
+          paymentId: result.id.toString(),
+          status: result.status,
+          statusDetail: result.status_detail,
+          data: result,
+        };
+      } else {
+        throw new Error("Resposta do MercadoPago não contém ID do pagamento");
+      }
     } catch (error) {
       // Se já for um ServiceUnavailableError, apenas propaga
       if (error instanceof ServiceUnavailableError) {
@@ -139,7 +182,9 @@ export class PaymentService
    * @param paymentId ID do pagamento
    * @returns Detalhes do pagamento
    */
-  public async getPayment(paymentId: string | number): Promise<any> {
+  public async getPayment(
+    paymentId: string | number
+  ): Promise<MercadoPagoBaseResponse> {
     try {
       if (!this.isConfigured()) {
         throw new ServiceUnavailableError(
@@ -199,9 +244,11 @@ export class PaymentService
         integrationType: this.integrationType,
       });
 
-      const result = await this.paymentClient.refund({
-        id: paymentId,
-        body: refundData,
+      // Usando o serviço de reembolso do MercadoPago
+      const paymentRefund = this.mercadoPagoService.getPaymentRefundAPI();
+      const result = await paymentRefund.create({
+        payment_id: paymentId,
+        amount: refundData.amount,
       });
 
       // Registra a operação para auditoria
@@ -258,6 +305,7 @@ export class PaymentService
         integrationType: this.integrationType,
       });
 
+      // Operação PUT para capturar um pagamento
       const result = await this.paymentClient.capture({ id: paymentId });
 
       // Registra a operação para auditoria
@@ -310,7 +358,9 @@ export class PaymentService
         integrationType: this.integrationType,
       });
 
-      const result = await this.paymentClient.search({ qs: criteria });
+      const result = await this.paymentClient.search({
+        options: criteria,
+      });
 
       return {
         success: true,
@@ -355,20 +405,208 @@ export class PaymentService
         return paymentDetails;
       }
 
-      // Aqui você adicionaria a lógica para atualizar seu sistema com os novos dados
-      // Por exemplo, atualizar o status do pedido na sua base de dados
+      // Implementação real da lógica de processamento de webhooks
+      try {
+        // 1. Buscar o pedido relacionado ao pagamento usando external_reference
+        const externalReference = paymentDetails.data.external_reference;
+        if (!externalReference) {
+          logger.warn(`Pagamento ${paymentId} sem referência externa`, {
+            paymentStatus: paymentDetails.data.status,
+          });
+          return {
+            success: false,
+            error: "Pagamento sem referência externa",
+            errorCode: "WEBHOOK_MISSING_REFERENCE",
+          };
+        }
 
-      logger.info(`Webhook de pagamento processado com sucesso`, {
-        paymentId,
-        status: paymentDetails.data.status,
-        type,
-        integrationType: this.integrationType,
-      });
+        // Buscar o pedido no banco de dados usando uma instância do PrismaClient
+        const prisma = require("@/shared/database/prisma").prismaClient;
+        const order = await prisma.order.findUnique({
+          where: {
+            externalReference,
+          },
+          include: {
+            items: true,
+            customer: true,
+          },
+        });
 
-      return {
-        success: true,
-        data: paymentDetails.data,
-      };
+        if (!order) {
+          logger.warn(
+            `Pedido não encontrado para referência: ${externalReference}`,
+            {
+              paymentId,
+              paymentStatus: paymentDetails.data.status,
+            }
+          );
+          return {
+            success: false,
+            error: `Pedido não encontrado para referência: ${externalReference}`,
+            errorCode: "WEBHOOK_ORDER_NOT_FOUND",
+          };
+        }
+
+        // 2. Atualizar o status do pedido com base no status do pagamento
+        const paymentStatus = paymentDetails.data.status;
+        let orderStatus;
+
+        switch (paymentStatus) {
+          case "approved":
+            orderStatus = "PAID";
+            break;
+          case "pending":
+            orderStatus = "PENDING_PAYMENT";
+            break;
+          case "in_process":
+            orderStatus = "PROCESSING_PAYMENT";
+            break;
+          case "rejected":
+            orderStatus = "PAYMENT_FAILED";
+            break;
+          case "refunded":
+            orderStatus = "REFUNDED";
+            break;
+          case "cancelled":
+            orderStatus = "CANCELLED";
+            break;
+          default:
+            orderStatus = "PAYMENT_REVIEW";
+        }
+
+        // Atualizar o pedido
+        await prisma.order.update({
+          where: { id: order.id },
+          data: {
+            status: orderStatus,
+            paymentStatus: paymentStatus,
+            lastPaymentUpdate: new Date(),
+            paymentData: {
+              // Armazena detalhes adicionais como JSON
+              paymentId,
+              statusDetail: paymentDetails.data.status_detail,
+              paymentMethod: paymentDetails.data.payment_method_id,
+              paymentType: paymentDetails.data.payment_type_id,
+              lastUpdated: new Date().toISOString(),
+            },
+          },
+        });
+
+        // 3. Enviar notificações para o cliente sobre o status da transação
+        if (order.customer && order.customer.email) {
+          try {
+            // Utilizar serviço de notificação (por exemplo, usando o Brevo)
+            const notificationService =
+              require("@/modules/notification/services/notification.service").notificationService;
+
+            await notificationService.sendPaymentStatusUpdate({
+              email: order.customer.email,
+              orderNumber: order.orderNumber || order.id,
+              status: orderStatus,
+              paymentDetails: {
+                method: paymentDetails.data.payment_method_id,
+                amount: paymentDetails.data.transaction_amount,
+                currency: paymentDetails.data.currency_id || "BRL",
+                date: new Date().toLocaleDateString("pt-BR"),
+              },
+            });
+
+            logger.info(
+              `Notificação de pagamento enviada para ${order.customer.email}`,
+              {
+                orderId: order.id,
+                status: orderStatus,
+              }
+            );
+          } catch (notifyError) {
+            // Log do erro, mas não interrompe o processamento
+            logger.error(`Erro ao enviar notificação de pagamento`, {
+              error: notifyError,
+              orderId: order.id,
+              customerEmail: order.customer.email,
+            });
+          }
+        }
+
+        // 4. Atualizar estoque se necessário (apenas para pagamentos aprovados)
+        if (paymentStatus === "approved" && order.items?.length > 0) {
+          try {
+            const inventoryService =
+              require("@/modules/inventory/services/inventory.service").inventoryService;
+
+            // Atualiza o estoque para cada item
+            for (const item of order.items) {
+              await inventoryService.decreaseStock({
+                productId: item.productId,
+                quantity: item.quantity,
+                orderId: order.id,
+                reason: "ORDER_PAID",
+              });
+            }
+
+            logger.info(`Estoque atualizado para o pedido ${order.id}`, {
+              itemCount: order.items.length,
+            });
+          } catch (inventoryError) {
+            // Log do erro, mas não interrompe o processamento
+            logger.error(`Erro ao atualizar estoque`, {
+              error: inventoryError,
+              orderId: order.id,
+            });
+          }
+        }
+
+        // 5. Registrar o evento em logs de auditoria
+        AuditService.log(
+          "payment_status_update",
+          "order",
+          order.id,
+          order.userId || "webhook",
+          {
+            previousStatus: order.status,
+            newStatus: orderStatus,
+            paymentId,
+            paymentStatus,
+            paymentDetail: paymentDetails.data.status_detail,
+          }
+        );
+
+        logger.info(`Processamento de webhook concluído com sucesso`, {
+          orderId: order.id,
+          paymentId,
+          previousStatus: order.status,
+          newStatus: orderStatus,
+        });
+
+        return {
+          success: true,
+          data: {
+            orderId: order.id,
+            orderStatus,
+            paymentStatus,
+            updated: true,
+          },
+        };
+      } catch (processingError) {
+        logger.error(`Erro ao processar lógica de negócios do webhook`, {
+          error: processingError,
+          paymentId,
+          paymentStatus: paymentDetails.data.status,
+        });
+
+        // Trata o processingError de forma segura, verificando seu tipo
+        const errorMessage =
+          processingError instanceof Error
+            ? processingError.message
+            : "Erro desconhecido";
+
+        return {
+          success: false,
+          error: `Erro ao processar webhook: ${errorMessage}`,
+          errorCode: "WEBHOOK_PROCESSING_ERROR",
+          data: paymentDetails.data,
+        };
+      }
     } catch (error) {
       if (error instanceof ServiceUnavailableError) {
         throw error;
@@ -431,6 +669,14 @@ export class PaymentService
     });
 
     return errorResponse;
+  }
+
+  /**
+   * Referência para o serviço do Mercado Pago
+   * Necessário para acessar APIs específicas
+   */
+  private get mercadoPagoService() {
+    return require("./mercadopago.service").mercadoPagoService;
   }
 }
 
