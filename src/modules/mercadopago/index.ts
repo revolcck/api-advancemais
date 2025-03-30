@@ -6,40 +6,71 @@
  */
 
 // Configuração
-export { mercadoPagoConfig } from "./config/mercadopago.config";
-export {
+import { mercadoPagoConfig } from "./config/mercadopago.config";
+import {
   MercadoPagoIntegrationType,
   credentialsManager,
 } from "./config/credentials";
 
 // Serviços
-export { paymentService } from "./services/payment.service";
-export { subscriptionService } from "./services/subscription.service";
-export { preferenceService } from "./services/preference.service";
-export { mercadoPagoNotificationService } from "./services/notification.service";
-export {
+import { paymentService } from "./services/payment.service";
+import { subscriptionService } from "./services/subscription.service";
+import { preferenceService } from "./services/preference.service";
+import { mercadoPagoNotificationService } from "./services/notification.service";
+import {
   templateService,
   EmailTemplateType,
 } from "./services/template.service";
-export {
+import {
   checkoutWebhookService,
   subscriptionWebhookService,
   WebhookTopicType,
 } from "./services/webhook.service";
 
 // Controladores
-export { paymentController } from "./controllers/payment.controller";
-export { subscriptionController } from "./controllers/subscription.controller";
-export { preferenceController } from "./controllers/preference.controller";
-export { webhookController } from "./controllers/webhook.controller";
-
-// DTOs e interfaces
-export * from "./dtos/mercadopago.dto";
-export * from "./interfaces";
+import { paymentController } from "./controllers/payment.controller";
+import { subscriptionController } from "./controllers/subscription.controller";
+import { preferenceController } from "./controllers/preference.controller";
+import { webhookController } from "./controllers/webhook.controller";
 
 // Rotas
 import mercadoPagoRoutes from "./routes";
-export { mercadoPagoRoutes };
+
+// DTOs e interfaces
+import * as DTOs from "./dtos/mercadopago.dto";
+import * as Interfaces from "./interfaces";
+
+// Exportações explícitas para todo o módulo
+export {
+  // Configuração
+  mercadoPagoConfig,
+  MercadoPagoIntegrationType,
+  credentialsManager,
+
+  // Serviços
+  paymentService,
+  subscriptionService,
+  preferenceService,
+  mercadoPagoNotificationService,
+  templateService,
+  EmailTemplateType,
+  checkoutWebhookService,
+  subscriptionWebhookService,
+  WebhookTopicType,
+
+  // Controladores
+  paymentController,
+  subscriptionController,
+  preferenceController,
+  webhookController,
+
+  // Rotas
+  mercadoPagoRoutes,
+
+  // DTOs e interfaces
+  DTOs,
+  Interfaces,
+};
 
 /**
  * Verifica se a integração com o MercadoPago está disponível
