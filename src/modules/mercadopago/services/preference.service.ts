@@ -3,11 +3,7 @@
  * @module modules/mercadopago/services/preference.service
  */
 
-import {
-  Preference,
-  PreferenceCreateData,
-  PreferenceSearchData,
-} from "mercadopago";
+import { Preference } from "mercadopago";
 import { MercadoPagoBaseService } from "./base.service";
 import { MercadoPagoIntegrationType } from "../config/credentials";
 import { logger } from "@/shared/utils/logger.utils";
@@ -19,6 +15,11 @@ import {
   MercadoPagoBaseResponse,
 } from "../dtos/mercadopago.dto";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
+import { PreferenceAdapter } from "../adapters/preference.adapter";
+import {
+  PreferenceData,
+  PreferenceSearchCriteria,
+} from "../types/mercadopago-custom.types";
 
 /**
  * Serviço para gerenciamento de preferências de pagamento
@@ -29,6 +30,7 @@ export class PreferenceService
   implements IPreferenceService
 {
   private preferenceClient: Preference;
+  private preferenceAdapter: PreferenceAdapter;
 
   /**
    * Construtor do serviço de preferência
@@ -39,6 +41,7 @@ export class PreferenceService
   ) {
     super(integrationType);
     this.preferenceClient = this.createPreferenceClient();
+    this.preferenceAdapter = new PreferenceAdapter(this.preferenceClient);
     logger.debug("Serviço de preferência do MercadoPago inicializado");
   }
 
@@ -61,11 +64,11 @@ export class PreferenceService
 
       const userId = preferenceData.userId;
 
-      // Remove campos específicos da nossa API que não são para o MercadoPago
+      // Remove campos específicos da API que não são para o MercadoPago
       const { userId: _, ...mpPreferenceData } = preferenceData;
 
       // Prepara os dados para a API do MercadoPago
-      const mercadoPagoData: PreferenceCreateData = {
+      const preferenceApiData: PreferenceData = {
         items: mpPreferenceData.items.map((item) => ({
           id: item.id,
           title: item.title,
@@ -92,7 +95,9 @@ export class PreferenceService
                 ? {
                     zip_code: mpPreferenceData.payer.address.zipCode,
                     street_name: mpPreferenceData.payer.address.streetName,
-                    street_number: mpPreferenceData.payer.address.streetNumber,
+                    street_number: String(
+                      mpPreferenceData.payer.address.streetNumber
+                    ),
                   }
                 : undefined,
             }
@@ -113,14 +118,13 @@ export class PreferenceService
       };
 
       logger.info("Iniciando criação de preferência no MercadoPago", {
-        externalReference: mercadoPagoData.external_reference,
-        items: mercadoPagoData.items?.length,
+        externalReference: preferenceApiData.external_reference,
+        items: preferenceApiData.items?.length,
         integrationType: this.integrationType,
       });
 
-      const result = await this.preferenceClient.create({
-        body: mercadoPagoData,
-      });
+      // Usa o adaptador para criar a preferência
+      const result = await this.preferenceAdapter.create(preferenceApiData);
 
       // Registra a operação para auditoria
       AuditService.log("preference_created", "preference", result.id, userId, {
@@ -181,7 +185,8 @@ export class PreferenceService
         integrationType: this.integrationType,
       });
 
-      const result = await this.preferenceClient.get({ id: preferenceId });
+      // Usa o adaptador para obter a preferência
+      const result = await this.preferenceAdapter.get(preferenceId);
 
       return {
         success: true,
@@ -205,7 +210,7 @@ export class PreferenceService
    */
   public async updatePreference(
     preferenceId: string,
-    updateData: Partial<PreferenceCreateData>,
+    updateData: Partial<PreferenceData>,
     userId?: string
   ): Promise<MercadoPagoBaseResponse> {
     try {
@@ -221,10 +226,11 @@ export class PreferenceService
         fieldsToUpdate: Object.keys(updateData),
       });
 
-      const result = await this.preferenceClient.update({
-        id: preferenceId,
-        body: updateData,
-      });
+      // Usa o adaptador para atualizar a preferência
+      const result = await this.preferenceAdapter.update(
+        preferenceId,
+        updateData
+      );
 
       // Registra a operação para auditoria
       AuditService.log(
@@ -262,7 +268,7 @@ export class PreferenceService
    * @returns Lista de preferências
    */
   public async searchPreferences(
-    criteria: PreferenceSearchData
+    criteria: PreferenceSearchCriteria
   ): Promise<MercadoPagoBaseResponse> {
     try {
       if (!this.isConfigured()) {
@@ -277,7 +283,8 @@ export class PreferenceService
         integrationType: this.integrationType,
       });
 
-      const result = await this.preferenceClient.search({ qs: criteria });
+      // Usa o adaptador para pesquisar preferências
+      const result = await this.preferenceAdapter.search(criteria);
 
       return {
         success: true,
@@ -348,7 +355,6 @@ export class PreferenceService
   }
 }
 
-// Exporta a instância do serviço para checkout
 export const preferenceService = new PreferenceService(
   MercadoPagoIntegrationType.CHECKOUT
 );

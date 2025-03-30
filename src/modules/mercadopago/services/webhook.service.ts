@@ -1,43 +1,27 @@
-/**
- * Serviço para processamento de webhooks do MercadoPago
- * @module modules/mercadopago/services/webhook.service
- */
-
-import { createHmac } from "crypto";
 import { MercadoPagoBaseService } from "./base.service";
-import { MercadoPagoIntegrationType } from "../config/credentials";
+import {
+  MercadoPagoIntegrationType,
+  credentialsManager,
+} from "../config/credentials";
 import { logger } from "@/shared/utils/logger.utils";
 import { IWebhookService } from "../interfaces";
 import { paymentService } from "./payment.service";
 import { subscriptionService } from "./subscription.service";
-import {
-  WebhookNotificationRequest,
-  WebhookResponse,
-} from "../dtos/mercadopago.dto";
+import { WebhookResponse } from "../dtos/mercadopago.dto";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
-import { env } from "@/config/environment";
+import { WebhookAdapter } from "../adapters/webhook.adapter";
+import {
+  WebhookTopicType,
+  WebhookNotification,
+  WebhookProcessResponse,
+} from "../types/webhook-custom.types";
 
-/**
- * Tipos de notificação do MercadoPago
- */
-export enum WebhookTopicType {
-  PAYMENT = "payment",
-  MERCHANT_ORDER = "merchant_order",
-  PLAN = "plan",
-  SUBSCRIPTION = "subscription",
-  INVOICE = "invoice",
-  POINT_INTEGRATION_WIRED = "point_integration_wired",
-}
-
-/**
- * Serviço para processamento de webhooks do MercadoPago
- * Implementa a interface IWebhookService
- */
 export class WebhookService
   extends MercadoPagoBaseService
   implements IWebhookService
 {
   private webhookSecret: string;
+  private webhookAdapter: WebhookAdapter;
 
   /**
    * Construtor do serviço de webhook
@@ -46,10 +30,17 @@ export class WebhookService
   constructor(integrationType: MercadoPagoIntegrationType) {
     super(integrationType);
 
-    // Usa a variável de ambiente ou um fallback para a chave secreta
+    // Inicializa o adaptador com o cliente
+    const merchantOrderClient = this.createMerchantOrderClient();
+    this.webhookAdapter = new WebhookAdapter(merchantOrderClient);
+
+    // Obtém o accessToken do tipo de integração atual
+    const credentials = credentialsManager.getCredentials(integrationType);
+
+    // Usa o secret de webhook se configurado em variáveis de ambiente, ou cria um baseado no accessToken
     this.webhookSecret =
       process.env.MERCADOPAGO_WEBHOOK_SECRET ||
-      this.accessToken.substring(0, 32);
+      credentials.accessToken.substring(0, 32);
 
     logger.debug("Serviço de webhook do MercadoPago inicializado", {
       integrationType,
@@ -63,26 +54,11 @@ export class WebhookService
    * @returns Verdadeiro se a assinatura for válida
    */
   public verifySignature(payload: string, signature: string): boolean {
-    try {
-      // Implementação baseada na documentação do MercadoPago
-      const expectedSignature = createHmac("sha256", this.webhookSecret)
-        .update(payload)
-        .digest("hex");
-
-      const isValid = signature === expectedSignature;
-
-      if (!isValid) {
-        logger.warn("Assinatura de webhook inválida", {
-          integrationType: this.integrationType,
-          receivedSignature: signature.substring(0, 10) + "...",
-        });
-      }
-
-      return isValid;
-    } catch (error) {
-      logger.error("Erro ao verificar assinatura de webhook", error);
-      return false;
-    }
+    return this.webhookAdapter.verifySignature(
+      payload,
+      signature,
+      this.webhookSecret
+    );
   }
 
   /**
@@ -90,9 +66,7 @@ export class WebhookService
    * @param notification Dados da notificação
    * @returns Resultado do processamento
    */
-  public async processWebhook(
-    notification: WebhookNotificationRequest
-  ): Promise<WebhookResponse> {
+  public async processWebhook(notificationData: any): Promise<WebhookResponse> {
     try {
       if (!this.isConfigured()) {
         throw new ServiceUnavailableError(
@@ -100,6 +74,10 @@ export class WebhookService
           "MERCADOPAGO_SERVICE_UNAVAILABLE"
         );
       }
+
+      // Normaliza a notificação para garantir estrutura consistente
+      const notification =
+        this.webhookAdapter.normalizeNotification(notificationData);
 
       logger.info("Processando webhook do MercadoPago", {
         type: notification.type,
@@ -109,31 +87,16 @@ export class WebhookService
       });
 
       // Lógica de processamento baseada no tipo de notificação
-      switch (notification.type) {
-        case WebhookTopicType.PAYMENT:
-          return await this.processPaymentWebhook(notification);
+      const result = await this.routeWebhookByType(notification);
 
-        case WebhookTopicType.MERCHANT_ORDER:
-          return await this.processMerchantOrderWebhook(notification);
-
-        case WebhookTopicType.SUBSCRIPTION:
-        case WebhookTopicType.PLAN:
-          return await this.processSubscriptionWebhook(notification);
-
-        case WebhookTopicType.INVOICE:
-          return await this.processInvoiceWebhook(notification);
-
-        default:
-          logger.warn(`Tipo de webhook não suportado: ${notification.type}`, {
-            integrationType: this.integrationType,
-          });
-          return {
-            success: false,
-            type: notification.type,
-            error: `Tipo de notificação não suportado: ${notification.type}`,
-            errorCode: "WEBHOOK_UNSUPPORTED_TYPE",
-          };
-      }
+      return {
+        success: result.success,
+        type: result.type,
+        resourceId: result.resourceId,
+        data: result.data,
+        error: result.error,
+        errorCode: result.errorCode,
+      };
     } catch (error) {
       if (error instanceof ServiceUnavailableError) {
         return {
@@ -156,13 +119,48 @@ export class WebhookService
   }
 
   /**
+   * Encaminha o webhook para o processador apropriado com base no tipo
+   * @param notification Notificação normalizada
+   * @returns Resultado do processamento
+   */
+  private async routeWebhookByType(
+    notification: WebhookNotification
+  ): Promise<WebhookProcessResponse> {
+    switch (notification.type) {
+      case WebhookTopicType.PAYMENT:
+        return await this.processPaymentWebhook(notification);
+
+      case WebhookTopicType.MERCHANT_ORDER:
+        return await this.processMerchantOrderWebhook(notification);
+
+      case WebhookTopicType.SUBSCRIPTION:
+      case WebhookTopicType.PLAN:
+        return await this.processSubscriptionWebhook(notification);
+
+      case WebhookTopicType.INVOICE:
+        return await this.processInvoiceWebhook(notification);
+
+      default:
+        logger.warn(`Tipo de webhook não suportado: ${notification.type}`, {
+          integrationType: this.integrationType,
+        });
+        return {
+          success: false,
+          type: notification.type,
+          error: `Tipo de notificação não suportado: ${notification.type}`,
+          errorCode: "WEBHOOK_UNSUPPORTED_TYPE",
+        };
+    }
+  }
+
+  /**
    * Processa webhook de pagamento
    * @param notification Notificação de pagamento
    * @returns Detalhes do pagamento atualizado
    */
   private async processPaymentWebhook(
-    notification: WebhookNotificationRequest
-  ): Promise<WebhookResponse> {
+    notification: WebhookNotification
+  ): Promise<WebhookProcessResponse> {
     try {
       if (!notification.data?.id) {
         return {
@@ -212,8 +210,8 @@ export class WebhookService
    * @returns Detalhes da ordem atualizada
    */
   private async processMerchantOrderWebhook(
-    notification: WebhookNotificationRequest
-  ): Promise<WebhookResponse> {
+    notification: WebhookNotification
+  ): Promise<WebhookProcessResponse> {
     try {
       if (!notification.data?.id) {
         return {
@@ -229,12 +227,98 @@ export class WebhookService
         integrationType: this.integrationType,
       });
 
-      // Obtém os detalhes da ordem
-      const merchantOrderClient = this.createMerchantOrderClient();
-      const orderDetails = await merchantOrderClient.get({ id: orderId });
+      // Obtém os detalhes da ordem usando o adaptador
+      const orderDetails = await this.webhookAdapter.getMerchantOrder(orderId);
 
-      // Aqui você implementaria a lógica para processar a ordem
-      // Por exemplo, atualizar status de pedidos, processar pagamentos associados, etc.
+      // Processa a ordem de mercador
+      try {
+        // 1. Verifica se a ordem tem pagamentos associados
+        if (orderDetails.payments && orderDetails.payments.length > 0) {
+          logger.info(
+            `Ordem ${orderId} tem ${orderDetails.payments.length} pagamentos associados`
+          );
+
+          // 2. Verifica se há referência externa para associar a um pedido do sistema
+          if (orderDetails.external_reference) {
+            // Usando uma instância do prisma para consultar o pedido
+            const prisma = require("@/shared/database/prisma").prismaClient;
+
+            // 3. Tenta encontrar o pedido correspondente no banco de dados
+            const order = await prisma.order.findUnique({
+              where: {
+                externalReference: orderDetails.external_reference,
+              },
+              include: {
+                items: true,
+                customer: true,
+              },
+            });
+
+            // 4. Se encontrar o pedido, atualiza seu status
+            if (order) {
+              // Determina o status do pedido com base nos pagamentos
+              const paymentStatuses = orderDetails.payments.map(
+                (p) => p.status
+              );
+
+              // Se todos estiverem aprovados, marca pedido como pago
+              const allApproved = paymentStatuses.every(
+                (s) => s === "approved"
+              );
+
+              // Calcula o valor total pago
+              const totalPaid = orderDetails.payments
+                .filter((p) => p.status === "approved")
+                .reduce((sum, p) => sum + (p.transaction_amount || 0), 0);
+
+              // Atualiza o pedido
+              await prisma.order.update({
+                where: { id: order.id },
+                data: {
+                  status: allApproved ? "PAID" : "PROCESSING_PAYMENT",
+                  paymentData: {
+                    ...order.paymentData,
+                    merchantOrderId: orderId,
+                    paymentStatuses: paymentStatuses,
+                    totalPaid: totalPaid,
+                    lastUpdated: new Date().toISOString(),
+                  },
+                },
+              });
+
+              logger.info(
+                `Pedido ${order.id} atualizado com base na ordem ${orderId}`
+              );
+            } else {
+              logger.warn(
+                `Pedido não encontrado para referência externa: ${orderDetails.external_reference}`
+              );
+            }
+          }
+        }
+
+        // 5. Registra a ordem para fins de auditoria
+        const AuditService =
+          require("@/shared/services/audit.service").AuditService;
+        AuditService.log(
+          "merchant_order_received",
+          "merchant_order",
+          orderId.toString(),
+          "webhook",
+          {
+            status: orderDetails.status,
+            paymentCount: orderDetails.payments?.length || 0,
+            itemCount: orderDetails.items?.length || 0,
+            externalReference: orderDetails.external_reference,
+          }
+        );
+      } catch (processingError) {
+        // Registra o erro mas continua com sucesso para evitar reenvios
+        logger.error(
+          `Erro ao processar lógica de negócios da ordem ${orderId}`,
+          processingError
+        );
+      }
 
       logger.info(`Webhook de merchant order processado com sucesso`, {
         orderId,
@@ -245,7 +329,7 @@ export class WebhookService
       return {
         success: true,
         type: notification.type,
-        resourceId: orderId,
+        resourceId: orderId.toString(),
         data: orderDetails,
       };
     } catch (error) {
@@ -268,8 +352,8 @@ export class WebhookService
    * @returns Detalhes da assinatura atualizada
    */
   private async processSubscriptionWebhook(
-    notification: WebhookNotificationRequest
-  ): Promise<WebhookResponse> {
+    notification: WebhookNotification
+  ): Promise<WebhookProcessResponse> {
     try {
       if (!notification.data?.id) {
         return {
@@ -320,8 +404,8 @@ export class WebhookService
    * @returns Detalhes da fatura
    */
   private async processInvoiceWebhook(
-    notification: WebhookNotificationRequest
-  ): Promise<WebhookResponse> {
+    notification: WebhookNotification
+  ): Promise<WebhookProcessResponse> {
     try {
       if (!notification.data?.id) {
         return {
@@ -337,9 +421,123 @@ export class WebhookService
         integrationType: this.integrationType,
       });
 
-      // Neste momento, apenas logamos que recebemos a notificação
-      // Você pode adicionar lógica para processar a fatura conforme necessário
-      logger.info(`Webhook de fatura recebido com sucesso`, {
+      // Implementação de processamento de fatura (invoice)
+      try {
+        // 1. Obtém os dados da fatura da API do MercadoPago
+        // Nota: Como não há um método direto para faturas no SDK, usamos a API HTTP
+        const axios = require("axios");
+        const credentials = credentialsManager.getCredentials(
+          this.integrationType
+        );
+
+        const invoiceResponse = await axios.get(
+          `https://api.mercadopago.com/v1/invoices/${invoiceId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${credentials.accessToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        const invoiceData = invoiceResponse.data;
+
+        // 2. Determina o status da fatura
+        const invoiceStatus = invoiceData.status;
+        const subscriptionId = invoiceData.subscription_id;
+
+        logger.info(
+          `Fatura ${invoiceId} está com status ${invoiceStatus}, assinatura: ${subscriptionId}`
+        );
+
+        // 3. Atualiza o sistema com base no status da fatura
+        const prisma = require("@/shared/database/prisma").prismaClient;
+
+        // 3.1 Verifica se a assinatura existe no sistema
+        const subscription = await prisma.subscription.findFirst({
+          where: {
+            externalId: subscriptionId,
+          },
+          include: {
+            customer: true,
+          },
+        });
+
+        if (subscription) {
+          // 3.2 Registra a fatura no sistema
+          await prisma.subscriptionInvoice.upsert({
+            where: {
+              externalId: invoiceId,
+            },
+            update: {
+              status: invoiceStatus,
+              amount: invoiceData.transaction_amount,
+              dueDate: new Date(invoiceData.date_due),
+              paymentDate: invoiceData.date_approved
+                ? new Date(invoiceData.date_approved)
+                : null,
+              lastUpdate: new Date(),
+            },
+            create: {
+              externalId: invoiceId,
+              subscriptionId: subscription.id,
+              status: invoiceStatus,
+              amount: invoiceData.transaction_amount,
+              dueDate: new Date(invoiceData.date_due),
+              paymentDate: invoiceData.date_approved
+                ? new Date(invoiceData.date_approved)
+                : null,
+              invoiceNumber: invoiceData.invoice_number || `INV-${invoiceId}`,
+              description: `Fatura da assinatura ${subscriptionId}`,
+              customerId: subscription.customerId,
+            },
+          });
+
+          // 3.3 Notifica o cliente sobre a fatura, se configurado
+          if (subscription.customer?.email && invoiceStatus === "paid") {
+            try {
+              const notificationService =
+                require("@/modules/notification/services/notification.service").notificationService;
+
+              await notificationService.sendInvoiceNotification({
+                email: subscription.customer.email,
+                invoiceId: invoiceId,
+                amount: invoiceData.transaction_amount,
+                status: invoiceStatus,
+                subscriptionName: subscription.name || "Assinatura",
+                paymentDate: invoiceData.date_approved,
+              });
+
+              logger.info(
+                `Notificação de fatura enviada para ${subscription.customer.email}`
+              );
+            } catch (notifyError) {
+              logger.error(`Erro ao enviar notificação de fatura`, notifyError);
+            }
+          }
+        } else {
+          logger.warn(
+            `Assinatura ${subscriptionId} não encontrada para fatura ${invoiceId}`
+          );
+        }
+
+        // 4. Registra a fatura para fins de auditoria
+        const AuditService =
+          require("@/shared/services/audit.service").AuditService;
+        AuditService.log("invoice_received", "invoice", invoiceId, "webhook", {
+          status: invoiceStatus,
+          subscriptionId: subscriptionId,
+          amount: invoiceData.transaction_amount,
+        });
+      } catch (processingError) {
+        // Registra o erro mas continua com sucesso para evitar reenvios
+        logger.error(
+          `Erro ao processar lógica de negócios da fatura ${invoiceId}`,
+          processingError
+        );
+      }
+
+      logger.info(`Webhook de fatura processado com sucesso`, {
         invoiceId,
         integrationType: this.integrationType,
       });
@@ -348,7 +546,7 @@ export class WebhookService
         success: true,
         type: notification.type,
         resourceId: invoiceId,
-        message: `Notificação de fatura ${invoiceId} recebida`,
+        message: `Notificação de fatura ${invoiceId} processada com sucesso`,
       };
     } catch (error) {
       logger.error("Erro ao processar webhook de fatura", error);
@@ -373,3 +571,6 @@ export const checkoutWebhookService = new WebhookService(
 export const subscriptionWebhookService = new WebhookService(
   MercadoPagoIntegrationType.SUBSCRIPTION
 );
+
+// Reexportamos o enum para compatibilidade com código existente
+export { WebhookTopicType } from "../types/webhook-custom.types";

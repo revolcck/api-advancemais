@@ -3,11 +3,7 @@
  * @module modules/mercadopago/services/subscription.service
  */
 
-import {
-  PreApproval,
-  PreApprovalCreateData,
-  PreApprovalUpdateData,
-} from "mercadopago";
+import { PreApproval } from "mercadopago";
 import { MercadoPagoBaseService } from "./base.service";
 import { MercadoPagoIntegrationType } from "../config/credentials";
 import { logger } from "@/shared/utils/logger.utils";
@@ -19,6 +15,12 @@ import {
   MercadoPagoBaseResponse,
 } from "../dtos/mercadopago.dto";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
+import { SubscriptionAdapter } from "../adapters/subscription.adapter";
+import {
+  SubscriptionCreateData,
+  SubscriptionUpdateData,
+  SubscriptionSearchCriteria,
+} from "../types/subscription-custom.types";
 
 /**
  * Serviço para gerenciamento de assinaturas via MercadoPago
@@ -29,6 +31,7 @@ export class SubscriptionService
   implements ISubscriptionService
 {
   private preApprovalClient: PreApproval;
+  private subscriptionAdapter: SubscriptionAdapter;
 
   /**
    * Construtor do serviço de assinatura
@@ -36,6 +39,7 @@ export class SubscriptionService
   constructor() {
     super(MercadoPagoIntegrationType.SUBSCRIPTION);
     this.preApprovalClient = this.createPreApprovalClient();
+    this.subscriptionAdapter = new SubscriptionAdapter(this.preApprovalClient);
     logger.debug("Serviço de assinatura do MercadoPago inicializado");
   }
 
@@ -62,7 +66,7 @@ export class SubscriptionService
       const { userId: _, ...mpSubscriptionData } = subscriptionData;
 
       // Prepara os dados para a API do MercadoPago
-      const mercadoPagoData: PreApprovalCreateData = {
+      const subscriptionApiData: SubscriptionCreateData = {
         preapproval_plan_id: undefined, // Não estamos usando planos pré-definidos
         reason: mpSubscriptionData.reason || mpSubscriptionData.preapprovalName,
         external_reference: mpSubscriptionData.externalReference,
@@ -80,14 +84,13 @@ export class SubscriptionService
       };
 
       logger.info("Iniciando criação de assinatura no MercadoPago", {
-        externalReference: mercadoPagoData.external_reference,
-        planId: mercadoPagoData.preapproval_plan_id,
-        payerEmail: mercadoPagoData.payer_email,
+        externalReference: subscriptionApiData.external_reference,
+        planId: subscriptionApiData.preapproval_plan_id,
+        payerEmail: subscriptionApiData.payer_email,
       });
 
-      const result = await this.preApprovalClient.create({
-        body: mercadoPagoData,
-      });
+      // Usa o adaptador para criar a assinatura
+      const result = await this.subscriptionAdapter.create(subscriptionApiData);
 
       // Registra a operação para auditoria
       AuditService.log(
@@ -96,8 +99,8 @@ export class SubscriptionService
         result.id,
         userId,
         {
-          amount: mercadoPagoData.auto_recurring?.transaction_amount,
-          frequency: `${mercadoPagoData.auto_recurring?.frequency}/${mercadoPagoData.auto_recurring?.frequency_type}`,
+          amount: subscriptionApiData.auto_recurring?.transaction_amount,
+          frequency: `${subscriptionApiData.auto_recurring?.frequency}/${subscriptionApiData.auto_recurring?.frequency_type}`,
           status: result.status,
         }
       );
@@ -111,12 +114,11 @@ export class SubscriptionService
       return {
         success: true,
         subscriptionId: result.id,
-        status: result.status,
+        status: parseInt(result.status) || undefined,
         initPoint: result.init_point,
         data: result,
       };
     } catch (error) {
-      // Se já for um ServiceUnavailableError, apenas propaga
       if (error instanceof ServiceUnavailableError) {
         throw error;
       }
@@ -153,7 +155,8 @@ export class SubscriptionService
 
       logger.debug(`Obtendo informações da assinatura ${subscriptionId}`);
 
-      const result = await this.preApprovalClient.get({ id: subscriptionId });
+      // Usa o adaptador para obter a assinatura
+      const result = await this.subscriptionAdapter.get(subscriptionId);
 
       return {
         success: true,
@@ -177,7 +180,7 @@ export class SubscriptionService
    */
   public async updateSubscription(
     subscriptionId: string,
-    updateData: PreApprovalUpdateData,
+    updateData: SubscriptionUpdateData,
     userId?: string
   ): Promise<MercadoPagoBaseResponse> {
     try {
@@ -192,10 +195,11 @@ export class SubscriptionService
         updateFields: Object.keys(updateData),
       });
 
-      const result = await this.preApprovalClient.update({
-        id: subscriptionId,
-        body: updateData,
-      });
+      // Usa o adaptador para atualizar a assinatura
+      const result = await this.subscriptionAdapter.update(
+        subscriptionId,
+        updateData
+      );
 
       // Registra a operação para auditoria
       AuditService.log(
@@ -255,9 +259,9 @@ export class SubscriptionService
 
       const currentStatus = currentSubscription.data.status;
 
-      const result = await this.preApprovalClient.update({
-        id: subscriptionId,
-        body: { status: "cancelled" },
+      // Usa o adaptador para atualizar a assinatura para status "cancelled"
+      const result = await this.subscriptionAdapter.update(subscriptionId, {
+        status: "cancelled",
       });
 
       // Registra a operação para auditoria
@@ -317,9 +321,9 @@ export class SubscriptionService
 
       const currentStatus = currentSubscription.data.status;
 
-      const result = await this.preApprovalClient.update({
-        id: subscriptionId,
-        body: { status: "paused" },
+      // Usa o adaptador para atualizar a assinatura para status "paused"
+      const result = await this.subscriptionAdapter.update(subscriptionId, {
+        status: "paused",
       });
 
       // Registra a operação para auditoria
@@ -391,9 +395,9 @@ export class SubscriptionService
         };
       }
 
-      const result = await this.preApprovalClient.update({
-        id: subscriptionId,
-        body: { status: "authorized" },
+      // Usa o adaptador para atualizar a assinatura para status "authorized"
+      const result = await this.subscriptionAdapter.update(subscriptionId, {
+        status: "authorized",
       });
 
       // Registra a operação para auditoria
@@ -431,7 +435,7 @@ export class SubscriptionService
    * @returns Lista de assinaturas
    */
   public async searchSubscriptions(
-    criteria: any
+    criteria: SubscriptionSearchCriteria
   ): Promise<MercadoPagoBaseResponse> {
     try {
       if (!this.isConfigured()) {
@@ -445,7 +449,8 @@ export class SubscriptionService
         criteria,
       });
 
-      const result = await this.preApprovalClient.search({ qs: criteria });
+      // Usa o adaptador para pesquisar assinaturas
+      const result = await this.subscriptionAdapter.search(criteria);
 
       return {
         success: true,
@@ -555,16 +560,17 @@ export class SubscriptionService
       }
 
       // Prepara dados para atualização
-      const updateData: PreApprovalUpdateData = {
+      const updateData: SubscriptionUpdateData = {
         auto_recurring: {
           transaction_amount: amount,
         },
       };
 
-      const result = await this.preApprovalClient.update({
-        id: subscriptionId,
-        body: updateData,
-      });
+      // Usa o adaptador para atualizar a assinatura
+      const result = await this.subscriptionAdapter.update(
+        subscriptionId,
+        updateData
+      );
 
       // Registra a operação para auditoria
       AuditService.log(
