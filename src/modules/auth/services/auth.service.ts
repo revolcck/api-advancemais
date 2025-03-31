@@ -1,6 +1,3 @@
-// src/modules/auth/services/auth.service.ts
-
-import { prisma } from "@/config/database";
 import { logger } from "@/shared/utils/logger.utils";
 import {
   UnauthorizedError,
@@ -12,7 +9,6 @@ import { TokenService } from "./token.service";
 import { UserService } from "./user.service";
 import { AuthEmailService } from "./email.service";
 import { AuditService, AuditAction } from "@/shared/services/audit.service";
-import { UserType } from "@prisma/client";
 import {
   LoginRequestDto,
   LoginResponseDto,

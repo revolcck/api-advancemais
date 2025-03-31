@@ -1,11 +1,6 @@
-// src/modules/auth/routes/auth.routes.ts
-
 import { Router } from "express";
 import { AuthController } from "../controllers/auth.controller";
-import {
-  validate,
-  ValidateSource,
-} from "@/shared/middleware/validate.middleware";
+import { validate } from "@/shared/middleware/validate.middleware";
 import {
   loginSchema,
   registerPessoaFisicaSchema,

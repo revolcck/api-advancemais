@@ -1,5 +1,3 @@
-// src/modules/communications/services/brevo.service.ts
-
 import { env } from "@/config/environment";
 import { logger } from "@/shared/utils/logger.utils";
 import { InternalServerError } from "@/shared/errors/AppError";
@@ -7,25 +5,38 @@ import axios from "axios";
 
 /**
  * Serviço base para comunicação com a API da Brevo
- * Esta implementação usa axios diretamente para APIs REST em vez de depender do SDK
+ * Esta implementação usa axios diretamente para APIs REST
  */
 export class BrevoService {
   private static instance: BrevoService;
   private apiKey: string;
   private baseUrl: string = "https://api.brevo.com/v3";
   private initialized: boolean = false;
+  private initializationAttempted: boolean = false;
 
   /**
    * Construtor privado para implementar o padrão Singleton
    */
   private constructor() {
+    this.initializeService();
+  }
+
+  /**
+   * Inicializa o serviço com a API key e outras configurações
+   */
+  private initializeService(): void {
     try {
+      // Marca que a inicialização foi tentada
+      this.initializationAttempted = true;
+
       // Obtém a chave de API das variáveis de ambiente
       this.apiKey = env.brevo.apiKey;
 
       // Valida se a chave de API foi fornecida
       if (!this.apiKey) {
-        throw new Error("Chave de API da Brevo não configurada");
+        logger.warn("Chave de API da Brevo não configurada");
+        this.initialized = false;
+        return;
       }
 
       this.initialized = true;
@@ -70,25 +81,45 @@ export class BrevoService {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
+      timeout: 10000, // 10 segundos timeout
     });
   }
 
   /**
-   * Verifica se o serviço está inicializado
-   * @throws Error se o serviço não estiver inicializado
+   * Verifica se o serviço está inicializado e se precisa ser reinicializado
    */
-  private checkInitialization(): void {
+  private ensureInitialized(): void {
+    // Se a inicialização ainda não foi tentada ou falhou, tenta novamente
     if (!this.initialized) {
-      const error = new InternalServerError(
-        "Serviço de comunicações não está disponível",
-        "BREVO_SERVICE_UNAVAILABLE"
-      );
-      logger.error(
-        "Tentativa de acessar serviço Brevo não inicializado",
-        error
-      );
-      throw error;
+      // Evita múltiplas tentativas em sequência
+      if (!this.initializationAttempted || env.isDevelopment) {
+        this.initializeService();
+      }
+
+      // Se ainda não inicializou, loga e lança o erro
+      if (!this.initialized) {
+        const errorMessage = "Serviço de comunicações não está disponível";
+        logger.error(errorMessage);
+
+        if (!env.isDevelopment) {
+          throw new InternalServerError(
+            errorMessage,
+            "BREVO_SERVICE_UNAVAILABLE"
+          );
+        }
+      }
     }
+  }
+
+  /**
+   * Verifica se o serviço está disponível para uso
+   */
+  public isAvailable(): boolean {
+    // Tenta inicializar se ainda não foi feito
+    if (!this.initialized && !this.initializationAttempted) {
+      this.initializeService();
+    }
+    return this.initialized;
   }
 
   /**
@@ -96,7 +127,7 @@ export class BrevoService {
    * Útil para testes de conectividade e health checks
    */
   public async getAccountInfo(): Promise<any> {
-    this.checkInitialization();
+    this.ensureInitialized();
 
     try {
       const response = await this.getClient().get("/account");
@@ -118,9 +149,18 @@ export class BrevoService {
    * @returns Objeto com informações do envio
    */
   public async sendEmail(emailData: any): Promise<any> {
-    this.checkInitialization();
+    this.ensureInitialized();
 
     try {
+      // Log para depuração
+      logger.debug("Enviando email pela API Brevo", {
+        to:
+          typeof emailData.to === "string"
+            ? emailData.to
+            : emailData.to.map((recipient: any) => recipient.email).join(", "),
+        subject: emailData.subject || "(sem assunto)",
+      });
+
       const response = await this.getClient().post("/smtp/email", emailData);
       return response.data;
     } catch (error) {
@@ -136,7 +176,7 @@ export class BrevoService {
    * @returns Objeto com informações do envio
    */
   public async sendSms(smsData: any): Promise<any> {
-    this.checkInitialization();
+    this.ensureInitialized();
 
     try {
       const response = await this.getClient().post(
@@ -157,7 +197,7 @@ export class BrevoService {
    * @returns Objeto com informações do envio
    */
   public async sendWhatsAppMessage(whatsappData: any): Promise<any> {
-    this.checkInitialization();
+    this.ensureInitialized();
 
     try {
       const response = await this.getClient().post(
@@ -177,7 +217,7 @@ export class BrevoService {
    * @returns Lista de templates
    */
   public async getWhatsAppTemplates(): Promise<any> {
-    this.checkInitialization();
+    this.ensureInitialized();
 
     try {
       const response = await this.getClient().get("/whatsapp/templates");
@@ -203,6 +243,14 @@ export class BrevoService {
       const statusCode = error.response.status;
       const responseData = error.response.data;
 
+      // Log detalhado para depuração
+      logger.error(`API Brevo retornou erro ${statusCode}`, {
+        url: error.config?.url,
+        method: error.config?.method,
+        status: statusCode,
+        responseData,
+      });
+
       return new InternalServerError(
         responseData?.message || defaultMessage,
         responseData?.code || `BREVO_API_ERROR_${statusCode}`,
@@ -214,6 +262,11 @@ export class BrevoService {
     }
 
     // Erro de rede ou outro tipo
+    logger.error(`Erro de conexão ou timeout com API Brevo`, {
+      message: error?.message,
+      code: error?.code,
+    });
+
     return new InternalServerError(
       error?.message || defaultMessage,
       "BREVO_API_ERROR",
@@ -222,16 +275,7 @@ export class BrevoService {
   }
 
   /**
-   * Verifica se a API está disponível
-   * @returns true se a API estiver disponível
-   */
-  public isAvailable(): boolean {
-    return this.initialized;
-  }
-
-  /**
    * Cria um objeto de email para a API da Brevo
-   * Simplificação para compatibilidade com o serviço original
    */
   public createEmailObject(): any {
     return {};
@@ -239,7 +283,6 @@ export class BrevoService {
 
   /**
    * Cria um objeto de SMS para a API da Brevo
-   * Simplificação para compatibilidade com o serviço original
    */
   public createSmsObject(): any {
     return {};

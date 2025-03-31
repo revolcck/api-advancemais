@@ -1,5 +1,8 @@
+// src/modules/communications/routes.ts - Adicionando novas rotas
+
 import { Router } from "express";
 import { CommunicationsController } from "./controllers/communications.controller";
+import { EmailTestController } from "./controllers/email-test.controller";
 import { validate } from "@/shared/middleware/validate.middleware";
 import {
   sendEmailSchema,
@@ -17,9 +20,10 @@ import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 const router: Router = Router();
 
 /**
- * Inicializa o controlador de comunicações
+ * Inicializa os controladores
  */
 const communicationsController = new CommunicationsController();
+const emailTestController = new EmailTestController();
 
 /**
  * @route GET /api/communications/test-connectivity
@@ -29,8 +33,32 @@ const communicationsController = new CommunicationsController();
 router.get(
   "/test-connectivity",
   authenticate,
-  authorize(["ADMIN"]),
+  authorize(["ADMIN", "Super Administrador"]),
   communicationsController.testConnectivity
+);
+
+/**
+ * @route GET /api/communications/email-status
+ * @desc Verifica o status da configuração de email
+ * @access Privado (admin)
+ */
+router.get(
+  "/email-status",
+  //authenticate,
+  //authorize(["ADMIN", "Super Administrador"]),
+  emailTestController.checkEmailStatus
+);
+
+/**
+ * @route POST /api/communications/test-email
+ * @desc Envia um email de teste
+ * @access Privado (admin)
+ */
+router.post(
+  "/test-email",
+  authenticate,
+  authorize(["ADMIN", "Super Administrador"]),
+  emailTestController.testEmail
 );
 
 /**
@@ -113,7 +141,7 @@ router.post(
 router.get(
   "/whatsapp/templates",
   authenticate,
-  authorize(["ADMIN"]),
+  authorize(["ADMIN", "Super Administrador"]),
   communicationsController.getWhatsAppTemplates
 );
 

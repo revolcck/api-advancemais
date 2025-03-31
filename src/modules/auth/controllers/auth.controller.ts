@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { UserType } from "@prisma/client";
 import { AuthService } from "../services/auth.service";
 import { ApiResponse } from "@/shared/utils/api-response.utils";
 

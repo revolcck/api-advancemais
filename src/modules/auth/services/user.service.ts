@@ -1,12 +1,6 @@
-// src/modules/auth/services/user.service.ts
-
 import { prisma } from "@/config/database";
 import { HashUtils } from "@/shared/utils/hash.utils";
-import {
-  ConflictError,
-  ValidationError,
-  NotFoundError,
-} from "@/shared/errors/AppError";
+import { ConflictError, ValidationError } from "@/shared/errors/AppError";
 import { logger } from "@/shared/utils/logger.utils";
 import { Gender, MaritalStatus, UserType } from "@prisma/client";
 import {

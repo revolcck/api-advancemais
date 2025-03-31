@@ -1,9 +1,4 @@
 /**
- * DTOs (Data Transfer Objects) para o módulo de autenticação
- * Define a estrutura dos dados para as operações de autenticação
- */
-
-/**
  * DTO para requisição de login
  */
 export interface LoginRequestDto {
@@ -48,7 +43,7 @@ export interface RefreshTokenResponseDto {
 export interface BaseRegisterDto {
   email: string;
   password: string;
-  roleId?: string; // ID do papel (opcional, usa o padrão se não informado)
+  roleId?: string; // ID da função ou cargo do usuário
 }
 
 /**
