@@ -1,3 +1,5 @@
+// src/modules/auth/routes/auth.routes.ts
+
 import { Router } from "express";
 import { AuthController } from "../controllers/auth.controller";
 import {
@@ -6,7 +8,8 @@ import {
 } from "@/shared/middleware/validate.middleware";
 import {
   loginSchema,
-  registerSchema,
+  registerPessoaFisicaSchema,
+  registerPessoaJuridicaSchema,
   refreshTokenSchema,
   changePasswordSchema,
 } from "../validators/auth.validators";
@@ -26,11 +29,26 @@ const authController = new AuthController();
 router.post("/login", validate(loginSchema), authController.login);
 
 /**
- * @route POST /api/auth/register
- * @desc Registrar novo usuário
+ * @route POST /api/auth/register/pessoa-fisica
+ * @desc Registrar novo usuário pessoa física
  * @access Público
  */
-router.post("/register", validate(registerSchema), authController.register);
+router.post(
+  "/register/pessoa-fisica",
+  validate(registerPessoaFisicaSchema),
+  authController.registerPessoaFisica
+);
+
+/**
+ * @route POST /api/auth/register/pessoa-juridica
+ * @desc Registrar novo usuário pessoa jurídica
+ * @access Público
+ */
+router.post(
+  "/register/pessoa-juridica",
+  validate(registerPessoaJuridicaSchema),
+  authController.registerPessoaJuridica
+);
 
 /**
  * @route POST /api/auth/refresh

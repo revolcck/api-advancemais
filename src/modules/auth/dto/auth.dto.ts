@@ -7,7 +7,7 @@
  * DTO para requisição de login
  */
 export interface LoginRequestDto {
-  email: string;
+  document: string; // CPF ou CNPJ
   password: string;
 }
 
@@ -21,6 +21,8 @@ export interface LoginResponseDto {
     id: string;
     name: string;
     email: string;
+    document: string; // CPF ou CNPJ
+    userType: string; // PESSOA_FISICA ou PESSOA_JURIDICA
     role: string;
   };
 }
@@ -41,12 +43,62 @@ export interface RefreshTokenResponseDto {
 }
 
 /**
- * DTO para requisição de registro de usuário
+ * Dados comuns para registro de qualquer tipo de usuário
  */
-export interface RegisterRequestDto {
-  name: string;
+export interface BaseRegisterDto {
   email: string;
   password: string;
+  roleId?: string; // ID do papel (opcional, usa o padrão se não informado)
+}
+
+/**
+ * DTO para requisição de registro de pessoa física
+ */
+export interface RegisterPessoaFisicaDto extends BaseRegisterDto {
+  name: string;
+  cpf: string;
+  rg?: string;
+  birthDate: string; // Data no formato 'YYYY-MM-DD'
+  gender: string; // MASCULINO, FEMININO, OUTRO, NAO_INFORMADO
+  phone: string;
+  companyName?: string; // Empresa onde trabalha (opcional)
+  maritalStatus?: string; // Estado civil
+
+  // Endereço
+  address?: {
+    zipCode: string;
+    street: string;
+    number: string;
+    neighborhood: string;
+    complement?: string;
+    city: string;
+    state: string;
+    country?: string;
+  };
+}
+
+/**
+ * DTO para requisição de registro de pessoa jurídica
+ */
+export interface RegisterPessoaJuridicaDto extends BaseRegisterDto {
+  companyName: string; // Nome da empresa
+  tradeName: string; // Nome fantasia
+  legalName: string; // Razão social
+  cnpj: string;
+  phone: string;
+  website?: string;
+
+  // Endereço
+  address?: {
+    zipCode: string;
+    street: string;
+    number: string;
+    neighborhood: string;
+    complement?: string;
+    city: string;
+    state: string;
+    country?: string;
+  };
 }
 
 /**
@@ -54,8 +106,11 @@ export interface RegisterRequestDto {
  */
 export interface RegisterResponseDto {
   id: string;
-  name: string;
   email: string;
+  userType: string;
+  document: string; // CPF ou CNPJ
+  name: string; // Nome da pessoa ou empresa
+  matricula: string;
   role: string;
   createdAt: Date;
 }

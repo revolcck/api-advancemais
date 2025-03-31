@@ -19,6 +19,9 @@ interface Environment {
   // Nome da aplicação
   appName: string;
 
+  // URL da aplicação frontend
+  frontendUrl: string;
+
   // Domínio da aplicação
   appUrl: string;
   allowedOrigins: string[];
@@ -110,6 +113,9 @@ const envSchema = joi.object({
   // URL e origens permitidas
   APP_URL: joi.string().uri().default("http://localhost:3000"),
   ALLOWED_ORIGINS: joi.string().default("*"),
+
+  // Frontend URL
+  FRONTEND_URL: joi.string().uri().default("http://localhost:3000"),
 
   // Banco de dados
   DATABASE_URL: joi.string().required(),
@@ -230,6 +236,9 @@ export const env: Environment = {
     origin.trim()
   ),
 
+  // Frontend URL
+  frontendUrl: _env.FRONTEND_URL,
+
   // Database
   databaseUrl: _env.DATABASE_URL,
   databasePoolMin: Number(_env.DATABASE_POOL_MIN),
@@ -304,7 +313,8 @@ if (env.isDevelopment) {
   console.debug("📊 Configuração de ambiente carregada:", {
     nodeEnv: env.nodeEnv,
     port: env.port,
-    appName: env.appName, // Log adicional
+    appName: env.appName,
+    frontendUrl: env.frontendUrl,
     databasePoolSize: `${env.databasePoolMin}-${env.databasePoolMax}`,
     redisEnabled: env.redis.enabled,
     jwtExpires: {

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { UserType } from "@prisma/client";
 import { AuthService } from "../services/auth.service";
 import { ApiResponse } from "@/shared/utils/api-response.utils";
 
@@ -19,7 +20,7 @@ export class AuthController {
   }
 
   /**
-   * Realiza login do usuário
+   * Realiza login do usuário com CPF ou CNPJ
    * @route POST /api/auth/login
    */
   public login = async (req: Request, res: Response): Promise<void> => {
@@ -37,12 +38,35 @@ export class AuthController {
   };
 
   /**
-   * Registra um novo usuário
-   * @route POST /api/auth/register
+   * Registra um novo usuário pessoa física
+   * @route POST /api/auth/register/pessoa-fisica
    */
-  public register = async (req: Request, res: Response): Promise<void> => {
+  public registerPessoaFisica = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
     try {
-      const result = await this.authService.register(req.body);
+      const result = await this.authService.registerPessoaFisica(req.body);
+
+      ApiResponse.success(res, result, {
+        message: "Usuário registrado com sucesso",
+        statusCode: 201,
+      });
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  /**
+   * Registra um novo usuário pessoa jurídica
+   * @route POST /api/auth/register/pessoa-juridica
+   */
+  public registerPessoaJuridica = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.authService.registerPessoaJuridica(req.body);
 
       ApiResponse.success(res, result, {
         message: "Usuário registrado com sucesso",

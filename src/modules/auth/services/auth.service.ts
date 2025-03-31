@@ -1,3 +1,5 @@
+// src/modules/auth/services/auth.service.ts
+
 import { prisma } from "@/config/database";
 import { logger } from "@/shared/utils/logger.utils";
 import {
@@ -8,13 +10,16 @@ import {
 } from "@/shared/errors/AppError";
 import { TokenService } from "./token.service";
 import { UserService } from "./user.service";
+import { AuthEmailService } from "./email.service";
 import { AuditService, AuditAction } from "@/shared/services/audit.service";
+import { UserType } from "@prisma/client";
 import {
   LoginRequestDto,
   LoginResponseDto,
   RefreshTokenRequestDto,
   RefreshTokenResponseDto,
-  RegisterRequestDto,
+  RegisterPessoaFisicaDto,
+  RegisterPessoaJuridicaDto,
   RegisterResponseDto,
   ChangePasswordRequestDto,
   SuccessResponseDto,
@@ -38,22 +43,22 @@ export class AuthService {
    */
   public async login(data: LoginRequestDto): Promise<LoginResponseDto> {
     try {
-      logger.info(`Tentativa de login para o usuário: ${data.email}`);
+      logger.info(`Tentativa de login para o documento: ${data.document}`);
 
-      // Busca o usuário pelo email
-      const user = await this.userService.findByEmail(data.email);
+      // Busca o usuário pelo documento (CPF ou CNPJ)
+      const user = await this.userService.findByDocument(data.document);
 
       // Verifica se o usuário existe
       if (!user) {
         logger.warn(
-          `Falha no login: usuário não encontrado para ${data.email}`
+          `Falha no login: usuário não encontrado para documento ${data.document}`
         );
         AuditService.log(
           "login_failed",
           "authentication",
           undefined,
           undefined,
-          { email: data.email, reason: "user_not_found" }
+          { document: data.document, reason: "user_not_found" }
         );
         throw new UnauthorizedError("Credenciais inválidas");
       }
@@ -76,7 +81,7 @@ export class AuthService {
       const accessToken = await this.tokenService.generateAccessToken(
         user.id,
         user.email,
-        user.role
+        user.role.name
       );
       const refreshToken = await this.tokenService.generateRefreshToken(
         user.id
@@ -85,17 +90,21 @@ export class AuthService {
       // Atualiza o refresh token no banco
       await this.userService.updateRefreshToken(user.id, refreshToken);
 
+      // Obtém nome e documento de acordo com o tipo de usuário
+      const name = this.userService.getUserName(user);
+      const document = this.userService.getUserDocument(user);
+
       // Registra log de auditoria para login bem-sucedido
       AuditService.log(
         AuditAction.LOGIN,
         "authentication",
         undefined,
         user.id,
-        { role: user.role }
+        { role: user.role.name }
       );
       logger.info(`Login bem-sucedido para ${user.email}`, {
         userId: user.id,
-        role: user.role,
+        role: user.role.name,
       });
 
       // Retorna os tokens e dados do usuário
@@ -104,63 +113,145 @@ export class AuthService {
         refreshToken,
         user: {
           id: user.id,
-          name: user.name,
+          name,
           email: user.email,
-          role: user.role,
+          document,
+          userType: user.userType,
+          role: user.role.name,
         },
       };
     } catch (error) {
       if (!(error instanceof UnauthorizedError)) {
-        logger.error(`Erro inesperado durante login para ${data.email}`, error);
+        logger.error(
+          `Erro inesperado durante login para ${data.document}`,
+          error
+        );
       }
       throw error;
     }
   }
 
   /**
-   * Registra um novo usuário
+   * Registra um novo usuário pessoa física
    */
-  public async register(
-    data: RegisterRequestDto
+  public async registerPessoaFisica(
+    data: RegisterPessoaFisicaDto
   ): Promise<RegisterResponseDto> {
     try {
-      logger.info(`Tentativa de registro para o email: ${data.email}`);
+      logger.info(
+        `Tentativa de registro de pessoa física para o email: ${data.email}, CPF: ${data.cpf}`
+      );
 
-      // Verifica se o email já está em uso
-      await this.userService.validateUniqueEmail(data.email);
-
-      // Verifica força da senha
+      // Valida força da senha
       await this.userService.validatePasswordStrength(data.password);
 
       // Cria o usuário
-      const user = await this.userService.createUser({
-        name: data.name,
-        email: data.email,
-        password: data.password,
+      const user = await this.userService.createPessoaFisica(data);
+
+      if (!user || !user.personalInfo) {
+        throw new Error("Falha ao criar usuário");
+      }
+
+      // Envia email de boas-vindas
+      await AuthEmailService.sendWelcomeEmail(user.email, {
+        name: user.personalInfo.name,
+        login: user.personalInfo.cpf,
+        matricula: user.matricula,
       });
 
       // Registra log de auditoria para registro bem-sucedido
       AuditService.log(AuditAction.REGISTER, "user", user.id, user.id, {
-        name: user.name,
+        name: user.personalInfo.name,
         email: user.email,
-        role: user.role,
+        role: user.role.name,
       });
-      logger.info(`Usuário registrado com sucesso: ${user.email}`, {
-        userId: user.id,
-      });
+
+      logger.info(
+        `Usuário pessoa física registrado com sucesso: ${user.email}`,
+        {
+          userId: user.id,
+        }
+      );
 
       // Retorna os dados do usuário registrado
       return {
         id: user.id,
-        name: user.name,
         email: user.email,
-        role: user.role,
+        userType: user.userType,
+        document: user.personalInfo.cpf,
+        name: user.personalInfo.name,
+        matricula: user.matricula,
+        role: user.role.name,
         createdAt: user.createdAt,
       };
     } catch (error) {
       if (!(error instanceof ConflictError)) {
         logger.error(
-          `Erro inesperado durante registro para ${data.email}`,
+          `Erro inesperado durante registro de pessoa física para ${data.email}`,
+          error
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Registra um novo usuário pessoa jurídica
+   */
+  public async registerPessoaJuridica(
+    data: RegisterPessoaJuridicaDto
+  ): Promise<RegisterResponseDto> {
+    try {
+      logger.info(
+        `Tentativa de registro de pessoa jurídica para o email: ${data.email}, CNPJ: ${data.cnpj}`
+      );
+
+      // Valida força da senha
+      await this.userService.validatePasswordStrength(data.password);
+
+      // Cria o usuário
+      const user = await this.userService.createPessoaJuridica(data);
+
+      if (!user || !user.companyInfo) {
+        throw new Error("Falha ao criar usuário");
+      }
+
+      // Envia email de boas-vindas
+      await AuthEmailService.sendWelcomeEmail(user.email, {
+        name: user.companyInfo.companyName,
+        login: user.companyInfo.cnpj,
+        matricula: user.matricula,
+      });
+
+      // Registra log de auditoria para registro bem-sucedido
+      AuditService.log(AuditAction.REGISTER, "user", user.id, user.id, {
+        companyName: user.companyInfo.companyName,
+        email: user.email,
+        role: user.role.name,
+      });
+
+      logger.info(
+        `Usuário pessoa jurídica registrado com sucesso: ${user.email}`,
+        {
+          userId: user.id,
+        }
+      );
+
+      // Retorna os dados do usuário registrado
+      return {
+        id: user.id,
+        email: user.email,
+        userType: user.userType,
+        document: user.companyInfo.cnpj,
+        name: user.companyInfo.companyName,
+        matricula: user.matricula,
+        role: user.role.name,
+        createdAt: user.createdAt,
+      };
+    } catch (error) {
+      if (!(error instanceof ConflictError)) {
+        logger.error(
+          `Erro inesperado durante registro de pessoa jurídica para ${data.email}`,
           error
         );
       }
@@ -232,7 +323,7 @@ export class AuthService {
       const accessToken = await this.tokenService.generateAccessToken(
         user.id,
         user.email,
-        user.role
+        user.role.name
       );
       const refreshToken = await this.tokenService.generateRefreshToken(
         user.id
@@ -250,7 +341,7 @@ export class AuthService {
         "authentication",
         undefined,
         userId,
-        { role: user.role }
+        { role: user.role.name }
       );
       logger.info(`Token atualizado com sucesso para usuário ${userId}`);
 
