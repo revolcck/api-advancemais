@@ -1,5 +1,3 @@
-// This is your Prisma schema file
-// Configuração do Prisma com MySQL
 
 generator client {
   provider = "prisma-client-js"
@@ -10,122 +8,124 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Modelo de usuário
-model User {
-  id             String    @id @default(uuid())
-  email          String    @unique
-  name           String
-  password       String
-  role           Role      @default(USER)
-  refreshToken   String?   @db.Text
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+// Modelo de papel/função do usuário
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  level       Int
+  status      Int      @default(1)
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   // Relacionamentos
-  enrollments    Enrollment[]
-  jobs           Job[]     @relation("JobCreator")
-  applications   JobApplication[]
+  users       User[]
+
+  @@map("roles")
+}
+
+// Modelo de usuário (comum para ambos os tipos)
+model User {
+  id            String       @id @default(uuid())
+  email         String       @unique
+  password      String
+  userType      UserType
+  matricula     String       @unique // Formato: AD158KJ
+  refreshToken  String?      @db.Text
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  lastLogin     DateTime?
+  
+  // Relacionamento com Role
+  roleId        String
+  role          Role         @relation(fields: [roleId], references: [id])
+  
+  // Relacionamentos com informações específicas
+  personalInfo  PersonalInfo?
+  companyInfo   CompanyInfo?
+
+  // Relacionamento com endereço
+  address       Address?
 
   @@map("users")
 }
 
-// Enum para definir os papéis de usuário
-enum Role {
-  ADMIN
-  INSTRUCTOR
-  USER
+// Enum para definir o tipo de usuário
+enum UserType {
+  PESSOA_FISICA
+  PESSOA_JURIDICA
 }
 
-// Modelo de curso
-model Course {
-  id          String    @id @default(uuid())
-  title       String
-  description String    @db.Text
-  imageUrl    String?
-  price       Float
-  duration    Int       // Em horas
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Relacionamentos
-  enrollments Enrollment[]
-
-  @@map("courses")
-}
-
-// Modelo de matricula em curso
-model Enrollment {
-  id        String    @id @default(uuid())
-  userId    String
-  courseId  String
-  status    EnrollmentStatus @default(ACTIVE)
-  progress  Float     @default(0)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  
-  // Relacionamentos
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, courseId])
-  @@map("enrollments")
-}
-
-// Enum para definir o status da matrícula
-enum EnrollmentStatus {
-  ACTIVE
-  COMPLETED
-  CANCELLED
-}
-
-// Modelo de vaga de emprego
-model Job {
+// Modelo para informações de pessoa física
+model PersonalInfo {
   id              String    @id @default(uuid())
-  title           String
-  company         String
-  location        String
-  description     String    @db.Text
-  requirements    String    @db.Text
-  salary          Float?
-  contactEmail    String
-  isRemote        Boolean   @default(false)
-  isActive        Boolean   @default(true)
-  createdById     String
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  expiresAt       DateTime?
+  name            String
+  cpf             String    @unique
+  rg              String?
+  birthDate       DateTime
+  gender          Gender
+  phone           String
+  companyName     String?   // Empresa onde trabalha (opcional)
+  maritalStatus   MaritalStatus?
   
-  // Relacionamentos
-  createdBy       User      @relation("JobCreator", fields: [createdById], references: [id])
-  applications    JobApplication[]
+  // Relacionamento com usuário (1:1)
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("jobs")
+  @@map("personal_info")
 }
 
-// Modelo de candidatura a vaga
-model JobApplication {
-  id          String    @id @default(uuid())
-  userId      String
-  jobId       String
-  resumeUrl   String?
-  coverLetter String?   @db.Text
-  status      ApplicationStatus @default(PENDING)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // Relacionamentos
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, jobId])
-  @@map("job_applications")
+// Enum para gênero
+enum Gender {
+  MASCULINO
+  FEMININO
+  OUTRO
+  NAO_INFORMADO
 }
 
-// Enum para definir o status da candidatura
-enum ApplicationStatus {
-  PENDING
-  REVIEWING
-  ACCEPTED
-  REJECTED
+// Enum para estado civil
+enum MaritalStatus {
+  SOLTEIRO
+  CASADO
+  DIVORCIADO
+  VIUVO
+  UNIAO_ESTAVEL
+  OUTRO
+}
+
+// Modelo para informações de pessoa jurídica
+model CompanyInfo {
+  id              String    @id @default(uuid())
+  companyName     String    // Nome da empresa
+  tradeName       String    // Nome fantasia
+  legalName       String    // Razão social
+  cnpj            String    @unique
+  phone           String
+  website         String?
+  
+  // Relacionamento com usuário (1:1)
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("company_info")
+}
+
+// Modelo para endereço (usado tanto por pessoa física quanto jurídica)
+model Address {
+  id              String    @id @default(uuid())
+  zipCode         String    // CEP
+  street          String    // Logradouro
+  number          String
+  neighborhood    String    // Bairro
+  complement      String?
+  city            String
+  state           String
+  country         String    @default("Brasil")
+  
+  // Relacionamento com usuário (1:1)
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("addresses")
 }
