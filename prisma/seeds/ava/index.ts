@@ -9,6 +9,7 @@ import { seedCourses } from "./courses";
 import { seedExampleCourse } from "./exampleCourse";
 import { seedQuestionBanks } from "./questionBanks";
 import { seedExams } from "./exams";
+import { seedLessonNotifications } from "./lessonNotifications";
 
 export async function seedAva(context: SeedContext): Promise<SeedContext> {
   console.log("Iniciando seed do AVA (Ambiente Virtual de Aprendizagem)...");
@@ -33,6 +34,9 @@ export async function seedAva(context: SeedContext): Promise<SeedContext> {
 
     // Criar provas de exemplo
     updatedContext = await seedExams(updatedContext);
+
+    // Criar notificações de aulas
+    updatedContext = await seedLessonNotifications(updatedContext);
 
     console.log("Seed do AVA finalizado com sucesso!");
     return updatedContext;

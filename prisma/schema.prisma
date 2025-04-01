@@ -86,6 +86,9 @@ model User {
   
   // Relações para respostas de tentativas
   attemptAnswers    ExamAttemptAnswer[]
+  
+  // Adicionar este relacionamento
+  notifications     UserNotification[]
 
   @@map("users")
 }
@@ -706,6 +709,7 @@ model AnalyticsReport {
 }
 
 // ==================== ESTRUTURA DE AVA ====================
+
 // Enum de status padrão para todas as entidades
 enum Status {
   ACTIVE
@@ -1000,54 +1004,55 @@ enum ReleaseType {
 
 // Modelo de aula
 model Lesson {
-  id                String      @id @default(uuid())
+  id                String        @id @default(uuid())
   title             String
-  description       String?     @db.Text
-  order             Int         // Ordem de exibição
-  duration          Int?        // Duração em minutos
+  description       String?       @db.Text
+  order             Int           // Ordem de exibição
+  duration          Int?          // Duração em minutos
   
   // Relacionamento com módulo
   moduleId          String
-  module            CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  module            CourseModule  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   
   // Relacionamento com professor
   professorId       String
-  professor         User        @relation(fields: [professorId], references: [id])
+  professor         User          @relation(fields: [professorId], references: [id])
   
   // Relacionamento com tipo de aula
   typeId            String
-  type              LessonType  @relation(fields: [typeId], references: [id])
+  type              LessonType    @relation(fields: [typeId], references: [id])
   
   // Tipo de conteúdo específico
-  contentType       ContentType // Tipo específico de conteúdo
+  contentType       ContentType   // Tipo específico de conteúdo
   
   // Conteúdo da aula (baseado no tipo)
-  content           Json?       // Conteúdo estruturado baseado no tipo
-  videoUrl          String?     // URL do vídeo (para tipo VIDEO)
-  textContent       String?     @db.Text // Conteúdo em texto (para tipo TEXTO)
-  attachments       Json?       // Lista de anexos
-  liveDate          DateTime?   // Data da aula ao vivo (para tipo LIVE)
-  liveUrl           String?     // URL da transmissão (para LIVE)
-  liveKey           String?     // Chave de transmissão (para LIVE)
+  content           Json?         // Conteúdo estruturado baseado no tipo
+  videoUrl          String?       // URL do vídeo (para tipo VIDEO)
+  textContent       String?       @db.Text // Conteúdo em texto (para tipo TEXTO)
+  attachments       Json?         // Lista de anexos
+  liveDate          DateTime?     // Data da aula ao vivo (para tipo LIVE)
+  liveUrl           String?       // URL da transmissão (para LIVE)
+  liveKey           String?       // Chave de transmissão (para LIVE)
   
   // Controle de acesso
-  isRequired        Boolean     @default(false) // Se é uma aula requisito
-  isDemonstration   Boolean     @default(false) // Se é uma aula demonstrativa
-  releaseType       ReleaseType @default(IMMEDIATE) // Como a aula é liberada
-  releaseDate       DateTime?   // Data específica para liberação
-  releaseDays       Int?        // Dias para liberar após aula anterior
-  requiredTime      Int?        // Tempo mínimo de permanência (em segundos)
-  maxViews          Int?        // Número máximo de visualizações
-  pauseCount        Int?        // Número de pausas durante o vídeo
-  showIdentification Boolean    @default(false) // Mostrar identificação do aluno como marca d'água
+  isRequired        Boolean       @default(false) // Se é uma aula requisito
+  isDemonstration   Boolean       @default(false) // Se é uma aula demonstrativa
+  releaseType       ReleaseType   @default(IMMEDIATE) // Como a aula é liberada
+  releaseDate       DateTime?     // Data específica para liberação
+  releaseDays       Int?          // Dias para liberar após aula anterior
+  requiredTime      Int?          // Tempo mínimo de permanência (em segundos)
+  maxViews          Int?          // Número máximo de visualizações
+  pauseCount        Int?          // Número de pausas durante o vídeo
+  showIdentification Boolean      @default(false) // Mostrar identificação do aluno como marca d'água
   
   // Status e configurações
-  status            Status      @default(ACTIVE)
-  notifyStudents    Boolean     @default(false) // Notificar alunos quando publicada
+  status            Status        @default(ACTIVE) // Status geral de ativação
+  publishStatus     PublishStatus @default(DRAFT) // Status de publicação (novo campo)
+  notifyStudents    Boolean       @default(false) // Notificar alunos quando publicada
   
   // Campos de auditoria
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
   createdById       String?
   updatedById       String?
   
@@ -1060,10 +1065,12 @@ model Lesson {
   questionBankId    String?
   questionBank      QuestionBank? @relation(fields: [questionBankId], references: [id])
 
+  //Adicionar este relacionamento
+  notifications     LessonNotification[]
+
   @@map("lessons")
   @@unique([moduleId, order])
 }
-
 // Tipo de conteúdo específico da aula
 enum ContentType {
   VIDEO               // Vídeo gravado
@@ -1587,4 +1594,65 @@ model StudentGrade {
   @@unique([userId, courseId, examId])
   @@map("student_grades")
   @@index([userId, courseId])
+}
+
+// Adicionar após os enums existentes
+enum PublishStatus {
+  DRAFT             // Rascunho
+  PUBLISHED         // Publicado
+}
+
+model LessonNotification {
+  id                String    @id @default(uuid())
+  
+  // Relacionamento com a aula
+  lessonId          String
+  lesson            Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  // Conteúdo da notificação
+  title             String
+  message           String    @db.Text
+  
+  // Status da notificação
+  isSent            Boolean   @default(false)
+  sentAt            DateTime?
+  errorMessage      String?   @db.Text
+  
+  // Métricas
+  viewCount         Int       @default(0)
+  clickCount        Int       @default(0)
+  
+  // Campos de auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relacionamento com usuários notificados
+  recipients        UserNotification[]
+
+  @@map("lesson_notifications")
+}
+
+// Relacionamento entre notificação e usuário
+model UserNotification {
+  id                String    @id @default(uuid())
+  
+  // Relacionamento com a notificação
+  notificationId    String
+  notification      LessonNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com o usuário
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Status da notificação para este usuário
+  isRead            Boolean   @default(false)
+  readAt            DateTime?
+  isClicked         Boolean   @default(false)
+  clickedAt         DateTime?
+  
+  // Campo de auditoria
+  createdAt         DateTime  @default(now())
+
+  @@unique([notificationId, userId])
+  @@map("user_notifications")
 }

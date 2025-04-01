@@ -3,6 +3,7 @@ import {
   Course,
   CourseModule,
   Lesson,
+  PublishStatus,
   ReleaseType,
   Status,
 } from "@prisma/client";
@@ -102,7 +103,7 @@ export async function seedExampleCourse(
     accessPeriod: 180, // 180 dias de acesso
     supportPeriod: 90, // 90 dias de suporte
     price: 199.9, // R$ 199,90
-    isPublished: true,
+    isPublished: true, // Curso já publicado
     isHighlighted: true,
     thumbnailUrl: "https://example.com/curso-marketing-digital.jpg", // URL da imagem de capa
   };
@@ -254,6 +255,8 @@ export async function seedExampleCourse(
       videoUrl: "https://www.youtube.com/watch?v=example1",
       isRequired: true,
       status: Status.ACTIVE,
+      publishStatus: PublishStatus.PUBLISHED, // Aula publicada
+      notifyStudents: true, // Notificar alunos
       professorId: professorId,
     },
     {
@@ -268,6 +271,8 @@ export async function seedExampleCourse(
       }),
       isRequired: true,
       status: Status.ACTIVE,
+      publishStatus: PublishStatus.PUBLISHED, // Aula publicada
+      notifyStudents: false, // Não notificar alunos
       professorId: professorId,
     },
     {
@@ -280,6 +285,8 @@ export async function seedExampleCourse(
       liveDate: new Date(new Date().getTime() + 14 * 24 * 60 * 60 * 1000), // 14 dias a partir de agora
       isRequired: false,
       status: Status.ACTIVE,
+      publishStatus: PublishStatus.DRAFT, // Aula em rascunho
+      notifyStudents: false, // Não notificar alunos
       professorId: professorId,
     },
     {
@@ -291,6 +298,8 @@ export async function seedExampleCourse(
       contentType: ContentType.FILE,
       isRequired: true,
       status: Status.ACTIVE,
+      publishStatus: PublishStatus.DRAFT, // Aula em rascunho
+      notifyStudents: false, // Não notificar alunos
       professorId: professorId,
     },
   ];
@@ -307,7 +316,9 @@ export async function seedExampleCourse(
         },
       });
 
-      console.log(`Aula criada: ${createdLesson.title}`);
+      console.log(
+        `Aula criada: ${createdLesson.title} - Status: ${createdLesson.publishStatus}`
+      );
       createdLessons.push(createdLesson);
 
       // Se for do tipo FILE, adicionar um arquivo de exemplo
@@ -346,6 +357,8 @@ export async function seedExampleCourse(
         videoUrl: "https://www.youtube.com/watch?v=example2",
         isRequired: true,
         status: Status.ACTIVE,
+        publishStatus: PublishStatus.PUBLISHED, // Aula publicada
+        notifyStudents: true, // Notificar alunos
         professorId: professorId,
       },
       {
@@ -358,6 +371,8 @@ export async function seedExampleCourse(
         videoUrl: "https://www.youtube.com/watch?v=example3",
         isRequired: true,
         status: Status.ACTIVE,
+        publishStatus: PublishStatus.DRAFT, // Aula em rascunho
+        notifyStudents: false, // Não notificar alunos ainda
         professorId: professorId,
       },
     ];
@@ -372,7 +387,9 @@ export async function seedExampleCourse(
           },
         });
 
-        console.log(`Aula criada: ${createdLesson.title}`);
+        console.log(
+          `Aula criada: ${createdLesson.title} - Status: ${createdLesson.publishStatus}`
+        );
       } catch (error) {
         console.error(`Erro ao criar aula ${lessonData.title}:`, error);
         // Continuar mesmo com erro
