@@ -71,6 +71,19 @@ enum UserType {
   PESSOA_JURIDICA
 }
 
+// Enum para níveis educacionais
+enum EducationLevel {
+  ENSINO_FUNDAMENTAL_INCOMPLETO
+  ENSINO_FUNDAMENTAL_COMPLETO
+  ENSINO_MEDIO_INCOMPLETO
+  ENSINO_MEDIO_COMPLETO
+  ENSINO_SUPERIOR_INCOMPLETO
+  ENSINO_SUPERIOR_COMPLETO
+  POS_GRADUACAO
+  MESTRADO
+  DOUTORADO
+}
+
 // Modelo para informações de pessoa física
 model PersonalInfo {
   id              String    @id @default(uuid())
@@ -82,6 +95,7 @@ model PersonalInfo {
   phone           String
   companyName     String?   // Empresa onde trabalha (opcional)
   maritalStatus   MaritalStatus?
+  educationLevel  EducationLevel? // Nível educacional
   
   // Relacionamento com usuário (1:1)
   userId          String    @unique
@@ -664,4 +678,94 @@ model AnalyticsReport {
   @@map("analytics_reports")
   @@index([reportType, reportPeriod])
   @@index([startDate, endDate])
+}
+
+// ==================== ESTRUTURA DE AVA ====================
+// Enum de status padrão para todas as entidades
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+// Categorias de cursos
+model CourseCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?  @db.Text
+  status      Status   @default(ACTIVE)
+  slug        String   @unique // URL amigável
+  icon        String?  // Nome do ícone ou classe CSS
+  displayOrder Int      @default(0) // Ordem de exibição
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+  
+  // Relacionamento com área
+  areaId      String?
+  area        CourseArea? @relation(fields: [areaId], references: [id])
+
+  @@map("course_categories")
+}
+
+// Tipos de cursos
+model CourseType {
+  id          String   @id @default(uuid())
+  name        String   @unique // Ex: GRATUITO, PAGO, PREMIUM, etc.
+  description String?  @db.Text
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@map("course_types")
+}
+
+// Tipos de aulas
+model LessonType {
+  id          String   @id @default(uuid())
+  name        String   @unique // VIDEO, TEXTO, QUIZ, etc.
+  description String?  @db.Text
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@map("lesson_types")
+}
+
+// Tipos de provas
+model ExamType {
+  id          String   @id @default(uuid())
+  name        String   @unique // ONLINE, PRESENCIAL, etc.
+  description String?  @db.Text
+  status      Status   @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@map("exam_types")
+}
+
+// Áreas de conhecimento (categorias principais)
+model CourseArea {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?  @db.Text
+  status      Status   @default(ACTIVE)
+  slug        String   @unique // URL amigável
+  icon        String?  // Nome do ícone ou classe CSS
+  displayOrder Int      @default(0) // Ordem de exibição
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  // Relacionamento com categorias
+  categories  CourseCategory[]
+
+  @@map("course_areas")
 }
