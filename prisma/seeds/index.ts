@@ -22,7 +22,7 @@ export async function runAllSeeds(): Promise<SeedContext> {
   context = await seedPaymentMethods(context);
   context = await seedCoupons(context);
 
-  // Seeds do AVA
+  // Seeds do AVA (já inclui o seedQuestionBanks)
   context = await seedAva(context);
 
   console.log("Todos os seeds foram executados com sucesso!");

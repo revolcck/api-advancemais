@@ -5,10 +5,12 @@ import {
   CourseCategory,
   CourseModality,
   CourseType,
+  Exam,
   ExamType,
   LessonType,
   PaymentMethod,
   PrismaClient,
+  QuestionBank,
   Role,
   SubscriptionPlan,
   User,
@@ -51,5 +53,8 @@ export interface SeedContext {
   examTypes?: ExamType[];
   courseModalities?: CourseModality[];
   courses?: Course[];
+  exampleCourse?: Course;
+  questionBanks?: QuestionBank[];
+  exams?: Exam[];
   [key: string]: any;
 }

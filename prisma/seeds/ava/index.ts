@@ -7,6 +7,8 @@ import { seedExamTypes } from "./examTypes";
 import { seedCourseModalities } from "./courseModalities";
 import { seedCourses } from "./courses";
 import { seedExampleCourse } from "./exampleCourse";
+import { seedQuestionBanks } from "./questionBanks";
+import { seedExams } from "./exams";
 
 export async function seedAva(context: SeedContext): Promise<SeedContext> {
   console.log("Iniciando seed do AVA (Ambiente Virtual de Aprendizagem)...");
@@ -25,6 +27,12 @@ export async function seedAva(context: SeedContext): Promise<SeedContext> {
 
     // Criar um curso de exemplo com módulos e aulas detalhadas
     updatedContext = await seedExampleCourse(updatedContext);
+
+    // Criar bancos de questões
+    updatedContext = await seedQuestionBanks(updatedContext);
+
+    // Criar provas de exemplo
+    updatedContext = await seedExams(updatedContext);
 
     console.log("Seed do AVA finalizado com sucesso!");
     return updatedContext;

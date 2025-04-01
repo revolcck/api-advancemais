@@ -70,6 +70,22 @@ model User {
   teachingLessons Lesson[]
   enrollments Enrollment[]
   examAnswers ExamAnswer[]
+  
+  // Relacionamentos com banco de questões
+  createdQuestions Question[]        @relation("questionCreator")
+  updatedQuestions Question[]        @relation("questionUpdater")
+  createdQuestionBanks QuestionBank[] @relation("questionBankCreator")
+  updatedQuestionBanks QuestionBank[] @relation("questionBankUpdater")
+  studentAnswers QuestionAnswer[]
+
+   // Relações para provas
+  createdExams      Exam[]      @relation("examCreator")
+  updatedExams      Exam[]      @relation("examUpdater")
+  examAttempts      ExamAttempt[]
+  grades            StudentGrade[]
+  
+  // Relações para respostas de tentativas
+  attemptAnswers    ExamAttemptAnswer[]
 
   @@map("users")
 }
@@ -842,6 +858,11 @@ model Course {
   modules           CourseModule[] // Módulos do curso
   enrollments       Enrollment[] // Matrículas de alunos
   products          CourseProduct[] // Produtos vinculados
+  questionBanks     QuestionBank[] // Bancos de questões
+
+  // Relações para provas e notas
+  exams             Exam[]
+  studentGrades     StudentGrade[]
 
   @@map("courses")
   @@index([categoryId])
@@ -962,6 +983,9 @@ model CourseModule {
   
   // Relacionamentos
   lessons           Lesson[]
+
+  // Relação para provas vinculadas ao módulo
+  exams             Exam[]
   
   @@map("course_modules")
   @@unique([courseId, order])
@@ -1032,6 +1056,10 @@ model Lesson {
   files             LessonFile[]
   examQuestions     ExamQuestion[]
   
+  // Relacionamento com banco de questões (para lições do tipo quiz)
+  questionBankId    String?
+  questionBank      QuestionBank? @relation(fields: [questionBankId], references: [id])
+
   @@map("lessons")
   @@unique([moduleId, order])
 }
@@ -1050,6 +1078,7 @@ enum ContentType {
   HTML_EDITOR         // Editor HTML
   TEXT                // Texto formatado
   FILE                // Arquivo para download
+  QUIZ                // Questionário/Quiz
 }
 
 // Modelo de arquivo da aula
@@ -1171,6 +1200,10 @@ model ExamQuestion {
   
   // Relacionamentos
   answers           ExamAnswer[]
+
+  // Relações para provas e respostas de tentativas
+  examRelations     ExamQuestionRelation[]
+  attemptAnswers    ExamAttemptAnswer[]
   
   @@map("exam_questions")
 }
@@ -1212,4 +1245,346 @@ model Certificate {
   finalGrade        Decimal?    @db.Decimal(5, 2)
   
   @@map("certificates")
+}
+
+// ==================== ESTRUTURA DE BANCO DE QUESTÕES ====================
+
+// Enum para tipos de questão
+enum QuestionType {
+  MULTIPLA_ESCOLHA     // Múltipla escolha (apenas uma resposta correta)
+  MULTIPLA_SELECAO     // Múltipla seleção (várias respostas corretas)
+  VERDADEIRO_FALSO     // Verdadeiro ou falso
+  DISSERTATIVA         // Questão dissertativa (resposta aberta)
+  ORDENACAO            // Ordenação de itens
+  ASSOCIACAO           // Associação de colunas
+  COMPLETAR_LACUNAS    // Completar espaços em branco
+  NUMERICA             // Resposta numérica
+}
+
+// Enum para nível de dificuldade da questão
+enum DifficultyLevel {
+  MUITO_FACIL
+  FACIL
+  MEDIO
+  DIFICIL
+  MUITO_DIFICIL
+}
+
+// Modelo para banco de questões
+model QuestionBank {
+  id                String      @id @default(uuid())
+  title             String      // Título do banco de questões 
+  description       String?     @db.Text
+  status            Status      @default(ACTIVE)
+  
+  // Relacionamento com curso (opcional)
+  courseId          String?
+  course            Course?     @relation(fields: [courseId], references: [id])
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  createdById       String
+  createdBy         User        @relation("questionBankCreator", fields: [createdById], references: [id])
+  updatedById       String?
+  updatedBy         User?       @relation("questionBankUpdater", fields: [updatedById], references: [id])
+  
+  // Relacionamentos
+  questions         Question[]
+  lessons           Lesson[]
+
+  @@map("question_banks")
+  @@index([courseId])
+  @@index([status])
+}
+
+// Modelo para questão
+model Question {
+  id                String          @id @default(uuid())
+  text              String          @db.Text  // Texto da questão
+  type              QuestionType    // Tipo de questão
+  difficultyLevel   DifficultyLevel @default(MEDIO)
+  points            Int             @default(1) // Pontuação da questão
+  status            Status          @default(ACTIVE)
+  order             Int?            // Ordem da questão no banco
+  
+  // Conteúdo específico baseado no tipo
+  options           Json?           // Opções para múltipla escolha/seleção
+  correctAnswer     Json?           // Resposta(s) correta(s)
+  solution          String?         @db.Text  // Explicação da resposta correta (gabarito)
+  
+  // Metadados e configuração
+  tags              String?         // Tags para categorização
+  timeLimit         Int?            // Tempo limite em segundos
+  shuffleOptions    Boolean         @default(false) // Embaralhar opções
+  
+  // Relacionamento com banco de questões
+  questionBankId    String
+  questionBank      QuestionBank    @relation(fields: [questionBankId], references: [id], onDelete: Cascade)
+  
+  // Campos de auditoria
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  createdById       String
+  createdBy         User            @relation("questionCreator", fields: [createdById], references: [id])
+  updatedById       String?
+  updatedBy         User?           @relation("questionUpdater", fields: [updatedById], references: [id])
+  
+  // Relacionamentos
+  answers           QuestionAnswer[]
+
+  // Relações para provas e respostas de tentativas
+  examRelations     ExamQuestionRelation[]
+  attemptAnswers    ExamAttemptAnswer[]
+
+  @@map("questions")
+  @@index([questionBankId])
+  @@index([type])
+  @@index([status])
+  @@index([difficultyLevel])
+}
+
+// Modelo para respostas dos alunos às questões
+model QuestionAnswer {
+  id                String      @id @default(uuid())
+  
+  // Relacionamentos
+  questionId        String
+  question          Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  
+  // Dados da resposta
+  answer            Json        // Resposta do aluno (formato depende do tipo de questão)
+  isCorrect         Boolean?    // Se a resposta está correta (null se ainda não avaliada)
+  score             Int?        // Pontuação obtida
+  attemptTime       Int?        // Tempo gasto em segundos
+  
+  // Avaliação (para questões dissertativas)
+  feedback          String?     @db.Text  // Feedback do professor
+  evaluatedAt       DateTime?   // Data da avaliação
+  evaluatedById     String?     // ID do professor que avaliou
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  
+  @@map("question_answers")
+  @@unique([questionId, userId])
+  @@index([isCorrect])
+}
+
+// ==================== ESTRUTURA DE PROVAS E AVALIAÇÕES ====================
+
+// Enum para tipo de liberação de prova
+enum ExamReleaseType {
+  IMMEDIATELY        // Liberação imediata após aulas anteriores
+  SPECIFIC_DATE      // Data específica
+  FLEXIBLE_PERIOD    // Período após concluir aula anterior
+}
+
+// Enum para ordem das questões
+enum QuestionOrder {
+  SEQUENTIAL         // Ordem sequencial fixa
+  RANDOM             // Ordem aleatória
+}
+
+// Modelo para provas
+model Exam {
+  id                String        @id @default(uuid())
+  title             String        // Título da prova
+  description       String?       @db.Text
+  weight            Int           @default(1)  // Peso da prova (1-10)
+  passingPercentage Int           @default(60) // Porcentagem mínima para aprovação (ex: 60%)
+  duration          Int?          // Duração em minutos (opcional)
+  trackDispersion   Boolean       @default(false) // Contabilizar dispersão do aluno
+  notifyStudents    Boolean       @default(false) // Notificar alunos sobre a prova
+  
+  // Configurações de liberação
+  releaseType       ExamReleaseType @default(IMMEDIATELY)
+  releaseDate       DateTime?     // Data específica para liberação
+  releaseAfterDays  Int?          // Dias após concluir aula anterior
+  
+  // Configurações de requisito
+  isRequired        Boolean       @default(true) // Prova é requisito para avançar
+  
+  // Configurações de tentativas
+  maxAttempts       Int           @default(1)  // Número máximo de tentativas
+  allowMultipleAttempts Boolean   @default(false) // Permitir múltiplas tentativas
+  showAnswerAfterAttempt Boolean  @default(false) // Mostrar gabarito após tentativa
+  attemptCooldownHours Int?       // Horas para liberar nova tentativa
+  attemptCooldownDays Int?        // Dias para liberar nova tentativa
+  
+  // Configurações de questões
+  questionOrder     QuestionOrder @default(SEQUENTIAL)
+  totalQuestions    Int           @default(0) // Total de questões na prova
+  
+  // Relacionamento com curso
+  courseId          String
+  course            Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com módulo (opcional)
+  moduleId          String?
+  module            CourseModule? @relation(fields: [moduleId], references: [id])
+  
+  // Campos de auditoria
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  createdById       String
+  createdBy         User          @relation("examCreator", fields: [createdById], references: [id])
+  updatedById       String?
+  updatedBy         User?         @relation("examUpdater", fields: [updatedById], references: [id])
+  
+  // Relacionamentos
+  questions         ExamQuestionRelation[]
+  studentAttempts   ExamAttempt[]
+  studentGrades     StudentGrade[]
+
+  @@map("exams")
+  @@index([courseId])
+  @@index([moduleId])
+}
+
+// Relação entre exame e questões (permite selecionar questões de bancos diferentes)
+model ExamQuestionRelation {
+  id                String      @id @default(uuid())
+  
+  // Relacionamentos
+  examId            String
+  exam              Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
+  
+  // A questão pode vir de:
+  // 1. Uma questão do banco de questões
+  questionId        String?
+  question          Question?   @relation(fields: [questionId], references: [id])
+  
+  // 2. Uma questão específica para esta prova
+  examQuestionId    String?
+  examQuestion      ExamQuestion? @relation(fields: [examQuestionId], references: [id])
+  
+  // Informações da questão na prova
+  order             Int         // Ordem da questão na prova
+  points            Int         @default(1) // Pontuação específica para esta prova
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  
+  @@unique([examId, questionId])
+  @@unique([examId, examQuestionId])
+  @@map("exam_question_relations")
+}
+
+// Modelo para tentativas de prova dos alunos
+model ExamAttempt {
+  id                String      @id @default(uuid())
+  
+  // Relacionamentos
+  examId            String
+  exam              Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
+  
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Informações da tentativa
+  startedAt         DateTime    @default(now())
+  completedAt       DateTime?
+  isCompleted       Boolean     @default(false)
+  score             Decimal?    @db.Decimal(5, 2) // Pontuação obtida (ex: 8.5)
+  percentageScore   Decimal?    @db.Decimal(5, 2) // Porcentagem de acerto
+  duration          Int?        // Tempo gasto em segundos
+  attempt           Int         @default(1) // Número da tentativa
+  passed            Boolean?    // Se passou na prova
+  
+  // Monitoramento de comportamento
+  dispersionCount   Int         @default(0) // Contagem de saídas durante a prova
+  dispersionTime    Int         @default(0) // Tempo total fora da prova em segundos
+  dispersionEvents  Json?       // Eventos de dispersão (timestamps)
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  
+  // Relacionamentos
+  answers           ExamAttemptAnswer[]
+  grade             StudentGrade?
+  
+  @@unique([examId, userId, attempt])
+  @@map("exam_attempts")
+  @@index([userId])
+  @@index([examId])
+  @@index([passed])
+}
+
+// Modelo para respostas da tentativa
+model ExamAttemptAnswer {
+  id                String      @id @default(uuid())
+  
+  // Relacionamento com tentativa
+  attemptId         String
+  attempt           ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  
+  // A resposta pode ser para:
+  // 1. Uma questão do banco de questões
+  questionId        String?
+  question          Question?   @relation(fields: [questionId], references: [id])
+  
+  // 2. Uma questão específica para esta prova
+  examQuestionId    String?
+  examQuestion      ExamQuestion? @relation(fields: [examQuestionId], references: [id])
+  
+  // Relação com o usuário que deu a resposta (campo que faltava)
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  
+  // Dados da resposta
+  answer            Json        // Resposta do aluno (formato depende do tipo de questão)
+  isCorrect         Boolean?    // Se a resposta está correta (null para dissertativa)
+  score             Decimal?    @db.Decimal(5, 2) // Pontuação obtida
+  
+  // Avaliação (para questões dissertativas)
+  feedback          String?     @db.Text  // Feedback do professor
+  evaluatedAt       DateTime?   // Data da avaliação
+  evaluatedById     String?     // ID do professor que avaliou
+  
+  // Campos de auditoria
+  answeredAt        DateTime    @default(now())
+  
+  @@unique([attemptId, questionId])
+  @@unique([attemptId, examQuestionId])
+  @@map("exam_attempt_answers")
+}
+
+// Modelo para boletim/notas dos alunos
+model StudentGrade {
+  id                String      @id @default(uuid())
+  
+  // Relacionamentos
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  courseId          String
+  course            Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  examId            String?
+  exam              Exam?       @relation(fields: [examId], references: [id])
+  
+  // Relacionamento com tentativa específica de prova
+  attemptId         String?     @unique
+  attempt           ExamAttempt? @relation(fields: [attemptId], references: [id])
+  
+  // Informações da nota
+  score             Decimal     @db.Decimal(5, 2) // Nota obtida
+  maxScore          Decimal     @db.Decimal(5, 2) // Nota máxima possível
+  weight            Int         @default(1) // Peso da avaliação
+  passingScore      Decimal?    @db.Decimal(5, 2) // Nota para aprovação
+  passed            Boolean     // Se passou nesta avaliação
+  
+  // Opcional: data de quando a nota foi obtida
+  gradedAt          DateTime    @default(now())
+  
+  // Opcional: comentário ou observação do professor
+  comment           String?     @db.Text
+  
+  @@unique([userId, courseId, examId])
+  @@map("student_grades")
+  @@index([userId, courseId])
 }
