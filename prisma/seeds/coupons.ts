@@ -144,8 +144,16 @@ export async function seedCoupons(context: SeedContext): Promise<SeedContext> {
 
       // Criar restrições de plano
       for (const plan of advancedPlans) {
-        await prisma.couponPlanRestriction.create({
-          data: {
+        // Usando upsert em vez de create para evitar erros de chave única
+        await prisma.couponPlanRestriction.upsert({
+          where: {
+            couponId_planId: {
+              couponId: createdCoupon.id,
+              planId: plan.id,
+            },
+          },
+          update: {}, // Não precisa atualizar nada, apenas garantir que existe
+          create: {
             couponId: createdCoupon.id,
             planId: plan.id,
           },
