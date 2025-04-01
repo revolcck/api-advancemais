@@ -1,5 +1,11 @@
 import { CourseArea, Status } from "@prisma/client";
-import { SeedContext, createSlug, prisma } from "../utils";
+import {
+  SeedContext,
+  createSlug,
+  prisma,
+  verifyContextRequirements,
+  upsertEntities,
+} from "../utils";
 
 /**
  * Seed para criar áreas de cursos
@@ -9,11 +15,8 @@ export async function seedCourseAreas(
 ): Promise<SeedContext> {
   console.log("Criando áreas de conhecimento para cursos...");
 
-  if (!context.adminUser) {
-    throw new Error(
-      "Usuário administrador não encontrado no contexto. Execute o seed de usuários primeiro."
-    );
-  }
+  // Verificar dependências no contexto
+  verifyContextRequirements(context, ["adminUser"], "seedCourseAreas");
 
   // Lista de áreas de conhecimento
   const courseAreas = [
@@ -99,29 +102,29 @@ export async function seedCourseAreas(
     },
   ];
 
-  // Criar as áreas no banco de dados
-  const createdAreas: CourseArea[] = [];
-
-  for (const area of courseAreas) {
-    const slug = createSlug(area.name);
-    const createdArea = await prisma.courseArea.upsert({
-      where: { name: area.name },
-      update: {
-        ...area,
-        slug,
-        status: Status.ACTIVE,
-        updatedById: context.adminUser.id,
-      },
-      create: {
-        ...area,
-        slug,
-        status: Status.ACTIVE,
-        createdById: context.adminUser.id,
-      },
-    });
-    console.log(`Área de curso criada: ${createdArea.name}`);
-    createdAreas.push(createdArea);
-  }
+  // Criar as áreas no banco de dados usando o utilitário genérico
+  const createdAreas = await upsertEntities<CourseArea, any>(
+    "Área de curso",
+    courseAreas,
+    async (area) => {
+      const slug = createSlug(area.name);
+      return prisma.courseArea.upsert({
+        where: { name: area.name },
+        update: {
+          ...area,
+          slug,
+          status: Status.ACTIVE,
+          updatedById: context.adminUser!.id,
+        },
+        create: {
+          ...area,
+          slug,
+          status: Status.ACTIVE,
+          createdById: context.adminUser!.id,
+        },
+      });
+    }
+  );
 
   return {
     ...context,

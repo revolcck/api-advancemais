@@ -1,5 +1,12 @@
 import { CourseCategory, Status } from "@prisma/client";
-import { SeedContext, createSlug, prisma } from "../utils";
+import {
+  SeedContext,
+  createSlug,
+  prisma,
+  verifyContextRequirements,
+  upsertEntities,
+  createEntityMap,
+} from "../utils";
 
 /**
  * Seed para criar categorias de cursos
@@ -9,23 +16,15 @@ export async function seedCourseCategories(
 ): Promise<SeedContext> {
   console.log("Criando categorias de cursos específicas...");
 
-  if (!context.adminUser) {
-    throw new Error(
-      "Usuário administrador não encontrado no contexto. Execute o seed de usuários primeiro."
-    );
-  }
-
-  if (!context.courseAreas) {
-    throw new Error(
-      "Áreas de curso não encontradas no contexto. Execute o seed de áreas de curso primeiro."
-    );
-  }
+  // Verificar dependências no contexto
+  verifyContextRequirements(
+    context,
+    ["adminUser", "courseAreas"],
+    "seedCourseCategories"
+  );
 
   // Mapeamento de áreas por nome para facilitar a referência
-  const areaMap = context.courseAreas.reduce((map, area) => {
-    map[area.name] = area;
-    return map;
-  }, {} as Record<string, (typeof context.courseAreas)[0]>);
+  const areaMap = createEntityMap(context.courseAreas!);
 
   // Exemplos de categorias específicas para algumas áreas
   const categories = [
@@ -40,7 +39,6 @@ export async function seedCourseCategories(
       description: "Cursos de análise de dados, big data e machine learning",
       areaName: "Tecnologia",
     },
-    // Adicione aqui as demais categorias do seed original
     {
       name: "DevOps",
       description: "Cursos de integração entre desenvolvimento e operações",
@@ -65,27 +63,31 @@ export async function seedCourseCategories(
 
     if (area) {
       const slug = createSlug(category.name);
-      const createdCategory = await prisma.courseCategory.upsert({
-        where: { name: category.name },
-        update: {
-          ...categoryData,
-          slug,
-          areaId: area.id,
-          status: Status.ACTIVE,
-          updatedById: context.adminUser.id,
-        },
-        create: {
-          ...categoryData,
-          slug,
-          areaId: area.id,
-          status: Status.ACTIVE,
-          createdById: context.adminUser.id,
-        },
-      });
-      console.log(
-        `Categoria criada: ${createdCategory.name} (Área: ${areaName})`
-      );
-      createdCategories.push(createdCategory);
+      try {
+        const createdCategory = await prisma.courseCategory.upsert({
+          where: { name: category.name },
+          update: {
+            ...categoryData,
+            slug,
+            areaId: area.id,
+            status: Status.ACTIVE,
+            updatedById: context.adminUser!.id,
+          },
+          create: {
+            ...categoryData,
+            slug,
+            areaId: area.id,
+            status: Status.ACTIVE,
+            createdById: context.adminUser!.id,
+          },
+        });
+        console.log(
+          `Categoria criada: ${createdCategory.name} (Área: ${areaName})`
+        );
+        createdCategories.push(createdCategory);
+      } catch (error) {
+        console.error(`Erro ao criar categoria ${category.name}:`, error);
+      }
     } else {
       console.warn(
         `Área ${areaName} não encontrada para a categoria ${category.name}`

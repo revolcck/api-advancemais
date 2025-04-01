@@ -8,7 +8,7 @@ async function main() {
   try {
     console.log("Iniciando seed do banco de dados...");
 
-    // Executa todos os seeds
+    // Executa todos os seeds de forma organizada
     await runAllSeeds();
 
     console.log("Seed finalizado com sucesso!");
