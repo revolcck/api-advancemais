@@ -1,5 +1,3 @@
-// src/modules/communications/controllers/email-test.controller.ts
-
 import { Request, Response } from "express";
 import { ApiResponse } from "@/shared/utils/api-response.utils";
 import { emailService } from "../services/email.service";

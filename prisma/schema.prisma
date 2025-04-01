@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -47,6 +46,15 @@ model User {
 
   // Relacionamento com endereço
   address       Address?
+
+  // Relacionamento com assinaturas
+  subscriptions Subscription[]
+  
+  // Relacionamento com cartões salvos
+  paymentCards  PaymentCard[]
+  
+  // Relacionamento com checkout sessions
+  checkoutSessions CheckoutSession[]
 
   @@map("users")
 }
@@ -107,6 +115,9 @@ model CompanyInfo {
   // Relacionamento com usuário (1:1)
   userId          String    @unique
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com pré-registros
+  pendingRegistrations PendingRegistration[]
 
   @@map("company_info")
 }
@@ -126,6 +137,362 @@ model Address {
   // Relacionamento com usuário (1:1)
   userId          String    @unique
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com pré-registros
+  pendingRegistrationId String? @unique
+  pendingRegistration   PendingRegistration? @relation(fields: [pendingRegistrationId], references: [id], onDelete: Cascade)
 
   @@map("addresses")
+}
+
+// ============== MODELOS DE PAGAMENTO ==============
+
+// Modelo para planos de assinatura
+model SubscriptionPlan {
+  id              String   @id @default(uuid())
+  name            String   @unique // Inicial, Intermediário, Avançado, Destaque
+  price           Decimal  @db.Decimal(10, 2) // Preço mensal: 49.99, 74.99, 99.99, 199.99
+  description     String?  @db.Text
+  features        Json     // Armazena características do plano como JSON: vagas, dias de divulgação, etc.
+  interval        BillingInterval @default(MONTHLY)
+  intervalCount   Int      @default(1) // Quantas unidades do intervalo (ex: 1 mês, 3 meses, 1 ano)
+  trialDays       Int?     // Dias de teste gratuito, se aplicável
+  isActive        Boolean  @default(true)
+  isPopular       Boolean  @default(false) // Para marcar planos como "Mais popular"
+  mpProductId     String?  // ID do produto no Mercado Pago (se aplicável)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relacionamentos
+  subscriptions   Subscription[]
+  checkoutSessions CheckoutSession[]
+  pendingRegistrations PendingRegistration[]
+
+  @@map("subscription_plans")
+}
+
+// Enum para intervalos de cobrança
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+// Enum para status de assinatura
+enum SubscriptionStatus {
+  ACTIVE           // Assinatura ativa
+  CANCELED         // Cancelada pelo usuário ou admin
+  PENDING          // Aguardando primeiro pagamento
+  PAYMENT_FAILED   // Falha no pagamento
+  PAST_DUE         // Pagamento atrasado
+  TRIAL            // Em período de teste
+  EXPIRED          // Expirada sem renovação
+  ON_HOLD          // Suspensa temporariamente
+}
+
+// Enum para tipos de métodos de pagamento
+enum PaymentMethodType {
+  CREDIT_CARD    // Cartão de Crédito
+  DEBIT_CARD     // Cartão de Débito
+  PIX            // PIX
+  BANK_SLIP      // Boleto Bancário
+  BANK_TRANSFER  // Transferência Bancária
+  MP_CHECKOUT    // Checkout do Mercado Pago
+}
+
+// Modelo para métodos de pagamento disponíveis
+model PaymentMethod {
+  id              String   @id @default(uuid())
+  type            PaymentMethodType
+  name            String   // Nome amigável: "Cartão de Crédito", "PIX", etc.
+  description     String?
+  isActive        Boolean  @default(true)
+  mpPaymentTypeId String?  // ID do tipo de pagamento no Mercado Pago
+  mpPaymentMethodId String? // ID do método de pagamento no Mercado Pago
+  processingFee   Decimal? @db.Decimal(10, 2) // Taxa de processamento (%, se aplicável)
+  fixedFee        Decimal? @db.Decimal(10, 2) // Taxa fixa (R$, se aplicável)
+  requiredFields  Json?    // Campos requeridos para este método em formato JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relacionamentos
+  subscriptions   Subscription[]
+  checkoutSessions CheckoutSession[]
+
+  @@map("payment_methods")
+}
+
+// Enum para bandeiras de cartão
+enum CardBrand {
+  VISA
+  MASTERCARD
+  AMEX
+  ELO
+  HIPERCARD
+  DINERS
+  DISCOVER
+  JCB
+  OTHER
+}
+
+// Modelo para cartões de pagamento salvos
+model PaymentCard {
+  id              String    @id @default(uuid())
+  cardHolderName  String    // Nome no cartão
+  last4Digits     String    // Últimos 4 dígitos do cartão
+  brand           CardBrand // Bandeira do cartão
+  expiryMonth     Int       // Mês de expiração
+  expiryYear      Int       // Ano de expiração
+  tokenId         String?   // Token do cartão no Mercado Pago
+  cardId          String?   // ID do cartão no Mercado Pago
+  isDefault       Boolean   @default(false) // Indica se é o cartão padrão
+  isActive        Boolean   @default(true)  // Indica se o cartão está ativo
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relacionamento com usuário
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Relacionamentos
+  subscriptions   Subscription[]
+
+  @@map("payment_cards")
+}
+
+// Modelo para assinaturas
+model Subscription {
+  id                String            @id @default(uuid())
+  status            SubscriptionStatus @default(PENDING)
+  startDate         DateTime
+  endDate           DateTime?
+  nextBillingDate   DateTime          // Data da próxima cobrança
+  canceledAt        DateTime?         // Data de cancelamento (se cancelado)
+  cancelReason      String?           // Motivo do cancelamento
+  isPaused          Boolean           @default(false)
+  pausedAt          DateTime?         // Data de pausa (se pausado)
+  
+  // Dados do Mercado Pago
+  mpSubscriptionId  String?           // ID da assinatura no Mercado Pago
+  mpPreapprovalId   String?           // ID de pré-aprovação do Mercado Pago
+  mpMerchantOrderId String?           // ID do pedido no Mercado Pago
+  
+  // Outros dados
+  currentPeriodStart DateTime         // Início do período atual
+  currentPeriodEnd   DateTime         // Fim do período atual
+  renewalFailures    Int              @default(0) // Contador de falhas de renovação
+  renewalAttemptDate DateTime?        // Data da última tentativa de renovação
+  metadataJson       Json?            // Metadados adicionais
+  
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  // Relacionamento com usuário
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com plano
+  planId            String
+  plan              SubscriptionPlan  @relation(fields: [planId], references: [id])
+  
+  // Relacionamento com método de pagamento
+  paymentMethodId   String
+  paymentMethod     PaymentMethod     @relation(fields: [paymentMethodId], references: [id])
+  
+  // Relacionamento com cartão (opcional, só usado quando método é cartão)
+  paymentCardId     String?
+  paymentCard       PaymentCard?      @relation(fields: [paymentCardId], references: [id])
+  
+  // Histórico de pagamentos relacionados
+  payments          Payment[]
+  
+  // Relacionamento com checkout sessions
+  checkoutSessionId String?           @unique
+  checkoutSession   CheckoutSession?  @relation(fields: [checkoutSessionId], references: [id])
+
+  @@map("subscriptions")
+  @@index([mpSubscriptionId])
+  @@index([mpPreapprovalId])
+}
+
+// Enum para status de pagamento
+enum PaymentStatus {
+  PENDING           // Aguardando pagamento
+  APPROVED          // Pagamento aprovado
+  DECLINED          // Pagamento recusado
+  IN_PROCESS        // Em processamento
+  IN_MEDIATION      // Em mediação (disputa)
+  REFUNDED          // Pagamento reembolsado
+  PARTIALLY_REFUNDED // Parcialmente reembolsado
+  CHARGED_BACK      // Estornado
+  CANCELLED         // Cancelado
+  REJECTED          // Rejeitado
+  FAILED            // Falha no processamento
+}
+
+// Modelo para pagamentos
+model Payment {
+  id              String        @id @default(uuid())
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        String        @default("BRL")
+  status          PaymentStatus @default(PENDING)
+  paymentDate     DateTime
+  description     String?
+  
+  // Dados do Mercado Pago
+  mpPaymentId     String?       // ID do pagamento no Mercado Pago
+  mpExternalReference String?   // Referência externa no Mercado Pago
+  mpPreferenceId  String?       // ID da preferência no Mercado Pago
+  mpMerchantOrderId String?     // ID do pedido no Mercado Pago
+  mpPaymentMethodId String?     // ID do método de pagamento usado
+  mpPaymentTypeId String?       // ID do tipo de pagamento usado
+  mpStatus        String?       // Status original do Mercado Pago
+  mpStatusDetail  String?       // Detalhes do status do Mercado Pago
+  
+  // Outros dados do pagamento
+  gatewayResponse Json?         // Resposta completa do gateway
+  notificationData Json?        // Dados da notificação recebida
+  invoiceUrl      String?       // URL do comprovante/fatura
+  receiptUrl      String?       // URL do recibo
+  failureReason   String?       // Razão da falha, se houver
+  
+  // Controle e auditoria
+  attemptCount    Int           @default(1) // Número de tentativas de cobrança
+  lastAttempt     DateTime?     // Data da última tentativa
+  refundedAt      DateTime?     // Data do reembolso, se houver
+  refundAmount    Decimal?      @db.Decimal(10, 2) // Valor do reembolso
+  refundReason    String?       // Motivo do reembolso
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relacionamento com assinatura
+  subscriptionId  String
+  subscription    Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+  @@index([mpPaymentId])
+  @@index([mpExternalReference])
+}
+
+// Modelo para sessões de checkout
+model CheckoutSession {
+  id              String    @id @default(uuid())
+  status          String    @default("pending") // pending, completed, expired, failed
+  expiresAt       DateTime  // Quando a sessão expira
+  
+  // Dados do Mercado Pago
+  mpPreferenceId  String?   // ID da preferência no Mercado Pago
+  mpCheckoutUrl   String?   // URL de checkout do Mercado Pago
+  mpInitPoint     String?   // Ponto de início do checkout do Mercado Pago
+  mpSandboxInitPoint String? // Ponto de início do sandbox
+  
+  // Outros dados
+  successUrl      String?   // URL de redirecionamento em caso de sucesso
+  cancelUrl       String?   // URL de redirecionamento em caso de cancelamento
+  callbackUrl     String?   // URL de callback
+  metadataJson    Json?     // Metadados adicionais
+  
+  // Relacionamentos
+  planId          String
+  plan            SubscriptionPlan @relation(fields: [planId], references: [id])
+  
+  paymentMethodId String
+  paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
+  
+  // Relacionamento com usuário (se já estiver logado)
+  userId          String?
+  user            User?       @relation(fields: [userId], references: [id])
+  
+  // Relacionamento com assinatura (após criação)
+  subscription    Subscription?
+  
+  // Relacionamento com registro pendente (para usuários anônimos)
+  pendingRegistrationId String? @unique
+  pendingRegistration   PendingRegistration? @relation(fields: [pendingRegistrationId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("checkout_sessions")
+  @@index([mpPreferenceId])
+}
+
+// Enum para status de registro pendente
+enum PendingRegistrationStatus {
+  WAITING_PAYMENT  // Aguardando pagamento
+  PAYMENT_APPROVED // Pagamento aprovado, pendente de conversão
+  PAYMENT_FAILED   // Pagamento falhou
+  CONVERTED        // Convertido em usuário
+  EXPIRED          // Expirado/abandonado
+}
+
+// Modelo para registros pendentes (usuários anônimos em processo de compra)
+model PendingRegistration {
+  id              String    @id @default(uuid())
+  email           String    @unique  // Email usado durante o processo
+  hashedPassword  String    // Senha hasheada para usar na criação do usuário
+  userType        UserType  @default(PESSOA_JURIDICA) // Normalmente será PESSOA_JURIDICA
+  status          PendingRegistrationStatus @default(WAITING_PAYMENT)
+  
+  // Dados de empresa
+  companyName     String    // Nome da empresa
+  tradeName       String    // Nome fantasia
+  legalName       String    // Razão social
+  cnpj            String    @unique // CNPJ da empresa
+  phone           String    // Telefone de contato
+  website         String?   // Website
+  
+  // Dados de contato
+  contactName     String    // Nome do contato
+  contactEmail    String    // Email do contato
+  contactPhone    String    // Telefone do contato
+  
+  // Controle e rastreamento
+  paymentApprovedAt DateTime? // Quando o pagamento foi aprovado
+  paymentFailedAt   DateTime? // Quando o pagamento falhou
+  convertedAt       DateTime? // Quando foi convertido em usuário
+  convertedUserId   String?   // ID do usuário criado após conversão
+  expiresAt         DateTime  // Quando o registro expira
+  ipAddress         String?   // Endereço IP usado no registro
+  userAgent         String?   // User agent do navegador
+  
+  // Relacionamentos
+  planId           String    // Plano escolhido
+  plan             SubscriptionPlan @relation(fields: [planId], references: [id])
+  
+  // Relacionamento com checkout session
+  checkoutSession  CheckoutSession?
+  
+  // Relacionamento com o endereço
+  address          Address?
+  
+  // Relacionamento com CompanyInfo (após conversão)
+  companyInfoId    String?
+  companyInfo      CompanyInfo? @relation(fields: [companyInfoId], references: [id])
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("pending_registrations")
+}
+
+// Modelo para webhooks e notificações
+model WebhookNotification {
+  id              String    @id @default(uuid())
+  source          String    // "mercadopago", etc
+  eventType       String    // Tipo de evento
+  eventId         String?   // ID do evento
+  apiVersion      String?   // Versão da API
+  liveMode        Boolean   @default(true) // Produção ou sandbox
+  rawData         Json      // Dados brutos recebidos
+  processedAt     DateTime? // Quando foi processado
+  processStatus   String    @default("pending") // pending, success, failed
+  error           String?   // Erro durante o processamento, se houver
+  createdAt       DateTime  @default(now())
+
+  @@map("webhook_notifications")
+  @@index([eventType, createdAt])
+  @@index([eventId])
 }
