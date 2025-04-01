@@ -1,6 +1,6 @@
 import { Role } from "@prisma/client";
 import { SeedContext, prisma } from "./utils";
-..                                                                                                                
+
 /**
  * Seed para criar roles do sistema
  */
