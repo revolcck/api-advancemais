@@ -5,6 +5,7 @@ import { seedSubscriptionPlans } from "./subscriptionPlans";
 import { seedPaymentMethods } from "./paymentMethods";
 import { seedCoupons } from "./coupons";
 import { seedAva } from "./ava";
+import { seedAllCertificates } from "./certificates";
 
 // Organizar os seeds por domínio funcional
 const seedGroups = {
@@ -23,6 +24,9 @@ const seedGroups = {
 
   // Seeds relacionados ao AVA
   ava: [{ name: "AVA (Ambiente Virtual de Aprendizagem)", fn: seedAva }],
+
+  // Seeds relacionados a certificados
+  certificates: [{ name: "Certificados", fn: seedAllCertificates }],
 };
 
 /**
@@ -44,6 +48,13 @@ export async function runAllSeeds(): Promise<SeedContext> {
 
     // Seeds do Ambiente Virtual de Aprendizagem
     context = await runSeedGroup("AVA", seedGroups.ava, context);
+
+    // Seeds de certificados (depois do AVA, pois depende dos cursos)
+    context = await runSeedGroup(
+      "Certificates",
+      seedGroups.certificates,
+      context
+    );
 
     console.log("\nTodos os seeds foram executados com sucesso!");
     return context;

@@ -87,8 +87,13 @@ model User {
   // Relações para respostas de tentativas
   attemptAnswers    ExamAttemptAnswer[]
   
-  // Adicionar este relacionamento
+  // Notificações
   notifications     UserNotification[]
+  
+  // Certificados
+  certificateTemplatesCreated CertificateTemplate[]
+  certificateTemplatesUpdated CertificateTemplate[] @relation("certificateTemplateUpdater")
+  certificatesIssued Certificate[] @relation("certificateIssuer")
 
   @@map("users")
 }
@@ -753,6 +758,9 @@ model CourseType {
   
   // Relacionamento com cursos
   courses     Course[]
+  
+  // Relacionamento com templates de certificado
+  certificateTemplates CertificateTemplateCourseType[]
 
   @@map("course_types")
 }
@@ -857,6 +865,16 @@ model Course {
   createdById       String?
   updatedById       String?
   
+  // Novos campos para critérios de conclusão e certificado
+  completionCriteria CompletionCriteria @default(MODULE_COMPLETION)
+  certificateTemplateId String?
+  certificateTemplate CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
+  minAttendanceForCertificate Int? // % mínimo de presença para certificado
+  minGradeForCertificate Decimal? @db.Decimal(5, 2) // Nota mínima para certificado
+  requiresInternship Boolean @default(false) // Se requer estágio
+  internshipHours   Int?    // Horas de estágio necessárias
+  customCertificateRequirements String? @db.Text // Requisitos personalizados
+  
   // Relacionamentos
   professors        CourseProfessor[] // Professores do curso
   modules           CourseModule[] // Módulos do curso
@@ -948,6 +966,9 @@ model CourseModality {
   
   // Relacionamentos
   courses           Course[]
+  
+  // Relacionamento com templates de certificado
+  certificateTemplates CertificateTemplateCourseType[]
   
   @@map("course_modalities")
 }
@@ -1071,6 +1092,7 @@ model Lesson {
   @@map("lessons")
   @@unique([moduleId, order])
 }
+
 // Tipo de conteúdo específico da aula
 enum ContentType {
   VIDEO               // Vídeo gravado
@@ -1236,6 +1258,87 @@ model ExamAnswer {
   @@unique([questionId, userId])
 }
 
+// ==================== MODELOS DE CERTIFICADOS ====================
+
+// Enum para definir os critérios de conclusão do curso
+enum CompletionCriteria {
+  EXAM_ONLY          // Apenas prova final
+  INTERNSHIP_ONLY    // Apenas estágio
+  EXAM_AND_INTERNSHIP // Ambos (prova e estágio)
+  ATTENDANCE_ONLY    // Apenas presença/participação
+  MODULE_COMPLETION  // Conclusão de todos os módulos
+  CUSTOM            // Critério personalizado
+}
+
+// Enum para status do certificado
+enum CertificateStatus {
+  PENDING           // Pendente de emissão
+  ISSUED            // Emitido
+  REVOKED           // Revogado
+  EXPIRED           // Expirado
+}
+
+// Modelo para templates de certificado
+model CertificateTemplate {
+  id                String    @id @default(uuid())
+  title             String
+  description       String?   @db.Text
+  
+  // Configurações visuais
+  backgroundImageUrl String?
+  width             Int       @default(800)  // Largura em pixels
+  height            Int       @default(600)  // Altura em pixels
+  templateContent   String    @db.Text       // Template em XML ou HTML
+  orientation       String    @default("landscape") // landscape ou portrait
+  
+  // Regras para emissão
+  requiredCompletion CompletionCriteria @default(MODULE_COMPLETION)
+  customRequirements String?   @db.Text  // Requisitos personalizados (se CUSTOM)
+  minAttendancePercentage Int? // % mínimo de presença (se aplicável)
+  minGrade          Decimal?  @db.Decimal(5, 2) // Nota mínima (se aplicável)
+  
+  // Campos dinâmicos e variáveis disponíveis
+  availableFields   Json      // Campos que podem ser usados no template
+  
+  // Status do template
+  isDefault         Boolean   @default(false) // Se é o template padrão
+  status            Status    @default(ACTIVE)
+  
+  // Relacionamentos
+  certificates      Certificate[]
+  courses           Course[]
+  courseTypes       CertificateTemplateCourseType[] // Relação com tipos de curso
+  
+  // Auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdById       String
+  createdBy         User      @relation(fields: [createdById], references: [id])
+  updatedById       String?
+  updatedBy         User?     @relation("certificateTemplateUpdater", fields: [updatedById], references: [id])
+
+  @@map("certificate_templates")
+}
+
+// Relação entre template e tipos de curso
+model CertificateTemplateCourseType {
+  id                String    @id @default(uuid())
+  
+  // Relacionamentos
+  templateId        String
+  template          CertificateTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  courseTypeId      String
+  courseType        CourseType @relation(fields: [courseTypeId], references: [id], onDelete: Cascade)
+  
+  // Para que modalidades este template se aplica
+  modalityId        String?
+  modality          CourseModality? @relation(fields: [modalityId], references: [id])
+  
+  @@unique([templateId, courseTypeId, modalityId])
+  @@map("certificate_template_course_types")
+}
+
 // Modelo para certificados
 model Certificate {
   id                String      @id @default(uuid())
@@ -1243,13 +1346,36 @@ model Certificate {
   enrollmentId      String
   enrollment        Enrollment  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   
-  issueDate         DateTime    @default(now())
-  certificateCode   String      @unique
-  certificateUrl    String?     // URL para download do certificado
+  // Campos de modelo/template
+  templateId        String?
+  template          CertificateTemplate? @relation(fields: [templateId], references: [id])
   
-  // Metadados para o certificado
-  completionDate    DateTime
-  finalGrade        Decimal?    @db.Decimal(5, 2)
+  // Status do certificado
+  status            CertificateStatus @default(PENDING)
+  
+  certificateCode   String      @unique // Código único do certificado
+  certificateUrl    String?     // URL para download do certificado
+  completionDate    DateTime    // Data de conclusão
+  issueDate         DateTime?   // Data de emissão (quando foi gerado)
+  expirationDate    DateTime?   // Data de expiração (se aplicável)
+  
+  // Metadados do certificado
+  finalGrade        Decimal?    @db.Decimal(5, 2) // Nota final
+  attendancePercentage Int?     // Percentual de presença
+  internshipCompleted Boolean?  // Se completou estágio
+  internshipHours   Int?        // Horas de estágio realizadas
+  completionCriteriaMet String? @db.Text // Como os critérios foram atendidos
+  
+  // Dados do emissor
+  issuedById        String?
+  issuedBy          User?       @relation("certificateIssuer", fields: [issuedById], references: [id])
+  
+  // Assinaturas
+  signatures        Json?       // Lista de assinaturas (nome, cargo, assinatura)
+  
+  // Auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
   
   @@map("certificates")
 }
@@ -1596,12 +1722,13 @@ model StudentGrade {
   @@index([userId, courseId])
 }
 
-// Adicionar após os enums existentes
+// Status de publicação de conteúdo
 enum PublishStatus {
   DRAFT             // Rascunho
   PUBLISHED         // Publicado
 }
 
+// Modelo para notificações de aulas
 model LessonNotification {
   id                String    @id @default(uuid())
   
