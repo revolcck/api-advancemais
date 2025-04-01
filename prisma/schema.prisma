@@ -56,6 +56,12 @@ model User {
   // Relacionamento com checkout sessions
   checkoutSessions CheckoutSession[]
 
+  // Relacionamento com cupons criados
+  createdCoupons Coupon[]     @relation("couponCreator")
+  
+  // Relacionamento com histórico de uso de cupons
+  couponUsageHistory CouponUsageHistory[]
+
   @@map("users")
 }
 
@@ -167,6 +173,7 @@ model SubscriptionPlan {
   subscriptions   Subscription[]
   checkoutSessions CheckoutSession[]
   pendingRegistrations PendingRegistration[]
+  allowedCoupons  CouponPlanRestriction[] // Cupons permitidos para este plano
 
   @@map("subscription_plans")
 }
@@ -285,6 +292,12 @@ model Subscription {
   renewalAttemptDate DateTime?        // Data da última tentativa de renovação
   metadataJson       Json?            // Metadados adicionais
   
+  // Dados de desconto e cupom
+  couponId          String?           // ID do cupom utilizado
+  coupon            Coupon?           @relation(fields: [couponId], references: [id])
+  discountAmount    Decimal?          @db.Decimal(10, 2) // Valor do desconto aplicado
+  originalPrice     Decimal?          @db.Decimal(10, 2) // Preço original antes do desconto
+  
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   
@@ -311,9 +324,13 @@ model Subscription {
   checkoutSessionId String?           @unique
   checkoutSession   CheckoutSession?  @relation(fields: [checkoutSessionId], references: [id])
 
+  // Relacionamento com uso de cupons
+  couponUsageHistory CouponUsageHistory[]
+
   @@map("subscriptions")
   @@index([mpSubscriptionId])
   @@index([mpPreapprovalId])
+  @@index([couponId])
 }
 
 // Enum para status de pagamento
@@ -357,6 +374,11 @@ model Payment {
   receiptUrl      String?       // URL do recibo
   failureReason   String?       // Razão da falha, se houver
   
+  // Dados de desconto e cupom
+  discountAmount  Decimal?      @db.Decimal(10, 2) // Valor do desconto aplicado
+  originalAmount  Decimal?      @db.Decimal(10, 2) // Valor original antes do desconto
+  couponCode      String?       // Código do cupom usado (para histórico)
+  
   // Controle e auditoria
   attemptCount    Int           @default(1) // Número de tentativas de cobrança
   lastAttempt     DateTime?     // Data da última tentativa
@@ -374,6 +396,7 @@ model Payment {
   @@map("payments")
   @@index([mpPaymentId])
   @@index([mpExternalReference])
+  @@index([couponCode])
 }
 
 // Modelo para sessões de checkout
@@ -387,6 +410,12 @@ model CheckoutSession {
   mpCheckoutUrl   String?   // URL de checkout do Mercado Pago
   mpInitPoint     String?   // Ponto de início do checkout do Mercado Pago
   mpSandboxInitPoint String? // Ponto de início do sandbox
+  
+  // Dados de desconto e cupom
+  couponId        String?
+  coupon          Coupon?   @relation(fields: [couponId], references: [id])
+  discountAmount  Decimal?  @db.Decimal(10, 2) // Valor do desconto aplicado
+  originalPrice   Decimal?  @db.Decimal(10, 2) // Preço original antes do desconto
   
   // Outros dados
   successUrl      String?   // URL de redirecionamento em caso de sucesso
@@ -412,11 +441,15 @@ model CheckoutSession {
   pendingRegistrationId String? @unique
   pendingRegistration   PendingRegistration? @relation(fields: [pendingRegistrationId], references: [id])
   
+  // Relacionamento com histórico de uso de cupom
+  couponUsageHistory CouponUsageHistory[]
+  
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@map("checkout_sessions")
   @@index([mpPreferenceId])
+  @@index([couponId])
 }
 
 // Enum para status de registro pendente
@@ -449,6 +482,10 @@ model PendingRegistration {
   contactEmail    String    // Email do contato
   contactPhone    String    // Telefone do contato
   
+  // Dados de desconto e cupom
+  couponCode      String?   // Código do cupom usado (para histórico)
+  discountAmount  Decimal?  @db.Decimal(10, 2) // Valor do desconto aplicado
+  
   // Controle e rastreamento
   paymentApprovedAt DateTime? // Quando o pagamento foi aprovado
   paymentFailedAt   DateTime? // Quando o pagamento falhou
@@ -476,6 +513,7 @@ model PendingRegistration {
   updatedAt        DateTime  @updatedAt
 
   @@map("pending_registrations")
+  @@index([couponCode])
 }
 
 // Modelo para webhooks e notificações
@@ -495,4 +533,135 @@ model WebhookNotification {
   @@map("webhook_notifications")
   @@index([eventType, createdAt])
   @@index([eventId])
+}
+
+// ============== MODELOS DE CUPONS DE DESCONTO ==============
+
+// Enum para tipos de desconto
+enum DiscountType {
+  PERCENTAGE      // Desconto percentual (%)
+  FIXED_AMOUNT    // Valor fixo (R$)
+}
+
+// Enum para status de cupom
+enum CouponStatus {
+  ACTIVE          // Cupom ativo
+  INACTIVE        // Cupom inativo
+  EXPIRED         // Cupom expirado
+  USAGE_LIMIT_REACHED // Limite de uso atingido
+}
+
+// Modelo para cupons de desconto
+model Coupon {
+  id                String      @id @default(uuid())
+  code              String      @unique // Código do cupom (ex: "BLACKFRIDAY10", "50OFF")
+  name              String      // Nome amigável do cupom
+  description       String?     @db.Text // Descrição do cupom
+  discountType      DiscountType // Tipo de desconto (percentual ou valor fixo)
+  discountValue     Decimal     @db.Decimal(10, 2) // Valor do desconto (10.00 para 10% ou R$10.00)
+  minPurchaseAmount Decimal?    @db.Decimal(10, 2) // Valor mínimo de compra para aplicar o cupom
+  maxDiscountAmount Decimal?    @db.Decimal(10, 2) // Valor máximo de desconto (para % ilimitado)
+  startDate         DateTime    // Data de início da validade
+  endDate           DateTime    // Data de fim da validade
+  usageLimit        Int?        // Limite total de usos
+  perUserLimit      Int?        // Limite de usos por usuário
+  status            CouponStatus @default(ACTIVE)
+  customMessage     String?     @db.Text // Mensagem personalizada exibida ao usar o cupom
+  
+  // Restrições e configurações para aplicação do cupom
+  appliesToAllPlans Boolean     @default(true) // Se aplica a todos os planos
+  requiresUserAccount Boolean   @default(true) // Requer conta de usuário
+  userTypeLimitation UserType?  // Limita o tipo de usuário (null = todos os tipos)
+  onlyFirstPurchase Boolean     @default(false) // Apenas primeira compra
+  billingIntervals  Json?       // Intervalos de cobrança permitidos (array de BillingInterval)
+  mpExternalId      String?     // ID externo do cupom no Mercado Pago
+  
+  // Estatísticas e rastreamento
+  usageCount        Int         @default(0) // Contador de uso
+  totalDiscountAmount Decimal   @default(0) @db.Decimal(10, 2) // Valor total de descontos concedidos
+  
+  // Auditoria
+  createdById       String      // ID do usuário que criou o cupom
+  createdBy         User        @relation("couponCreator", fields: [createdById], references: [id])
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  deactivatedAt     DateTime?   // Data de desativação, se desativado
+  
+  // Relacionamentos
+  subscriptions     Subscription[] // Assinaturas que usaram este cupom
+  checkoutSessions  CheckoutSession[] // Checkout sessions que usaram este cupom
+  couponUsageHistory CouponUsageHistory[] // Histórico de uso do cupom
+  planRestrictions  CouponPlanRestriction[] // Restrições de plano para este cupom
+
+  @@map("coupons")
+  @@index([code])
+  @@index([startDate, endDate])
+  @@index([status])
+  @@index([discountType])
+  @@index([createdAt])
+}
+
+// Modelo para restrições de planos por cupom (quando appliesToAllPlans = false)
+model CouponPlanRestriction {
+  id              String    @id @default(uuid())
+  
+  // Relacionamento com cupom
+  couponId        String
+  coupon          Coupon    @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com plano
+  planId          String
+  plan            SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime  @default(now())
+
+  @@unique([couponId, planId])
+  @@map("coupon_plan_restrictions")
+}
+
+// Modelo para histórico de uso de cupons
+model CouponUsageHistory {
+  id              String    @id @default(uuid())
+  
+  // Relacionamento com cupom
+  couponId        String
+  coupon          Coupon    @relation(fields: [couponId], references: [id])
+  
+  // Relacionamento com usuário
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  
+  // Dados do uso
+  usedAt          DateTime  @default(now())
+  discountAmount  Decimal   @db.Decimal(10, 2) // Valor do desconto aplicado
+  originalAmount  Decimal   @db.Decimal(10, 2) // Valor original antes do desconto
+  
+  // Relacionamentos opcionais
+  subscriptionId  String?
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
+  
+  checkoutSessionId String?
+  checkoutSession CheckoutSession? @relation(fields: [checkoutSessionId], references: [id])
+
+  @@map("coupon_usage_history")
+  @@index([couponId])
+  @@index([userId])
+  @@index([usedAt])
+}
+
+// Modelo para relatórios e métricas
+model AnalyticsReport {
+  id              String    @id @default(uuid())
+  reportType      String    // Tipo de relatório: "subscription_summary", "coupon_usage", etc.
+  reportPeriod    String    // Período: "daily", "weekly", "monthly", "yearly", "custom"
+  startDate       DateTime  // Data de início do relatório
+  endDate         DateTime  // Data de fim do relatório
+  reportData      Json      // Dados do relatório em formato JSON
+  generatedBy     String?   // ID do usuário que gerou o relatório
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("analytics_reports")
+  @@index([reportType, reportPeriod])
+  @@index([startDate, endDate])
 }
