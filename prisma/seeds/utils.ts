@@ -1,7 +1,9 @@
 import {
   Coupon,
+  Course,
   CourseArea,
   CourseCategory,
+  CourseModality,
   CourseType,
   ExamType,
   LessonType,
@@ -47,5 +49,7 @@ export interface SeedContext {
   courseTypes?: CourseType[];
   lessonTypes?: LessonType[];
   examTypes?: ExamType[];
+  courseModalities?: CourseModality[];
+  courses?: Course[];
   [key: string]: any;
 }

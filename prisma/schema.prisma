@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==================== MODELOS ORIGINAIS DO SISTEMA ====================
+
 // Modelo de papel/função do usuário
 model Role {
   id          String   @id @default(uuid())
@@ -61,6 +63,13 @@ model User {
   
   // Relacionamento com histórico de uso de cupons
   couponUsageHistory CouponUsageHistory[]
+
+  // Novos relacionamentos para cursos
+  coordinatedCourses Course[]           @relation("courseCoordinator")
+  coursesAsCollaborator CourseProfessor[]
+  teachingLessons Lesson[]
+  enrollments Enrollment[]
+  examAnswers ExamAnswer[]
 
   @@map("users")
 }
@@ -704,6 +713,9 @@ model CourseCategory {
   // Relacionamento com área
   areaId      String?
   area        CourseArea? @relation(fields: [areaId], references: [id])
+  
+  // Relacionamento com cursos
+  courses     Course[]
 
   @@map("course_categories")
 }
@@ -718,6 +730,9 @@ model CourseType {
   updatedAt   DateTime @updatedAt
   createdById String?
   updatedById String?
+  
+  // Relacionamento com cursos
+  courses     Course[]
 
   @@map("course_types")
 }
@@ -732,6 +747,9 @@ model LessonType {
   updatedAt   DateTime @updatedAt
   createdById String?
   updatedById String?
+  
+  // Relacionamento com aulas
+  lessons     Lesson[]
 
   @@map("lesson_types")
 }
@@ -768,4 +786,430 @@ model CourseArea {
   categories  CourseCategory[]
 
   @@map("course_areas")
+}
+
+// ==================== ESTRUTURA COMPLETA DE CURSOS ====================
+
+// Modelo de Curso
+model Course {
+  id                String      @id @default(uuid())
+  title             String      // Título do curso
+  description       String?     @db.Text // Descrição do curso
+  slug              String      @unique // URL amigável
+  thumbnailUrl      String?     // Capa do curso (991x592 png ou jpg)
+  
+  // Coordenador (vínculo com usuário do setor pedagógico)
+  coordinatorId     String
+  coordinator       User        @relation("courseCoordinator", fields: [coordinatorId], references: [id])
+  
+  // Modalidade (presencial, online, etc.)
+  modalityId        String
+  modality          CourseModality @relation(fields: [modalityId], references: [id])
+  
+  // Categoria/Área de conhecimento
+  categoryId        String
+  category          CourseCategory @relation(fields: [categoryId], references: [id])
+  
+  // Tipo (gratuito, pago)
+  typeId            String
+  type              CourseType @relation(fields: [typeId], references: [id])
+  
+  // Informações básicas
+  workload          Int         // Carga horária em horas
+  startDate         DateTime    // Data de início das aulas
+  accessPeriod      Int         // Período de acesso em dias
+  supportPeriod     Int?        // Período de suporte em dias (opcional)
+  
+  // Informações financeiras (para cursos pagos)
+  price             Decimal?    @db.Decimal(10, 2) // Preço do curso
+  
+  // Status do curso
+  status            Status      @default(ACTIVE)
+  isPublished       Boolean     @default(false)
+  isHighlighted     Boolean     @default(false) // Destaque na plataforma
+  
+  // Metadados
+  videoUrl          String?     // URL do vídeo de apresentação
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  createdById       String?
+  updatedById       String?
+  
+  // Relacionamentos
+  professors        CourseProfessor[] // Professores do curso
+  modules           CourseModule[] // Módulos do curso
+  enrollments       Enrollment[] // Matrículas de alunos
+  products          CourseProduct[] // Produtos vinculados
+
+  @@map("courses")
+  @@index([categoryId])
+  @@index([typeId])
+  @@index([modalityId])
+  @@index([status])
+}
+
+// Relacionamento entre curso e professor/colaborador
+model CourseProfessor {
+  id                String      @id @default(uuid())
+  
+  // Relacionamentos
+  courseId          String
+  course            Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  professorId       String
+  professor         User        @relation(fields: [professorId], references: [id])
+  
+  // Tipo de colaborador (Professor ou Tutor)
+  collaboratorType  CollaboratorType @default(PROFESSOR)
+  
+  isMain            Boolean     @default(false)
+  
+  // Estatísticas
+  associatedLessons Int         @default(0)
+  associatedModules Int         @default(0)
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@unique([courseId, professorId])
+  @@map("course_professors")
+}
+
+// Tipos de colaborador
+enum CollaboratorType {
+  PROFESSOR
+  TUTOR
+}
+
+// Relacionamento entre curso e produto
+model CourseProduct {
+  id                String      @id @default(uuid())
+  
+  // Relacionamentos
+  courseId          String
+  course            Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  // Informações do produto
+  name              String
+  description       String?     @db.Text
+  type              ProductType // CURSO, COMBO, ASSINATURA
+  status            Status      @default(ACTIVE)
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@map("course_products")
+}
+
+// Tipos de produto
+enum ProductType {
+  CURSO
+  COMBO
+  ASSINATURA
+}
+
+// Modelo de modalidade de curso
+model CourseModality {
+  id                String      @id @default(uuid())
+  name              String      @unique // ONLINE, PRESENCIAL, HIBRIDO, LIVE
+  description       String?     @db.Text
+  status            Status      @default(ACTIVE)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relacionamentos
+  courses           Course[]
+  
+  @@map("course_modalities")
+}
+
+// Modelo de módulo de curso
+model CourseModule {
+  id                String      @id @default(uuid())
+  title             String
+  description       String?     @db.Text
+  order             Int         // Ordem de exibição
+  
+  // Relacionamento com curso
+  courseId          String
+  course            Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  // Professor responsável
+  professorId       String?
+  
+  // Controle de acesso
+  isRequired        Boolean     @default(false)  // Se o módulo é requisito para avançar
+  releaseType       ReleaseType @default(IMMEDIATE) // Tipo de liberação do módulo
+  releaseDate       DateTime?   // Data de liberação se for data fixa
+  releaseDays       Int?        // Dias após inscrição para liberar
+  accessExpiration  Int?        // Dias para expirar o acesso após conclusão
+  
+  // Status
+  status            Status      @default(ACTIVE)
+  
+  // Carga horária do módulo
+  workload          Int?        // Em minutos
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  createdById       String?
+  updatedById       String?
+  
+  // Relacionamentos
+  lessons           Lesson[]
+  
+  @@map("course_modules")
+  @@unique([courseId, order])
+}
+
+// Tipo de liberação para módulos e aulas
+enum ReleaseType {
+  IMMEDIATE         // Liberação imediata
+  FIXED_DATE        // Data específica
+  DAYS_AFTER        // Dias após matrícula/conclusão da aula anterior
+}
+
+// Modelo de aula
+model Lesson {
+  id                String      @id @default(uuid())
+  title             String
+  description       String?     @db.Text
+  order             Int         // Ordem de exibição
+  duration          Int?        // Duração em minutos
+  
+  // Relacionamento com módulo
+  moduleId          String
+  module            CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com professor
+  professorId       String
+  professor         User        @relation(fields: [professorId], references: [id])
+  
+  // Relacionamento com tipo de aula
+  typeId            String
+  type              LessonType  @relation(fields: [typeId], references: [id])
+  
+  // Tipo de conteúdo específico
+  contentType       ContentType // Tipo específico de conteúdo
+  
+  // Conteúdo da aula (baseado no tipo)
+  content           Json?       // Conteúdo estruturado baseado no tipo
+  videoUrl          String?     // URL do vídeo (para tipo VIDEO)
+  textContent       String?     @db.Text // Conteúdo em texto (para tipo TEXTO)
+  attachments       Json?       // Lista de anexos
+  liveDate          DateTime?   // Data da aula ao vivo (para tipo LIVE)
+  liveUrl           String?     // URL da transmissão (para LIVE)
+  liveKey           String?     // Chave de transmissão (para LIVE)
+  
+  // Controle de acesso
+  isRequired        Boolean     @default(false) // Se é uma aula requisito
+  isDemonstration   Boolean     @default(false) // Se é uma aula demonstrativa
+  releaseType       ReleaseType @default(IMMEDIATE) // Como a aula é liberada
+  releaseDate       DateTime?   // Data específica para liberação
+  releaseDays       Int?        // Dias para liberar após aula anterior
+  requiredTime      Int?        // Tempo mínimo de permanência (em segundos)
+  maxViews          Int?        // Número máximo de visualizações
+  pauseCount        Int?        // Número de pausas durante o vídeo
+  showIdentification Boolean    @default(false) // Mostrar identificação do aluno como marca d'água
+  
+  // Status e configurações
+  status            Status      @default(ACTIVE)
+  notifyStudents    Boolean     @default(false) // Notificar alunos quando publicada
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  createdById       String?
+  updatedById       String?
+  
+  // Relacionamentos
+  completedBy       CompletedLesson[]
+  files             LessonFile[]
+  examQuestions     ExamQuestion[]
+  
+  @@map("lessons")
+  @@unique([moduleId, order])
+}
+
+// Tipo de conteúdo específico da aula
+enum ContentType {
+  VIDEO               // Vídeo gravado
+  LIBRARY             // Conteúdo da biblioteca
+  UPLOAD              // Arquivo para upload (PDF, etc)
+  EAD_PLAYER          // Player de vídeo da plataforma
+  VIDEO_URL           // Link de vídeo externo (Youtube, etc)
+  LIVE                // Aula ao vivo
+  EAD_MEET            // Conferência
+  PODCAST             // Áudio/Podcast
+  EMBED               // Código incorporado
+  HTML_EDITOR         // Editor HTML
+  TEXT                // Texto formatado
+  FILE                // Arquivo para download
+}
+
+// Modelo de arquivo da aula
+model LessonFile {
+  id                String      @id @default(uuid())
+  
+  // Relacionamento com aula
+  lessonId          String
+  lesson            Lesson      @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  // Informações do arquivo
+  filename          String
+  originalName      String
+  mimeType          String
+  size              Int         // Tamanho em bytes
+  url               String      // URL do arquivo
+  pages             Int?        // Número de páginas (para PDFs)
+  downloads         Int         @default(0) // Contador de downloads
+  
+  // Status
+  status            Status      @default(ACTIVE)
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@map("lesson_files")
+}
+
+// Modelo de aula concluída
+model CompletedLesson {
+  id                String      @id @default(uuid())
+  
+  // Relacionamentos
+  enrollmentId      String
+  enrollment        Enrollment  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  
+  lessonId          String
+  lesson            Lesson      @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  // Informações de conclusão
+  completedAt       DateTime    @default(now())
+  timeSpent         Int?        // Tempo gasto em segundos
+  viewCount         Int         @default(1) // Número de visualizações
+  lastViewAt        DateTime    @default(now()) // Última visualização
+  progress          Int         @default(100) // Progresso em porcentagem
+  
+  // Informações de avaliação
+  score             Int?        // Pontuação obtida (se aplicável)
+  
+  @@unique([enrollmentId, lessonId])
+  @@map("completed_lessons")
+}
+
+// Modelo de matrícula
+model Enrollment {
+  id                String      @id @default(uuid())
+  
+  // Relacionamentos
+  userId            String
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  courseId          String
+  course            Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  // Datas e informações de acesso
+  enrollmentDate    DateTime    @default(now())
+  expirationDate    DateTime    // Data de expiração do acesso
+  supportExpiration DateTime?   // Data de expiração do suporte
+  
+  // Status e progresso
+  status            EnrollmentStatus @default(ACTIVE)
+  progress          Int         @default(0) // Progresso em percentual (0-100)
+  lastAccess        DateTime?   // Último acesso ao curso
+  completedLessons  Int         @default(0) // Número de aulas concluídas
+  totalLessons      Int         @default(0) // Total de aulas do curso
+  
+  // Dados financeiros
+  paymentId         String?     // ID do pagamento relacionado (se aplicável)
+  price             Decimal?    @db.Decimal(10, 2) // Preço pago
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Outros relacionamentos
+  completedLessonsRel CompletedLesson[]
+  certificates      Certificate[]
+  
+  @@unique([userId, courseId])
+  @@map("enrollments")
+  @@index([status])
+}
+
+// Status de matrícula
+enum EnrollmentStatus {
+  ACTIVE            // Matrícula ativa
+  COMPLETED         // Curso concluído
+  EXPIRED           // Acesso expirado
+  CANCELED          // Matrícula cancelada
+  PENDING_PAYMENT   // Aguardando pagamento
+}
+
+// Modelo para questões de exame/avaliação
+model ExamQuestion {
+  id                String      @id @default(uuid())
+  lessonId          String
+  lesson            Lesson      @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  question          String      @db.Text
+  type              String      // multiple_choice, essay, true_false, etc.
+  options           Json?       // Para questões de múltipla escolha
+  correctAnswer     String?     // Resposta correta ou gabarito
+  points            Int         @default(1) // Pontuação da questão
+  
+  // Campos de auditoria
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relacionamentos
+  answers           ExamAnswer[]
+  
+  @@map("exam_questions")
+}
+
+// Modelo para respostas às questões
+model ExamAnswer {
+  id                String      @id @default(uuid())
+  
+  questionId        String
+  question          ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  userAnswer        String      @db.Text
+  isCorrect         Boolean?    // Nulo se ainda não corrigido
+  score             Int?        // Pontuação obtida
+  
+  // Campos de auditoria
+  submittedAt       DateTime    @default(now())
+  gradedAt          DateTime?   // Quando foi corrigida
+  
+  @@map("exam_answers")
+  @@unique([questionId, userId])
+}
+
+// Modelo para certificados
+model Certificate {
+  id                String      @id @default(uuid())
+  
+  enrollmentId      String
+  enrollment        Enrollment  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  
+  issueDate         DateTime    @default(now())
+  certificateCode   String      @unique
+  certificateUrl    String?     // URL para download do certificado
+  
+  // Metadados para o certificado
+  completionDate    DateTime
+  finalGrade        Decimal?    @db.Decimal(5, 2)
+  
+  @@map("certificates")
 }

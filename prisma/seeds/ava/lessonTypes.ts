@@ -2,12 +2,12 @@ import { LessonType, Status } from "@prisma/client";
 import { SeedContext, prisma } from "../utils";
 
 /**
- * Seed para criar tipos de aulas
+ * Seed para criar tipos de aulas com descrição expandida
  */
 export async function seedLessonTypes(
   context: SeedContext
 ): Promise<SeedContext> {
-  console.log("Criando tipos de aulas...");
+  console.log("Criando tipos de aulas detalhados...");
 
   if (!context.adminUser) {
     throw new Error(
@@ -16,31 +16,52 @@ export async function seedLessonTypes(
   }
 
   const lessonTypes = [
-    { name: "VIDEO", description: "Aula em formato de vídeo gravado" },
-    { name: "TEXTO", description: "Aula em formato de texto/leitura" },
+    {
+      name: "VIDEO",
+      description:
+        "Aula em formato de vídeo gravado ou link externo (YouTube, Vimeo, etc.)",
+    },
+    {
+      name: "TEXTO",
+      description: "Aula em formato de texto ou HTML formatado",
+    },
     {
       name: "QUIZ",
       description: "Atividade interativa com perguntas e respostas",
     },
-    { name: "LIVE", description: "Aula ao vivo com interação em tempo real" },
+    {
+      name: "LIVE",
+      description:
+        "Aula ao vivo com interação em tempo real (EAD Live ou externa)",
+    },
     {
       name: "DOCUMENTO",
-      description: "Material em formato de documento para download",
+      description:
+        "Material em formato de documento para download (PDF, Word, etc.)",
     },
-    { name: "TAREFA", description: "Atividade prática para entrega" },
+    {
+      name: "ARQUIVO",
+      description: "Arquivos para download (Excel, PowerPoint, PDFs, etc.)",
+    },
     {
       name: "FORUM",
       description: "Discussão em grupo sobre um tema específico",
     },
-    { name: "PODCAST", description: "Conteúdo em formato de áudio" },
-    { name: "WEBINAR", description: "Seminário ou apresentação online" },
     {
-      name: "ESTUDO_DE_CASO",
-      description: "Análise detalhada de situações reais",
+      name: "PODCAST",
+      description: "Conteúdo em formato de áudio",
     },
     {
-      name: "LABORATÓRIO_VIRTUAL",
-      description: "Ambiente de prática simulada",
+      name: "CONFERENCIA",
+      description: "Conferência online via EAD Meet ou plataforma externa",
+    },
+    {
+      name: "EMBED",
+      description: "Conteúdo incorporado de fontes externas via código HTML",
+    },
+    {
+      name: "HTML",
+      description: "Página HTML personalizada com conteúdo formatado",
     },
   ];
 
