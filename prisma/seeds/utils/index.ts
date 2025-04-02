@@ -1,7 +1,10 @@
+// prisma/seeds/utils/index.ts
 import { PrismaClient } from "@prisma/client";
 import { SeedContext, UpsertOptions } from "./types";
 import { logger } from "./logger";
 import { seedManager } from "./SeedManager";
+import { StringUtils } from "./StringUtils";
+import { CodeGenerator } from "./CodeGenerator";
 
 // Singleton do Prisma para usar em todos os seeds
 export const prisma = seedManager.getPrisma();
@@ -14,12 +17,29 @@ export * from "./StringUtils";
 export * from "./CodeGenerator";
 
 /**
+ * Executa um seed com tratamento de erros padronizado
+ */
+export async function executeSeed(
+  seedName: string,
+  seedFn: (ctx: SeedContext) => Promise<SeedContext>,
+  context: SeedContext
+): Promise<SeedContext> {
+  logger.subSection(`Executando seed: ${seedName}`);
+  const startTime = Date.now();
+
+  try {
+    const updatedContext = await seedFn(context);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    logger.success(`Seed ${seedName} concluído em ${duration}s`);
+    return updatedContext;
+  } catch (error) {
+    logger.error(`Erro no seed ${seedName}:`, error);
+    throw error;
+  }
+}
+
+/**
  * Função genérica para fazer upsert de entidades com log
- * @param entityName Nome da entidade para logs
- * @param items Array de itens a serem inseridos/atualizados
- * @param upsertFn Função que recebe o item e faz o upsert
- * @param options Opções de upsert
- * @returns Array de entidades criadas
  */
 export async function upsertEntities<T, D>(
   entityName: string,
@@ -27,7 +47,7 @@ export async function upsertEntities<T, D>(
   upsertFn: (item: D) => Promise<T>,
   options: UpsertOptions | boolean = {}
 ): Promise<T[]> {
-  // Compatibilidade com a versão antiga que aceitava boolean
+  // Compatibilidade com versão antiga que aceitava boolean
   const opts: UpsertOptions =
     typeof options === "boolean" ? { continueOnError: options } : options;
 
@@ -92,9 +112,6 @@ export async function upsertEntities<T, D>(
 
 /**
  * Converte um array de entidades para um mapa nome -> entidade
- * @param entities Array de entidades
- * @param nameKey Chave a ser usada como nome (padrão: 'name')
- * @returns Mapa de nome para entidade
  */
 export function createEntityMap<T>(
   entities: T[],
@@ -124,119 +141,7 @@ function getEntityName(entity: any): string {
 }
 
 /**
- * Executar uma função de seed com tratamento de erros padronizado
- * @param seedName Nome do seed para log
- * @param seedFn Função de seed a ser executada
- * @param context Contexto atual
- * @returns Contexto atualizado
- */
-export async function executeSeed(
-  seedName: string,
-  seedFn: (ctx: SeedContext) => Promise<SeedContext>,
-  context: SeedContext
-): Promise<SeedContext> {
-  logger.subSection(`Executando seed: ${seedName}`);
-  const startTime = Date.now();
-
-  try {
-    const updatedContext = await seedFn(context);
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    logger.success(`Seed ${seedName} concluído em ${duration}s`);
-    return updatedContext;
-  } catch (error) {
-    logger.error(`Erro no seed ${seedName}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Executa um grupo de seeds, mantendo o contexto
- */
-export async function runSeedGroup(
-  groupName: string,
-  seeds: Array<{
-    name: string;
-    fn: (ctx: SeedContext) => Promise<SeedContext>;
-  }>,
-  context: SeedContext
-): Promise<SeedContext> {
-  logger.section(`Grupo de seeds: ${groupName}`);
-  const startTime = Date.now();
-
-  let currentContext = { ...context };
-
-  for (const seed of seeds) {
-    try {
-      currentContext = await executeSeed(seed.name, seed.fn, currentContext);
-    } catch (error) {
-      logger.error(`Erro no grupo ${groupName}, seed ${seed.name}:`, error);
-      // Se chegamos aqui, continueOnError deve ser verdadeiro
-      logger.warn(`Continuando com o próximo seed...`);
-    }
-  }
-
-  const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-  logger.success(`Grupo ${groupName} finalizado em ${duration}s`);
-  return currentContext;
-}
-
-/**
- * Formata uma data para exibição em logs
- * @param date Data a ser formatada
- * @returns String no formato DD/MM/YYYY HH:MM
- */
-export function formatDate(date: Date): string {
-  return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1)
-    .toString()
-    .padStart(2, "0")}/${date.getFullYear()} ${date
-    .getHours()
-    .toString()
-    .padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
-}
-
-/**
- * Formata um valor monetário para exibição
- * @param value Valor a ser formatado
- * @returns String formatada (ex: R$ 10,00)
- */
-export function formatCurrency(value: number | string): string {
-  const numValue = typeof value === "string" ? parseFloat(value) : value;
-  return numValue.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  });
-}
-
-/**
- * Gera uma URL de acesso para uma entidade (para uso em retornos de API)
- * @param entityType Tipo da entidade (course, job, etc)
- * @param entityId ID da entidade
- * @returns URL para acesso à entidade
- */
-export function generateAccessUrl(
-  entityType: string,
-  entityId: string
-): string {
-  const baseUrl = "https://exemplo.com";
-
-  const routes: Record<string, string> = {
-    course: "/courses",
-    job: "/jobs",
-    resume: "/resumes",
-    certificate: "/certificates",
-    subscription: "/user/subscriptions",
-    application: "/user/applications",
-  };
-
-  const route = routes[entityType] || `/${entityType}s`;
-  return `${baseUrl}${route}/${entityId}`;
-}
-
-/**
  * Verifica requisitos no contexto e lança erro se não estiverem presentes
- * @param context Contexto atual do seed
- * @param requirements Lista de chaves que devem existir no contexto
- * @param seedName Nome do seed para mensagem de erro
  */
 export function verifyContextRequirements(
   context: SeedContext,
@@ -252,4 +157,40 @@ export function verifyContextRequirements(
       )}. Execute os seeds correspondentes antes.`
     );
   }
+}
+
+/**
+ * Mescla dois objetos de contexto, mantendo arrays únicos
+ */
+export function mergeContexts(
+  contextA: SeedContext,
+  contextB: SeedContext
+): SeedContext {
+  const result: SeedContext = { ...contextA };
+
+  for (const key in contextB) {
+    if (
+      key in result &&
+      Array.isArray(result[key]) &&
+      Array.isArray(contextB[key])
+    ) {
+      // Se ambos são arrays, concatenar e remover duplicatas (baseado em id)
+      const combinedArray = [...result[key], ...contextB[key]];
+
+      // Remover duplicatas (assumindo que cada item tem um id)
+      const uniqueMap = new Map();
+      combinedArray.forEach((item) => {
+        if (item.id) {
+          uniqueMap.set(item.id, item);
+        }
+      });
+
+      result[key] = Array.from(uniqueMap.values());
+    } else {
+      // Caso contrário, o valor de contextB sobrescreve o de contextA
+      result[key] = contextB[key];
+    }
+  }
+
+  return result;
 }

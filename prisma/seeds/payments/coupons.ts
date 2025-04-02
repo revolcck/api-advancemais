@@ -5,7 +5,7 @@ import {
   DiscountType,
   UserType,
 } from "@prisma/client";
-import { SeedContext, prisma } from "./utils";
+import { SeedContext, prisma } from "../utils";
 
 /**
  * Seed para criar cupons de desconto

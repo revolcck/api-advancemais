@@ -6,68 +6,36 @@ import {
   verifyContextRequirements,
   CodeGenerator,
 } from "../utils";
-import CONFIG from "../config";
+import { ROLES } from "../config/roles.config";
 
 /**
- * Seeds de usuários iniciais do sistema
+ * Cria usuários iniciais de teste para o sistema
  *
  * @param context Contexto de seed
- * @returns Contexto atualizado com usuários
+ * @returns Contexto atualizado com usuários de teste
  */
 export async function seedUsers(context: SeedContext): Promise<SeedContext> {
-  logger.info("Criando usuários iniciais do sistema...");
+  logger.subSection("Criando usuários de teste");
 
-  // Verificar se temos roles no contexto
-  verifyContextRequirements(context, ["adminRole", "roles"], "seedUsers");
+  // Verificar dependências no contexto
+  verifyContextRequirements(context, ["roles", "adminUser"], "seedUsers");
 
-  // Criar usuário administrador
-  const adminUser = await createAdminUser(context);
-  logger.entity("Administrador", adminUser.email);
+  // Garantir que roles existe após a verificação
+  if (!context.roles || !context.roles.length) {
+    throw new Error(
+      "Roles não encontradas no contexto, mesmo após verificação"
+    );
+  }
 
-  // Criar usuários de teste para os diferentes papéis
+  // Criar usuários de teste para cada papel
   const testUsers = await createTestUsers(context);
 
-  logger.success(`Criados ${testUsers.length + 1} usuários no sistema`);
+  logger.success(`Criados ${testUsers.length} usuários de teste`);
 
   return {
     ...context,
-    adminUser,
     testUsers,
   };
-}
-
-/**
- * Cria o usuário administrador do sistema
- */
-async function createAdminUser(context: SeedContext): Promise<User> {
-  const { email, password, matricula, name, cpf } = CONFIG.admin;
-
-  return prisma.user.upsert({
-    where: { email },
-    update: {},
-    create: {
-      email,
-      password, // Já é um hash pré-definido na configuração
-      userType: UserType.PESSOA_FISICA,
-      matricula,
-      isActive: true,
-      roleId: context.adminRole.id,
-      personalInfo: {
-        create: {
-          name,
-          cpf,
-          birthDate: new Date("1990-01-01"),
-          gender: "NAO_INFORMADO",
-          phone: "0000000000",
-          educationLevel: EducationLevel.DOUTORADO,
-        },
-      },
-    },
-    include: {
-      personalInfo: true,
-      role: true,
-    },
-  });
 }
 
 /**
@@ -75,13 +43,19 @@ async function createAdminUser(context: SeedContext): Promise<User> {
  */
 async function createTestUsers(context: SeedContext): Promise<User[]> {
   const createdUsers: User[] = [];
+
+  // Garantir que roles existe
+  if (!context.roles) {
+    throw new Error("Roles não encontradas no contexto");
+  }
+
   const { roles } = context;
 
   // Criar um usuário para cada role (exceto admin que já foi criado)
-  for (const role of roles.filter((r) => r.name !== CONFIG.ROLES.ADMIN)) {
+  for (const role of roles.filter((r) => r.name !== ROLES.ADMIN)) {
     try {
       // Determinar tipo de usuário com base no papel
-      const isCompany = role.name === CONFIG.ROLES.EMPRESA;
+      const isCompany = role.name === ROLES.EMPRESA;
       const userType = isCompany
         ? UserType.PESSOA_JURIDICA
         : UserType.PESSOA_FISICA;
@@ -97,7 +71,7 @@ async function createTestUsers(context: SeedContext): Promise<User[]> {
       // Criar o usuário
       const user = await prisma.user.upsert({
         where: { email },
-        update: {},
+        update: {}, // Não atualiza se já existir
         create: {
           email,
           // Senha: senha123

@@ -1,5 +1,5 @@
 import { BillingInterval, SubscriptionPlan } from "@prisma/client";
-import { SeedContext, prisma } from "./utils";
+import { SeedContext, prisma } from "../utils";
 
 /**
  * Seed para criar planos de assinatura

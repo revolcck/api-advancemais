@@ -1,5 +1,5 @@
 import { PaymentMethod, PaymentMethodType } from "@prisma/client";
-import { SeedContext, prisma } from "./utils";
+import { SeedContext, prisma } from "../utils";
 
 /**
  * Seed para criar métodos de pagamento

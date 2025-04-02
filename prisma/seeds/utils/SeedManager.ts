@@ -1,19 +1,27 @@
+// prisma/seeds/utils/SeedManager.ts
 import { PrismaClient } from "@prisma/client";
-import { SeedContext } from "./types";
+import { SeedContext, SeedFunction } from "./types";
 import { logger } from "./logger";
 
 /**
- * Classe para gerenciar seeds e dependências de forma centralizada
+ * Gerenciador de seeds com implementação simplificada e robusta
  */
 export class SeedManager {
   private context: SeedContext;
   private prisma: PrismaClient;
+  private seeds: Map<
+    string,
+    {
+      fn: SeedFunction;
+      dependencies: string[];
+      executed: boolean;
+    }
+  > = new Map();
   private seedsExecuted: Set<string> = new Set();
+  private seedsInProgress: Set<string> = new Set(); // Para detecção de dependências circulares
 
   /**
    * Cria uma nova instância do SeedManager
-   * @param prisma Instância do PrismaClient
-   * @param initialContext Contexto inicial (opcional)
    */
   constructor(prisma: PrismaClient, initialContext: SeedContext = {}) {
     this.prisma = prisma;
@@ -22,83 +30,74 @@ export class SeedManager {
 
   /**
    * Registra uma função seed junto com suas dependências
-   * @param name Nome do seed
-   * @param fn Função seed
-   * @param dependencies Lista de nomes de seeds que devem ser executados antes
-   * @returns O próprio SeedManager para encadeamento
    */
   registerSeed(
     name: string,
-    fn: (ctx: SeedContext) => Promise<SeedContext>,
+    fn: SeedFunction,
     dependencies: string[] = []
   ): SeedManager {
-    this.context[`seed_${name}`] = {
-      name,
+    this.seeds.set(name, {
       fn,
       dependencies,
       executed: false,
-    };
+    });
+
     return this;
   }
 
   /**
-   * Verifica e executa dependências de um seed
-   * @param name Nome do seed
-   * @private
-   */
-  private async executeDependencies(name: string): Promise<void> {
-    const seed = this.context[`seed_${name}`];
-    if (!seed) {
-      throw new Error(`Seed "${name}" não registrado`);
-    }
-
-    for (const dep of seed.dependencies) {
-      if (!this.seedsExecuted.has(dep)) {
-        logger.info(`Executando dependência: ${dep} para ${name}`);
-        await this.executeSeed(dep);
-      }
-    }
-  }
-
-  /**
    * Executa um seed específico e suas dependências
-   * @param name Nome do seed
-   * @returns Contexto atualizado após execução
    */
   async executeSeed(name: string): Promise<SeedContext> {
-    // Verifica se já foi executado
+    // Verificar se o seed está registrado
+    if (!this.seeds.has(name)) {
+      throw new Error(`Seed "${name}" não está registrado`);
+    }
+
+    // Verificar se o seed já foi executado
     if (this.seedsExecuted.has(name)) {
-      logger.info(`Seed "${name}" já foi executado, pulando...`);
+      logger.info(`Seed "${name}" já foi executado`);
       return this.context;
     }
 
-    const seed = this.context[`seed_${name}`];
-    if (!seed) {
-      throw new Error(`Seed "${name}" não registrado`);
+    // Verificar dependências circulares
+    if (this.seedsInProgress.has(name)) {
+      throw new Error(`Dependência circular detectada para seed "${name}"`);
     }
 
-    try {
-      // Executa dependências primeiro
-      await this.executeDependencies(name);
+    this.seedsInProgress.add(name);
+    const seed = this.seeds.get(name)!;
 
-      // Executa o seed
+    try {
+      // Executar dependências primeiro
+      for (const dep of seed.dependencies) {
+        if (!this.seedsExecuted.has(dep)) {
+          logger.info(`Executando dependência: ${dep} para ${name}`);
+          await this.executeSeed(dep);
+        }
+      }
+
+      // Executar o seed
       logger.info(`Iniciando seed: ${name}`);
       const startTime = Date.now();
 
       const updatedContext = await seed.fn(this.context);
 
-      // Atualiza o contexto
+      // Atualizar o contexto
       this.context = { ...this.context, ...updatedContext };
 
-      // Marca como executado
+      // Marcar como executado
       this.seedsExecuted.add(name);
       seed.executed = true;
+      this.seedsInProgress.delete(name);
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       logger.success(`Seed "${name}" concluído em ${duration}s`);
 
       return this.context;
     } catch (error) {
+      // Em caso de erro, remover do set de seeds em progresso
+      this.seedsInProgress.delete(name);
       logger.error(`Erro ao executar seed "${name}":`, error);
       throw error;
     }
@@ -106,33 +105,45 @@ export class SeedManager {
 
   /**
    * Executa todos os seeds registrados na ordem correta
-   * @returns Contexto final após execução de todos os seeds
    */
   async executeAll(): Promise<SeedContext> {
     logger.info("Iniciando execução de todos os seeds...");
     const startTime = Date.now();
 
-    const seedNames = Object.keys(this.context)
-      .filter((key) => key.startsWith("seed_"))
-      .map((key) => key.replace("seed_", ""));
+    // Primeiro executar seeds sem dependências, depois os com dependências
+    const seedNames = Array.from(this.seeds.keys());
+    const independentSeeds = seedNames.filter(
+      (name) => this.seeds.get(name)!.dependencies.length === 0
+    );
+    const dependentSeeds = seedNames.filter(
+      (name) => this.seeds.get(name)!.dependencies.length > 0
+    );
 
-    for (const name of seedNames) {
+    // Executar seeds independentes primeiro
+    for (const name of independentSeeds) {
+      if (!this.seedsExecuted.has(name)) {
+        await this.executeSeed(name);
+      }
+    }
+
+    // Depois executar seeds com dependências
+    for (const name of dependentSeeds) {
       if (!this.seedsExecuted.has(name)) {
         await this.executeSeed(name);
       }
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    logger.success(`Todos os seeds executados com sucesso em ${duration}s`);
+    const totalExecuted = this.seedsExecuted.size;
+    logger.success(
+      `${totalExecuted} seeds executados com sucesso em ${duration}s`
+    );
 
     return this.context;
   }
 
   /**
    * Verifica se há requisitos necessários no contexto
-   * @param requirements Lista de chaves que devem existir no contexto
-   * @param seedName Nome do seed para mensagem de erro
-   * @throws Erro se algum requisito não for encontrado
    */
   verifyContextRequirements(
     requirements: (keyof SeedContext)[],
@@ -146,8 +157,7 @@ export class SeedManager {
       throw new Error(
         `Requisitos não encontrados no contexto para ${seedName}: ${missingRequirements.join(
           ", "
-        )}. 
-        Execute os seeds correspondentes antes.`
+        )}. Execute os seeds dependentes primeiro.`
       );
     }
   }
@@ -171,13 +181,6 @@ export class SeedManager {
    */
   async disconnect(): Promise<void> {
     await this.prisma.$disconnect();
-  }
-
-  /**
-   * Cria um novo SeedManager com a mesma configuração
-   */
-  createClone(): SeedManager {
-    return new SeedManager(this.prisma, this.context);
   }
 }
 

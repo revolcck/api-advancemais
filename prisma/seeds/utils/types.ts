@@ -16,7 +16,6 @@ import {
   JobRevision,
   LessonType,
   PaymentMethod,
-  PrismaClient,
   QuestionBank,
   Resume,
   Role,
@@ -30,27 +29,15 @@ import {
 export type SeedFunction = (ctx: SeedContext) => Promise<SeedContext>;
 
 /**
- * Tipo para um seed registrado
- */
-export interface RegisteredSeed {
-  name: string;
-  fn: SeedFunction;
-  dependencies: string[];
-  executed: boolean;
-}
-
-/**
  * Interface para o contexto de seed tipado
  * Contém todos os tipos possíveis para os valores armazenados
  */
 export interface SeedContext {
-  // Seeds registrados (começa com seed_)
-  [key: `seed_${string}`]: RegisteredSeed;
-
-  // Entidades do sistema
+  // Entidades do sistema core
   adminUser?: User;
   adminRole?: Role;
   roles?: Role[];
+  testUsers?: User[];
 
   // Domínio de pagamentos
   subscriptionPlans?: SubscriptionPlan[];
@@ -75,20 +62,15 @@ export interface SeedContext {
   coursesWithCertificateCriteria?: Course[];
 
   // Domínio do sistema de vagas e recrutamento
-  resumes?: Resume[]; // Currículos de alunos
-  jobOffers?: JobOffer[]; // Vagas publicadas
-  jobApplications?: JobApplication[]; // Candidaturas
-  jobRevisions?: JobRevision[]; // Revisões de vagas
-  jobInterviews?: JobInterview[]; // Entrevistas agendadas
+  resumes?: Resume[];
+  jobOffers?: JobOffer[];
+  jobApplications?: JobApplication[];
+  jobRevisions?: JobRevision[];
+  jobInterviews?: JobInterview[];
 
   // Propriedades adicionais
   [key: string]: any;
 }
-
-/**
- * Tipo para uma função de criação de dados de seed
- */
-export type DataGeneratorFunction<T> = () => T[];
 
 /**
  * Opções para upsert de entidades
@@ -110,4 +92,23 @@ export interface SeedGroupConfig {
     stopOnError?: boolean;
     logLevel?: "verbose" | "normal" | "minimal";
   };
+}
+
+/**
+ * Interface para campos de auditoria comuns
+ * Útil para padronizar dados de criação/atualização
+ */
+export interface AuditFields {
+  createdAt: Date;
+  updatedAt: Date;
+  createdById?: string;
+  updatedById?: string | null;
+}
+
+/**
+ * Interface para entidades com status
+ */
+export interface StatusFields {
+  status: string | number;
+  isActive?: boolean;
 }

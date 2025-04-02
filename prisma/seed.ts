@@ -1,5 +1,6 @@
-import { seedManager, logger } from "./seeds/utils";
+import { seedManager } from "./seeds/utils/SeedManager";
 import { registerAllSeeds } from "./seeds";
+import { logger } from "./seeds/utils/logger";
 
 /**
  * Função principal de seed
