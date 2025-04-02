@@ -95,6 +95,15 @@ model User {
   certificateTemplatesUpdated CertificateTemplate[] @relation("certificateTemplateUpdater")
   certificatesIssued Certificate[] @relation("certificateIssuer")
 
+  // Sistema de vinculos de vagas
+  publishedJobs     JobOffer[]
+  reviewedJobs      JobOffer[]        @relation("jobReviewer")
+  jobRevisions      JobRevision[]
+  resume            Resume?
+  jobApplications   JobApplication[]
+  statusChanges     ApplicationStatusHistory[]
+  createdInterviews JobInterview[]
+
   @@map("users")
 }
 
@@ -164,6 +173,8 @@ model CompanyInfo {
   cnpj            String    @unique
   phone           String
   website         String?
+  logoUrl           String?   // URL da logo
+  logoFilename      String?   // Nome do arquivo da logo
   
   // Relacionamento com usuário (1:1)
   userId          String    @unique
@@ -213,8 +224,14 @@ model SubscriptionPlan {
   isActive        Boolean  @default(true)
   isPopular       Boolean  @default(false) // Para marcar planos como "Mais popular"
   mpProductId     String?  // ID do produto no Mercado Pago (se aplicável)
+  maxJobOffers      Int?      @default(0) // Número máximo de vagas ativas
+  featuredJobOffers Int?      @default(0) // Número de vagas em destaque
+  confidentialOffers Boolean   @default(false) // Se permite vagas confidenciais
+  resumeAccess      Boolean   @default(true) // Se permite acesso à base de currículos
+  allowPremiumFilters Boolean  @default(false) // Se permite filtros avançados de busca
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  
   
   // Relacionamentos
   subscriptions   Subscription[]
@@ -326,6 +343,8 @@ model Subscription {
   cancelReason      String?           // Motivo do cancelamento
   isPaused          Boolean           @default(false)
   pausedAt          DateTime?         // Data de pausa (se pausado)
+  usedJobOffers     Int       @default(0) // Número de vagas utilizadas
+  usedFeaturedOffers Int      @default(0) // Vagas em destaque utilizadas
   
   // Dados do Mercado Pago
   mpSubscriptionId  String?           // ID da assinatura no Mercado Pago
@@ -1782,4 +1801,286 @@ model UserNotification {
 
   @@unique([notificationId, userId])
   @@map("user_notifications")
+}
+
+// ==================== SISTEMA DE VAGAS E RECRUTAMENTO ====================
+
+// Enum para níveis de experiência
+enum ExperienceLevel {
+  ESTAGIO
+  JUNIOR
+  PLENO
+  SENIOR
+  ESPECIALISTA
+  GERENTE
+  DIRETOR
+}
+
+// Enum para tipos de contratação
+enum HiringType {
+  CLT
+  PJ
+  ESTAGIO
+  TEMPORARIO
+  FREELANCER
+}
+
+// Enum para status da vaga
+enum JobStatus {
+  DRAFT              // Rascunho
+  PENDING_APPROVAL   // Aguardando aprovação do recrutador
+  REJECTED           // Rejeitada pelo recrutador
+  PUBLISHED          // Publicada e ativa
+  PAUSED             // Pausada temporariamente
+  CLOSED             // Fechada (prazo expirou ou atingiu limite de candidaturas)
+  FILLED             // Preenchida
+  CANCELLED          // Cancelada
+}
+
+// Enum para status da candidatura
+enum ApplicationStatus {
+  SUBMITTED          // Enviada
+  UNDER_REVIEW       // Em análise
+  INTERVIEW_SCHEDULED // Entrevista agendada
+  TECHNICAL_TEST     // Teste técnico
+  FINAL_INTERVIEW    // Entrevista final
+  OFFER_EXTENDED     // Proposta enviada
+  HIRED              // Contratado
+  REJECTED           // Rejeitado
+  CANCELLED          // Cancelado pelo candidato
+}
+
+// Modelo para vagas
+model JobOffer {
+  id                String          @id @default(uuid())
+  title             String          // Título/Nome da vaga
+  description       String          @db.Text // Descrição detalhada da vaga
+  location          String          // Localização da vaga (cidade/estado ou remoto)
+  experienceLevel   ExperienceLevel // Nível de experiência requerido
+  hiringType        HiringType      // Tipo de contratação
+  isConfidential    Boolean         @default(false) // Se a vaga é confidencial (nome da empresa oculto)
+  
+  // Datas e prazos
+  startDate         DateTime        // Data de início da publicação
+  endDate           DateTime        // Data de término da publicação
+  
+  // Limites e contadores
+  maxApplications   Int?            // Limite de candidaturas (null = ilimitado)
+  applicationCount  Int             @default(0) // Contador de candidaturas recebidas
+  
+  // Status e controle
+  status            JobStatus       @default(DRAFT) // Status atual da vaga
+  rejectionReason   String?         @db.Text // Motivo da rejeição, se rejeitada
+  
+  // Relacionamento com empresa que publicou a vaga
+  companyId         String
+  company           User            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Relacionamento com o recrutador que aprovou/rejeitou a vaga
+  reviewerId        String?
+  reviewer          User?           @relation("jobReviewer", fields: [reviewerId], references: [id])
+  
+  // Relacionamentos
+  revisions         JobRevision[]
+  applications      JobApplication[]
+  
+  // Campos de auditoria
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@map("job_offers")
+  @@index([companyId])
+  @@index([status])
+  @@index([experienceLevel])
+  @@index([hiringType])
+}
+
+// Histórico de revisões de vagas (auditoria)
+model JobRevision {
+  id                String    @id @default(uuid())
+  
+  // Relacionamento com a vaga
+  jobOfferId        String
+  jobOffer          JobOffer  @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
+  
+  // Quem fez a revisão
+  revisorId         String
+  revisor           User      @relation(fields: [revisorId], references: [id])
+  
+  // O que foi alterado
+  changesJson       Json      // Alterações realizadas em formato JSON
+  
+  // Campos de auditoria
+  createdAt         DateTime  @default(now())
+
+  @@map("job_revisions")
+  @@index([jobOfferId])
+}
+
+// Modelo para currículos de alunos
+model Resume {
+  id                String    @id @default(uuid())
+  
+  // Relacionamento com o usuário (aluno)
+  userId            String    @unique
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Dados do currículo
+  professionalSummary String?  @db.Text // Resumo profissional
+  skillsJson        Json?     // Habilidades em formato JSON
+  
+  // Documentos
+  resumeUrl         String?   // URL do currículo em PDF/DOCX
+  resumeFilename    String?   // Nome do arquivo
+  
+  // Campos de visibilidade
+  isPublic          Boolean   @default(false) // Se o currículo é público para empresas
+  
+  // Campos de auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relacionamentos
+  experiences       WorkExperience[]
+  education         Education[]
+  applications      JobApplication[]
+
+  @@map("resumes")
+}
+
+// Modelo para experiências profissionais
+model WorkExperience {
+  id                String    @id @default(uuid())
+  
+  // Relacionamento com o currículo
+  resumeId          String
+  resume            Resume    @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  
+  // Dados da experiência
+  companyName       String
+  position          String
+  startDate         DateTime
+  endDate           DateTime?
+  currentJob        Boolean   @default(false)
+  description       String?   @db.Text
+  
+  // Campos de auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("work_experiences")
+  @@index([resumeId])
+}
+
+// Modelo para formação acadêmica
+model Education {
+  id                String    @id @default(uuid())
+  
+  // Relacionamento com o currículo
+  resumeId          String
+  resume            Resume    @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  
+  // Dados da formação
+  institution       String
+  degree            String
+  fieldOfStudy      String?
+  startDate         DateTime
+  endDate           DateTime?
+  currentlyStudying Boolean   @default(false)
+  description       String?   @db.Text
+  
+  // Campos de auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("education")
+  @@index([resumeId])
+}
+
+// Modelo para candidaturas
+model JobApplication {
+  id                String    @id @default(uuid())
+  
+  // Relacionamentos
+  jobOfferId        String
+  jobOffer          JobOffer  @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
+  
+  userId            String    // Candidato
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  resumeId          String
+  resume            Resume    @relation(fields: [resumeId], references: [id], onDelete: Restrict)
+  
+  // Status e acompanhamento
+  status            ApplicationStatus @default(SUBMITTED)
+  notes             String?   @db.Text // Notas internas (visíveis apenas para a empresa)
+  
+  // Campos de auditoria
+  appliedAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relacionamentos
+  interviews        JobInterview[]
+  statusHistory     ApplicationStatusHistory[]
+
+  @@unique([jobOfferId, userId]) // Um usuário só pode se candidatar uma vez para cada vaga
+  @@map("job_applications")
+  @@index([userId])
+  @@index([jobOfferId])
+  @@index([status])
+}
+
+// Histórico de mudanças de status (para auditoria)
+model ApplicationStatusHistory {
+  id                String    @id @default(uuid())
+  
+  // Relacionamento com a candidatura
+  applicationId     String
+  application       JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  // Quem alterou o status
+  changedById       String
+  changedBy         User      @relation(fields: [changedById], references: [id])
+  
+  // O que foi alterado
+  previousStatus    ApplicationStatus
+  newStatus         ApplicationStatus
+  notes             String?   @db.Text
+  
+  // Campos de auditoria
+  changedAt         DateTime  @default(now())
+
+  @@map("application_status_history")
+  @@index([applicationId])
+}
+
+// Modelo para entrevistas/reuniões
+model JobInterview {
+  id                String    @id @default(uuid())
+  
+  // Relacionamento com a candidatura
+  applicationId     String
+  application       JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  // Dados da entrevista
+  scheduleDateTime  DateTime
+  duration          Int       // Duração em minutos
+  location          String?   // Local físico (se aplicável)
+  meetingUrl        String?   // URL da reunião virtual
+  meetingType       String?   // Tipo de reunião (Google Meet, Zoom, etc)
+  notes             String?   @db.Text
+  
+  // Status
+  isCompleted       Boolean   @default(false)
+  feedbackNotes     String?   @db.Text // Feedback após a entrevista
+  
+  // Campos de auditoria
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdById       String
+  createdBy         User      @relation(fields: [createdById], references: [id])
+
+  @@map("job_interviews")
+  @@index([applicationId])
+  @@index([scheduleDateTime])
 }

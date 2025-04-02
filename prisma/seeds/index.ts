@@ -6,6 +6,7 @@ import { seedPaymentMethods } from "./paymentMethods";
 import { seedCoupons } from "./coupons";
 import { seedAva } from "./ava";
 import { seedAllCertificates } from "./certificates";
+import { seedJobSystem } from "./jobs";
 
 // Organizar os seeds por domínio funcional
 const seedGroups = {
@@ -27,6 +28,9 @@ const seedGroups = {
 
   // Seeds relacionados a certificados
   certificates: [{ name: "Certificados", fn: seedAllCertificates }],
+
+  // Seeds relacionados ao sistema de vagas
+  jobs: [{ name: "Sistema de Vagas e Recrutamento", fn: seedJobSystem }],
 };
 
 /**
@@ -55,6 +59,9 @@ export async function runAllSeeds(): Promise<SeedContext> {
       seedGroups.certificates,
       context
     );
+
+    // Seeds do sistema de vagas (depois de tudo, pois depende de usuários, empresas e assinaturas)
+    context = await runSeedGroup("Jobs", seedGroups.jobs, context);
 
     console.log("\nTodos os seeds foram executados com sucesso!");
     return context;

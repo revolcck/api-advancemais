@@ -10,10 +10,15 @@ import {
   Enrollment,
   Exam,
   ExamType,
+  JobApplication,
+  JobInterview,
+  JobOffer,
+  JobRevision,
   LessonType,
   PaymentMethod,
   PrismaClient,
   QuestionBank,
+  Resume,
   Role,
   SubscriptionPlan,
   User,
@@ -56,6 +61,13 @@ export interface SeedContext {
   certificates?: Certificate[];
   coursesWithCertificateCriteria?: Course[];
 
+  // Domínio do sistema de vagas e recrutamento
+  resumes?: Resume[]; // Currículos de alunos
+  jobOffers?: JobOffer[]; // Vagas publicadas
+  jobApplications?: JobApplication[]; // Candidaturas
+  jobRevisions?: JobRevision[]; // Revisões de vagas
+  jobInterviews?: JobInterview[]; // Entrevistas agendadas
+
   // Adiciona suporte para propriedades dinâmicas
   [key: string]: any;
 }
@@ -86,6 +98,32 @@ export const StringUtils = {
    */
   formatDateYYYYMMDD(date: Date = new Date()): string {
     return date.toISOString().slice(0, 10).replace(/-/g, "");
+  },
+
+  /**
+   * Trunca um texto para o tamanho desejado
+   * @param text Texto a ser truncado
+   * @param length Tamanho desejado
+   * @returns Texto truncado com reticências
+   */
+  truncate(text: string, length: number = 50): string {
+    if (!text || text.length <= length) return text;
+    return text.substring(0, length - 3) + "...";
+  },
+
+  /**
+   * Gera um texto aleatório para testes
+   * @param length Tamanho desejado do texto
+   * @returns Texto aleatório
+   */
+  randomText(length: number = 10): string {
+    const chars =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
   },
 };
 
@@ -128,6 +166,21 @@ export const CodeGenerator = {
     }
 
     return `${prefix}-${result}`;
+  },
+
+  /**
+   * Gera um código para vaga (formato JOB-AAAAMMDD-XXXX)
+   * @param companyId ID da empresa (usado para tornar o código único)
+   * @returns Código único para vaga
+   */
+  generateJobCode(companyId: string): string {
+    const companyPart = companyId.slice(0, 4).toUpperCase();
+    const dateStr = StringUtils.formatDateYYYYMMDD();
+    const random = Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, "0");
+
+    return `JOB-${dateStr}-${companyPart}-${random}`;
   },
 };
 
@@ -289,4 +342,95 @@ export async function runSeedGroup(
  */
 export function createSlug(name: string): string {
   return StringUtils.createSlug(name);
+}
+
+/**
+ * Mescla dois objetos de contexto, mantendo arrays únicos
+ * @param contextA Primeiro contexto
+ * @param contextB Segundo contexto
+ * @returns Contexto mesclado
+ */
+export function mergeContexts(
+  contextA: SeedContext,
+  contextB: SeedContext
+): SeedContext {
+  const result: SeedContext = { ...contextA };
+
+  for (const key in contextB) {
+    if (
+      key in result &&
+      Array.isArray(result[key]) &&
+      Array.isArray(contextB[key])
+    ) {
+      // Se ambos são arrays, concatenar e remover duplicatas (baseado em id)
+      const combinedArray = [...result[key], ...contextB[key]];
+
+      // Remover duplicatas (assumindo que cada item tem um id)
+      const uniqueMap = new Map();
+      combinedArray.forEach((item) => {
+        if (item.id) {
+          uniqueMap.set(item.id, item);
+        }
+      });
+
+      result[key] = Array.from(uniqueMap.values());
+    } else {
+      // Caso contrário, o valor de contextB sobrescreve o de contextA
+      result[key] = contextB[key];
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Formata uma data para exibição em logs
+ * @param date Data a ser formatada
+ * @returns String no formato DD/MM/YYYY HH:MM
+ */
+export function formatDate(date: Date): string {
+  return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1)
+    .toString()
+    .padStart(2, "0")}/${date.getFullYear()} ${date
+    .getHours()
+    .toString()
+    .padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+}
+
+/**
+ * Formata um valor monetário para exibição
+ * @param value Valor a ser formatado
+ * @returns String formatada (ex: R$ 10,00)
+ */
+export function formatCurrency(value: number | string): string {
+  const numValue = typeof value === "string" ? parseFloat(value) : value;
+  return numValue.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+/**
+ * Gera uma URL de acesso para uma entidade (para uso em retornos de API)
+ * @param entityType Tipo da entidade (course, job, etc)
+ * @param entityId ID da entidade
+ * @returns URL para acesso à entidade
+ */
+export function generateAccessUrl(
+  entityType: string,
+  entityId: string
+): string {
+  const baseUrl = "https://exemplo.com";
+
+  const routes: Record<string, string> = {
+    course: "/courses",
+    job: "/jobs",
+    resume: "/resumes",
+    certificate: "/certificates",
+    subscription: "/user/subscriptions",
+    application: "/user/applications",
+  };
+
+  const route = routes[entityType] || `/${entityType}s`;
+  return `${baseUrl}${route}/${entityId}`;
 }
