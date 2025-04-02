@@ -1,23 +1,26 @@
-import { runAllSeeds } from "./seeds";
-import { prisma } from "./seeds/utils";
+import { seedManager, logger } from "./seeds/utils";
+import { registerAllSeeds } from "./seeds";
 
 /**
  * Função principal de seed
  */
 async function main() {
+  logger.section("Iniciando seed do banco de dados");
+
   try {
-    console.log("Iniciando seed do banco de dados...");
+    // Registra todos os seeds disponíveis
+    registerAllSeeds();
 
-    // Executa todos os seeds de forma organizada
-    await runAllSeeds();
+    // Executa todos os seeds na ordem correta considerando dependências
+    await seedManager.executeAll();
 
-    console.log("Seed finalizado com sucesso!");
+    logger.section("Seed finalizado com sucesso!");
   } catch (error) {
-    console.error("Erro durante a execução do seed:", error);
+    logger.error("Erro durante a execução do seed:", error);
     process.exit(1);
   } finally {
     // Desconecta do banco de dados ao finalizar
-    await prisma.$disconnect();
+    await seedManager.disconnect();
   }
 }
 

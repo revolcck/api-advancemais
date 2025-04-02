@@ -1,72 +1,52 @@
-import { SeedContext, runSeedGroup } from "./utils";
-import { seedRoles } from "./roles";
-import { seedUsers } from "./users";
-import { seedSubscriptionPlans } from "./subscriptionPlans";
-import { seedPaymentMethods } from "./paymentMethods";
-import { seedCoupons } from "./coupons";
-import { seedAva } from "./ava";
-import { seedAllCertificates } from "./certificates";
-import { seedJobSystem } from "./jobs";
-
-// Organizar os seeds por domínio funcional
-const seedGroups = {
-  // Core seeds - base do sistema
-  core: [
-    { name: "Roles", fn: seedRoles },
-    { name: "Usuários", fn: seedUsers },
-  ],
-
-  // Seeds relacionados a pagamentos
-  payments: [
-    { name: "Planos de Assinatura", fn: seedSubscriptionPlans },
-    { name: "Métodos de Pagamento", fn: seedPaymentMethods },
-    { name: "Cupons", fn: seedCoupons },
-  ],
-
-  // Seeds relacionados ao AVA
-  ava: [{ name: "AVA (Ambiente Virtual de Aprendizagem)", fn: seedAva }],
-
-  // Seeds relacionados a certificados
-  certificates: [{ name: "Certificados", fn: seedAllCertificates }],
-
-  // Seeds relacionados ao sistema de vagas
-  jobs: [{ name: "Sistema de Vagas e Recrutamento", fn: seedJobSystem }],
-};
+import { seedManager } from "./utils";
+import CONFIG from "./config";
+import { registerCoreSeeds } from "./core";
+import { registerPaymentSeeds } from "./payments";
+import { registerAvaSeeds } from "./ava";
+import { registerCertificateSeeds } from "./certificates";
+import { registerJobSeeds } from "./jobs";
 
 /**
- * Executa todos os seeds na ordem correta
+ * Registra todos os seeds disponíveis no sistema
  */
-export async function runAllSeeds(): Promise<SeedContext> {
-  console.log("Iniciando execução de todos os seeds...");
-
-  // Objeto de contexto inicial vazio
-  let context: SeedContext = {};
-
-  // Executar grupos de seeds em ordem
-  try {
-    // Seeds da estrutura básica do sistema
-    context = await runSeedGroup("Core", seedGroups.core, context);
-
-    // Seeds de pagamentos e assinaturas
-    context = await runSeedGroup("Payments", seedGroups.payments, context);
-
-    // Seeds do Ambiente Virtual de Aprendizagem
-    context = await runSeedGroup("AVA", seedGroups.ava, context);
-
-    // Seeds de certificados (depois do AVA, pois depende dos cursos)
-    context = await runSeedGroup(
-      "Certificates",
-      seedGroups.certificates,
-      context
-    );
-
-    // Seeds do sistema de vagas (depois de tudo, pois depende de usuários, empresas e assinaturas)
-    context = await runSeedGroup("Jobs", seedGroups.jobs, context);
-
-    console.log("\nTodos os seeds foram executados com sucesso!");
-    return context;
-  } catch (error) {
-    console.error("\nFalha na execução dos seeds:", error);
-    throw error;
-  }
+export function registerAllSeeds(): void {
+  // Registrar seeds organizados por domínio
+  registerCoreSeeds();
+  registerPaymentSeeds();
+  registerAvaSeeds();
+  registerCertificateSeeds();
+  registerJobSeeds();
 }
+
+/**
+ * Executa todos os seeds na ordem definida pela configuração
+ * Esta função é mantida para compatibilidade com o código antigo
+ */
+export async function runAllSeeds() {
+  // Ordem dos grupos conforme configuração
+  const groupOrder = [
+    CONFIG.seedGroups.core,
+    CONFIG.seedGroups.payments,
+    CONFIG.seedGroups.ava,
+    CONFIG.seedGroups.certificates,
+    CONFIG.seedGroups.jobs,
+  ];
+
+  let context = {};
+
+  // Executar cada grupo em ordem
+  for (const group of groupOrder) {
+    for (const seedName of group.seeds) {
+      context = await seedManager.executeSeed(seedName);
+    }
+  }
+
+  return context;
+}
+
+// Exportar as seeds para uso direto
+export * from "./core";
+export * from "./payments";
+export * from "./ava";
+export * from "./certificates";
+export * from "./jobs";

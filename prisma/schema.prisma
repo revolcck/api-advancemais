@@ -1,3 +1,4 @@
+// Definição de migrações Prisma para o sistema
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,7 +8,282 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==================== MODELOS ORIGINAIS DO SISTEMA ====================
+// ==================== ENUMS PRINCIPAIS DO SISTEMA ====================
+
+// Enum para status comum entre entidades
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+// Enum para tipos de usuário
+enum UserType {
+  PESSOA_FISICA
+  PESSOA_JURIDICA
+}
+
+// Enum para níveis educacionais
+enum EducationLevel {
+  ENSINO_FUNDAMENTAL_INCOMPLETO
+  ENSINO_FUNDAMENTAL_COMPLETO
+  ENSINO_MEDIO_INCOMPLETO
+  ENSINO_MEDIO_COMPLETO
+  ENSINO_SUPERIOR_INCOMPLETO
+  ENSINO_SUPERIOR_COMPLETO
+  POS_GRADUACAO
+  MESTRADO
+  DOUTORADO
+}
+
+// Enum para gênero
+enum Gender {
+  MASCULINO
+  FEMININO
+  OUTRO
+  NAO_INFORMADO
+}
+
+// Enum para estado civil
+enum MaritalStatus {
+  SOLTEIRO
+  CASADO
+  DIVORCIADO
+  VIUVO
+  UNIAO_ESTAVEL
+  OUTRO
+}
+
+// Enum para intervalos de cobrança
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+// Enum para status de assinatura
+enum SubscriptionStatus {
+  ACTIVE           // Assinatura ativa
+  CANCELED         // Cancelada pelo usuário ou admin
+  PENDING          // Aguardando primeiro pagamento
+  PAYMENT_FAILED   // Falha no pagamento
+  PAST_DUE         // Pagamento atrasado
+  TRIAL            // Em período de teste
+  EXPIRED          // Expirada sem renovação
+  ON_HOLD          // Suspensa temporariamente
+}
+
+// Enum para tipos de métodos de pagamento
+enum PaymentMethodType {
+  CREDIT_CARD      // Cartão de Crédito
+  DEBIT_CARD       // Cartão de Débito
+  PIX              // PIX
+  BANK_SLIP        // Boleto Bancário
+  BANK_TRANSFER    // Transferência Bancária
+  MP_CHECKOUT      // Checkout do Mercado Pago
+}
+
+// Enum para bandeiras de cartão
+enum CardBrand {
+  VISA
+  MASTERCARD
+  AMEX
+  ELO
+  HIPERCARD
+  DINERS
+  DISCOVER
+  JCB
+  OTHER
+}
+
+// Enum para status de pagamento
+enum PaymentStatus {
+  PENDING           // Aguardando pagamento
+  APPROVED          // Pagamento aprovado
+  DECLINED          // Pagamento recusado
+  IN_PROCESS        // Em processamento
+  IN_MEDIATION      // Em mediação (disputa)
+  REFUNDED          // Pagamento reembolsado
+  PARTIALLY_REFUNDED // Parcialmente reembolsado
+  CHARGED_BACK      // Estornado
+  CANCELLED         // Cancelado
+  REJECTED          // Rejeitado
+  FAILED            // Falha no processamento
+}
+
+// Enum para status de registro pendente
+enum PendingRegistrationStatus {
+  WAITING_PAYMENT   // Aguardando pagamento
+  PAYMENT_APPROVED  // Pagamento aprovado, pendente de conversão
+  PAYMENT_FAILED    // Pagamento falhou
+  CONVERTED         // Convertido em usuário
+  EXPIRED           // Expirado/abandonado
+}
+
+// Enum para tipos de desconto
+enum DiscountType {
+  PERCENTAGE        // Desconto percentual (%)
+  FIXED_AMOUNT      // Valor fixo (R$)
+}
+
+// Enum para status de cupom
+enum CouponStatus {
+  ACTIVE            // Cupom ativo
+  INACTIVE          // Cupom inativo
+  EXPIRED           // Cupom expirado
+  USAGE_LIMIT_REACHED // Limite de uso atingido
+}
+
+// Tipo de liberação para módulos e aulas
+enum ReleaseType {
+  IMMEDIATE         // Liberação imediata
+  FIXED_DATE        // Data específica
+  DAYS_AFTER        // Dias após matrícula/conclusão da aula anterior
+}
+
+// Tipos de colaborador
+enum CollaboratorType {
+  PROFESSOR
+  TUTOR
+}
+
+// Tipos de produto
+enum ProductType {
+  CURSO
+  COMBO
+  ASSINATURA
+}
+
+// Tipo de conteúdo específico da aula
+enum ContentType {
+  VIDEO               // Vídeo gravado
+  LIBRARY             // Conteúdo da biblioteca
+  UPLOAD              // Arquivo para upload (PDF, etc)
+  EAD_PLAYER          // Player de vídeo da plataforma
+  VIDEO_URL           // Link de vídeo externo (Youtube, etc)
+  LIVE                // Aula ao vivo
+  EAD_MEET            // Conferência
+  PODCAST             // Áudio/Podcast
+  EMBED               // Código incorporado
+  HTML_EDITOR         // Editor HTML
+  TEXT                // Texto formatado
+  FILE                // Arquivo para download
+  QUIZ                // Questionário/Quiz
+}
+
+// Status de publicação de conteúdo
+enum PublishStatus {
+  DRAFT              // Rascunho
+  PUBLISHED          // Publicado
+}
+
+// Status de matrícula
+enum EnrollmentStatus {
+  ACTIVE             // Matrícula ativa
+  COMPLETED          // Curso concluído
+  EXPIRED            // Acesso expirado
+  CANCELED           // Matrícula cancelada
+  PENDING_PAYMENT    // Aguardando pagamento
+}
+
+// Enum para critérios de conclusão do curso
+enum CompletionCriteria {
+  EXAM_ONLY          // Apenas prova final
+  INTERNSHIP_ONLY    // Apenas estágio
+  EXAM_AND_INTERNSHIP // Ambos (prova e estágio)
+  ATTENDANCE_ONLY    // Apenas presença/participação
+  MODULE_COMPLETION  // Conclusão de todos os módulos
+  CUSTOM             // Critério personalizado
+}
+
+// Enum para status do certificado
+enum CertificateStatus {
+  PENDING            // Pendente de emissão
+  ISSUED             // Emitido
+  REVOKED            // Revogado
+  EXPIRED            // Expirado
+}
+
+// Enum para tipos de questão
+enum QuestionType {
+  MULTIPLA_ESCOLHA     // Múltipla escolha (apenas uma resposta correta)
+  MULTIPLA_SELECAO     // Múltipla seleção (várias respostas corretas)
+  VERDADEIRO_FALSO     // Verdadeiro ou falso
+  DISSERTATIVA         // Questão dissertativa (resposta aberta)
+  ORDENACAO            // Ordenação de itens
+  ASSOCIACAO           // Associação de colunas
+  COMPLETAR_LACUNAS    // Completar espaços em branco
+  NUMERICA             // Resposta numérica
+}
+
+// Enum para nível de dificuldade da questão
+enum DifficultyLevel {
+  MUITO_FACIL
+  FACIL
+  MEDIO
+  DIFICIL
+  MUITO_DIFICIL
+}
+
+// Enum para tipo de liberação de prova
+enum ExamReleaseType {
+  IMMEDIATELY         // Liberação imediata após aulas anteriores
+  SPECIFIC_DATE       // Data específica
+  FLEXIBLE_PERIOD     // Período após concluir aula anterior
+}
+
+// Enum para ordem das questões
+enum QuestionOrder {
+  SEQUENTIAL          // Ordem sequencial fixa
+  RANDOM              // Ordem aleatória
+}
+
+// Enum para níveis de experiência
+enum ExperienceLevel {
+  ESTAGIO
+  JUNIOR
+  PLENO
+  SENIOR
+  ESPECIALISTA
+  GERENTE
+  DIRETOR
+}
+
+// Enum para tipos de contratação
+enum HiringType {
+  CLT
+  PJ
+  ESTAGIO
+  TEMPORARIO
+  FREELANCER
+}
+
+// Enum para status da vaga
+enum JobStatus {
+  DRAFT               // Rascunho
+  PENDING_APPROVAL    // Aguardando aprovação do recrutador
+  REJECTED            // Rejeitada pelo recrutador
+  PUBLISHED           // Publicada e ativa
+  PAUSED              // Pausada temporariamente
+  CLOSED              // Fechada (prazo expirou ou atingiu limite de candidaturas)
+  FILLED              // Preenchida
+  CANCELLED           // Cancelada
+}
+
+// Enum para status da candidatura
+enum ApplicationStatus {
+  SUBMITTED           // Enviada
+  UNDER_REVIEW        // Em análise
+  INTERVIEW_SCHEDULED // Entrevista agendada
+  TECHNICAL_TEST      // Teste técnico
+  FINAL_INTERVIEW     // Entrevista final
+  OFFER_EXTENDED      // Proposta enviada
+  HIRED               // Contratado
+  REJECTED            // Rejeitado
+  CANCELLED           // Cancelado pelo candidato
+}
+
+// ==================== MODELOS PRINCIPAIS DO SISTEMA ====================
 
 // Modelo de papel/função do usuário
 model Role {
@@ -31,7 +307,7 @@ model User {
   email         String       @unique
   password      String
   userType      UserType
-  matricula     String       @unique // Formato: AD158KJ
+  matricula     String       @unique  // Formato: AD158KJ
   refreshToken  String?      @db.Text
   isActive      Boolean      @default(true)
   createdAt     DateTime     @default(now())
@@ -45,57 +321,45 @@ model User {
   // Relacionamentos com informações específicas
   personalInfo  PersonalInfo?
   companyInfo   CompanyInfo?
-
-  // Relacionamento com endereço
   address       Address?
 
-  // Relacionamento com assinaturas
+  // Relacionamentos financeiros
   subscriptions Subscription[]
-  
-  // Relacionamento com cartões salvos
   paymentCards  PaymentCard[]
-  
-  // Relacionamento com checkout sessions
   checkoutSessions CheckoutSession[]
-
-  // Relacionamento com cupons criados
   createdCoupons Coupon[]     @relation("couponCreator")
-  
-  // Relacionamento com histórico de uso de cupons
   couponUsageHistory CouponUsageHistory[]
 
-  // Novos relacionamentos para cursos
+  // Relacionamentos AVA
   coordinatedCourses Course[]           @relation("courseCoordinator")
   coursesAsCollaborator CourseProfessor[]
   teachingLessons Lesson[]
   enrollments Enrollment[]
   examAnswers ExamAnswer[]
   
-  // Relacionamentos com banco de questões
+  // Relacionamentos banco de questões
   createdQuestions Question[]        @relation("questionCreator")
   updatedQuestions Question[]        @relation("questionUpdater")
   createdQuestionBanks QuestionBank[] @relation("questionBankCreator")
   updatedQuestionBanks QuestionBank[] @relation("questionBankUpdater")
   studentAnswers QuestionAnswer[]
 
-   // Relações para provas
+  // Relacionamentos provas
   createdExams      Exam[]      @relation("examCreator")
   updatedExams      Exam[]      @relation("examUpdater")
   examAttempts      ExamAttempt[]
   grades            StudentGrade[]
-  
-  // Relações para respostas de tentativas
   attemptAnswers    ExamAttemptAnswer[]
   
-  // Notificações
+  // Relacionamentos notificações
   notifications     UserNotification[]
   
-  // Certificados
+  // Relacionamentos certificados
   certificateTemplatesCreated CertificateTemplate[]
   certificateTemplatesUpdated CertificateTemplate[] @relation("certificateTemplateUpdater")
   certificatesIssued Certificate[] @relation("certificateIssuer")
 
-  // Sistema de vinculos de vagas
+  // Relacionamentos sistema de vagas
   publishedJobs     JobOffer[]
   reviewedJobs      JobOffer[]        @relation("jobReviewer")
   jobRevisions      JobRevision[]
@@ -105,25 +369,6 @@ model User {
   createdInterviews JobInterview[]
 
   @@map("users")
-}
-
-// Enum para definir o tipo de usuário
-enum UserType {
-  PESSOA_FISICA
-  PESSOA_JURIDICA
-}
-
-// Enum para níveis educacionais
-enum EducationLevel {
-  ENSINO_FUNDAMENTAL_INCOMPLETO
-  ENSINO_FUNDAMENTAL_COMPLETO
-  ENSINO_MEDIO_INCOMPLETO
-  ENSINO_MEDIO_COMPLETO
-  ENSINO_SUPERIOR_INCOMPLETO
-  ENSINO_SUPERIOR_COMPLETO
-  POS_GRADUACAO
-  MESTRADO
-  DOUTORADO
 }
 
 // Modelo para informações de pessoa física
@@ -146,24 +391,6 @@ model PersonalInfo {
   @@map("personal_info")
 }
 
-// Enum para gênero
-enum Gender {
-  MASCULINO
-  FEMININO
-  OUTRO
-  NAO_INFORMADO
-}
-
-// Enum para estado civil
-enum MaritalStatus {
-  SOLTEIRO
-  CASADO
-  DIVORCIADO
-  VIUVO
-  UNIAO_ESTAVEL
-  OUTRO
-}
-
 // Modelo para informações de pessoa jurídica
 model CompanyInfo {
   id              String    @id @default(uuid())
@@ -173,8 +400,8 @@ model CompanyInfo {
   cnpj            String    @unique
   phone           String
   website         String?
-  logoUrl           String?   // URL da logo
-  logoFilename      String?   // Nome do arquivo da logo
+  logoUrl         String?   // URL da logo
+  logoFilename    String?   // Nome do arquivo da logo
   
   // Relacionamento com usuário (1:1)
   userId          String    @unique
@@ -209,29 +436,32 @@ model Address {
   @@map("addresses")
 }
 
-// ============== MODELOS DE PAGAMENTO ==============
+// ==================== MODELOS DE PAGAMENTO ====================
 
 // Modelo para planos de assinatura
 model SubscriptionPlan {
   id              String   @id @default(uuid())
   name            String   @unique // Inicial, Intermediário, Avançado, Destaque
-  price           Decimal  @db.Decimal(10, 2) // Preço mensal: 49.99, 74.99, 99.99, 199.99
+  price           Decimal  @db.Decimal(10, 2) // Preço mensal
   description     String?  @db.Text
-  features        Json     // Armazena características do plano como JSON: vagas, dias de divulgação, etc.
+  features        Json     // Características do plano como JSON
   interval        BillingInterval @default(MONTHLY)
-  intervalCount   Int      @default(1) // Quantas unidades do intervalo (ex: 1 mês, 3 meses, 1 ano)
+  intervalCount   Int      @default(1) // Quantas unidades do intervalo
   trialDays       Int?     // Dias de teste gratuito, se aplicável
   isActive        Boolean  @default(true)
   isPopular       Boolean  @default(false) // Para marcar planos como "Mais popular"
   mpProductId     String?  // ID do produto no Mercado Pago (se aplicável)
+  
+  // Campos para sistema de vagas
   maxJobOffers      Int?      @default(0) // Número máximo de vagas ativas
   featuredJobOffers Int?      @default(0) // Número de vagas em destaque
-  confidentialOffers Boolean   @default(false) // Se permite vagas confidenciais
-  resumeAccess      Boolean   @default(true) // Se permite acesso à base de currículos
-  allowPremiumFilters Boolean  @default(false) // Se permite filtros avançados de busca
+  confidentialOffers Boolean   @default(false) // Permite vagas confidenciais
+  resumeAccess      Boolean   @default(true) // Acesso à base de currículos
+  allowPremiumFilters Boolean  @default(false) // Filtros avançados de busca
+  
+  // Campos de auditoria
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  
   
   // Relacionamentos
   subscriptions   Subscription[]
@@ -240,36 +470,6 @@ model SubscriptionPlan {
   allowedCoupons  CouponPlanRestriction[] // Cupons permitidos para este plano
 
   @@map("subscription_plans")
-}
-
-// Enum para intervalos de cobrança
-enum BillingInterval {
-  MONTHLY
-  QUARTERLY
-  SEMIANNUAL
-  ANNUAL
-}
-
-// Enum para status de assinatura
-enum SubscriptionStatus {
-  ACTIVE           // Assinatura ativa
-  CANCELED         // Cancelada pelo usuário ou admin
-  PENDING          // Aguardando primeiro pagamento
-  PAYMENT_FAILED   // Falha no pagamento
-  PAST_DUE         // Pagamento atrasado
-  TRIAL            // Em período de teste
-  EXPIRED          // Expirada sem renovação
-  ON_HOLD          // Suspensa temporariamente
-}
-
-// Enum para tipos de métodos de pagamento
-enum PaymentMethodType {
-  CREDIT_CARD    // Cartão de Crédito
-  DEBIT_CARD     // Cartão de Débito
-  PIX            // PIX
-  BANK_SLIP      // Boleto Bancário
-  BANK_TRANSFER  // Transferência Bancária
-  MP_CHECKOUT    // Checkout do Mercado Pago
 }
 
 // Modelo para métodos de pagamento disponíveis
@@ -281,9 +481,11 @@ model PaymentMethod {
   isActive        Boolean  @default(true)
   mpPaymentTypeId String?  // ID do tipo de pagamento no Mercado Pago
   mpPaymentMethodId String? // ID do método de pagamento no Mercado Pago
-  processingFee   Decimal? @db.Decimal(10, 2) // Taxa de processamento (%, se aplicável)
-  fixedFee        Decimal? @db.Decimal(10, 2) // Taxa fixa (R$, se aplicável)
-  requiredFields  Json?    // Campos requeridos para este método em formato JSON
+  processingFee   Decimal? @db.Decimal(10, 2) // Taxa de processamento (%)
+  fixedFee        Decimal? @db.Decimal(10, 2) // Taxa fixa (R$)
+  requiredFields  Json?    // Campos requeridos para este método
+  
+  // Campos de auditoria
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
@@ -292,19 +494,6 @@ model PaymentMethod {
   checkoutSessions CheckoutSession[]
 
   @@map("payment_methods")
-}
-
-// Enum para bandeiras de cartão
-enum CardBrand {
-  VISA
-  MASTERCARD
-  AMEX
-  ELO
-  HIPERCARD
-  DINERS
-  DISCOVER
-  JCB
-  OTHER
 }
 
 // Modelo para cartões de pagamento salvos
@@ -319,6 +508,8 @@ model PaymentCard {
   cardId          String?   // ID do cartão no Mercado Pago
   isDefault       Boolean   @default(false) // Indica se é o cartão padrão
   isActive        Boolean   @default(true)  // Indica se o cartão está ativo
+  
+  // Campos de auditoria
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   
@@ -339,79 +530,55 @@ model Subscription {
   startDate         DateTime
   endDate           DateTime?
   nextBillingDate   DateTime          // Data da próxima cobrança
-  canceledAt        DateTime?         // Data de cancelamento (se cancelado)
+  canceledAt        DateTime?         // Data de cancelamento
   cancelReason      String?           // Motivo do cancelamento
   isPaused          Boolean           @default(false)
-  pausedAt          DateTime?         // Data de pausa (se pausado)
-  usedJobOffers     Int       @default(0) // Número de vagas utilizadas
+  pausedAt          DateTime?         // Data de pausa
+  
+  // Contadores de uso para sistema de vagas
+  usedJobOffers     Int       @default(0) // Vagas utilizadas
   usedFeaturedOffers Int      @default(0) // Vagas em destaque utilizadas
   
   // Dados do Mercado Pago
   mpSubscriptionId  String?           // ID da assinatura no Mercado Pago
-  mpPreapprovalId   String?           // ID de pré-aprovação do Mercado Pago
+  mpPreapprovalId   String?           // ID de pré-aprovação no Mercado Pago
   mpMerchantOrderId String?           // ID do pedido no Mercado Pago
   
   // Outros dados
   currentPeriodStart DateTime         // Início do período atual
   currentPeriodEnd   DateTime         // Fim do período atual
-  renewalFailures    Int              @default(0) // Contador de falhas de renovação
-  renewalAttemptDate DateTime?        // Data da última tentativa de renovação
+  renewalFailures    Int              @default(0) // Falhas de renovação
+  renewalAttemptDate DateTime?        // Última tentativa de renovação
   metadataJson       Json?            // Metadados adicionais
   
   // Dados de desconto e cupom
   couponId          String?           // ID do cupom utilizado
   coupon            Coupon?           @relation(fields: [couponId], references: [id])
-  discountAmount    Decimal?          @db.Decimal(10, 2) // Valor do desconto aplicado
+  discountAmount    Decimal?          @db.Decimal(10, 2) // Valor do desconto
   originalPrice     Decimal?          @db.Decimal(10, 2) // Preço original antes do desconto
   
+  // Campos de auditoria
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   
-  // Relacionamento com usuário
+  // Relacionamentos
   userId            String
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Relacionamento com plano
   planId            String
   plan              SubscriptionPlan  @relation(fields: [planId], references: [id])
-  
-  // Relacionamento com método de pagamento
   paymentMethodId   String
   paymentMethod     PaymentMethod     @relation(fields: [paymentMethodId], references: [id])
-  
-  // Relacionamento com cartão (opcional, só usado quando método é cartão)
   paymentCardId     String?
   paymentCard       PaymentCard?      @relation(fields: [paymentCardId], references: [id])
-  
-  // Histórico de pagamentos relacionados
   payments          Payment[]
-  
-  // Relacionamento com checkout sessions
   checkoutSessionId String?           @unique
   checkoutSession   CheckoutSession?  @relation(fields: [checkoutSessionId], references: [id])
-
-  // Relacionamento com uso de cupons
   couponUsageHistory CouponUsageHistory[]
 
   @@map("subscriptions")
   @@index([mpSubscriptionId])
   @@index([mpPreapprovalId])
   @@index([couponId])
-}
-
-// Enum para status de pagamento
-enum PaymentStatus {
-  PENDING           // Aguardando pagamento
-  APPROVED          // Pagamento aprovado
-  DECLINED          // Pagamento recusado
-  IN_PROCESS        // Em processamento
-  IN_MEDIATION      // Em mediação (disputa)
-  REFUNDED          // Pagamento reembolsado
-  PARTIALLY_REFUNDED // Parcialmente reembolsado
-  CHARGED_BACK      // Estornado
-  CANCELLED         // Cancelado
-  REJECTED          // Rejeitado
-  FAILED            // Falha no processamento
 }
 
 // Modelo para pagamentos
@@ -452,6 +619,7 @@ model Payment {
   refundAmount    Decimal?      @db.Decimal(10, 2) // Valor do reembolso
   refundReason    String?       // Motivo do reembolso
   
+  // Campos de auditoria
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   
@@ -492,39 +660,22 @@ model CheckoutSession {
   // Relacionamentos
   planId          String
   plan            SubscriptionPlan @relation(fields: [planId], references: [id])
-  
   paymentMethodId String
   paymentMethod   PaymentMethod @relation(fields: [paymentMethodId], references: [id])
-  
-  // Relacionamento com usuário (se já estiver logado)
   userId          String?
   user            User?       @relation(fields: [userId], references: [id])
-  
-  // Relacionamento com assinatura (após criação)
   subscription    Subscription?
-  
-  // Relacionamento com registro pendente (para usuários anônimos)
   pendingRegistrationId String? @unique
   pendingRegistration   PendingRegistration? @relation(fields: [pendingRegistrationId], references: [id])
-  
-  // Relacionamento com histórico de uso de cupom
   couponUsageHistory CouponUsageHistory[]
   
+  // Campos de auditoria
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@map("checkout_sessions")
   @@index([mpPreferenceId])
   @@index([couponId])
-}
-
-// Enum para status de registro pendente
-enum PendingRegistrationStatus {
-  WAITING_PAYMENT  // Aguardando pagamento
-  PAYMENT_APPROVED // Pagamento aprovado, pendente de conversão
-  PAYMENT_FAILED   // Pagamento falhou
-  CONVERTED        // Convertido em usuário
-  EXPIRED          // Expirado/abandonado
 }
 
 // Modelo para registros pendentes (usuários anônimos em processo de compra)
@@ -564,17 +715,12 @@ model PendingRegistration {
   // Relacionamentos
   planId           String    // Plano escolhido
   plan             SubscriptionPlan @relation(fields: [planId], references: [id])
-  
-  // Relacionamento com checkout session
   checkoutSession  CheckoutSession?
-  
-  // Relacionamento com o endereço
   address          Address?
-  
-  // Relacionamento com CompanyInfo (após conversão)
   companyInfoId    String?
   companyInfo      CompanyInfo? @relation(fields: [companyInfoId], references: [id])
   
+  // Campos de auditoria
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -594,6 +740,8 @@ model WebhookNotification {
   processedAt     DateTime? // Quando foi processado
   processStatus   String    @default("pending") // pending, success, failed
   error           String?   // Erro durante o processamento, se houver
+  
+  // Campos de auditoria
   createdAt       DateTime  @default(now())
 
   @@map("webhook_notifications")
@@ -601,21 +749,7 @@ model WebhookNotification {
   @@index([eventId])
 }
 
-// ============== MODELOS DE CUPONS DE DESCONTO ==============
-
-// Enum para tipos de desconto
-enum DiscountType {
-  PERCENTAGE      // Desconto percentual (%)
-  FIXED_AMOUNT    // Valor fixo (R$)
-}
-
-// Enum para status de cupom
-enum CouponStatus {
-  ACTIVE          // Cupom ativo
-  INACTIVE        // Cupom inativo
-  EXPIRED         // Cupom expirado
-  USAGE_LIMIT_REACHED // Limite de uso atingido
-}
+// ==================== MODELOS DE CUPONS DE DESCONTO ====================
 
 // Modelo para cupons de desconto
 model Coupon {
@@ -624,34 +758,34 @@ model Coupon {
   name              String      // Nome amigável do cupom
   description       String?     @db.Text // Descrição do cupom
   discountType      DiscountType // Tipo de desconto (percentual ou valor fixo)
-  discountValue     Decimal     @db.Decimal(10, 2) // Valor do desconto (10.00 para 10% ou R$10.00)
-  minPurchaseAmount Decimal?    @db.Decimal(10, 2) // Valor mínimo de compra para aplicar o cupom
-  maxDiscountAmount Decimal?    @db.Decimal(10, 2) // Valor máximo de desconto (para % ilimitado)
+  discountValue     Decimal     @db.Decimal(10, 2) // Valor do desconto
+  minPurchaseAmount Decimal?    @db.Decimal(10, 2) // Valor mínimo de compra
+  maxDiscountAmount Decimal?    @db.Decimal(10, 2) // Valor máximo de desconto
   startDate         DateTime    // Data de início da validade
   endDate           DateTime    // Data de fim da validade
   usageLimit        Int?        // Limite total de usos
   perUserLimit      Int?        // Limite de usos por usuário
   status            CouponStatus @default(ACTIVE)
-  customMessage     String?     @db.Text // Mensagem personalizada exibida ao usar o cupom
+  customMessage     String?     @db.Text // Mensagem personalizada
   
   // Restrições e configurações para aplicação do cupom
   appliesToAllPlans Boolean     @default(true) // Se aplica a todos os planos
   requiresUserAccount Boolean   @default(true) // Requer conta de usuário
-  userTypeLimitation UserType?  // Limita o tipo de usuário (null = todos os tipos)
+  userTypeLimitation UserType?  // Limita o tipo de usuário
   onlyFirstPurchase Boolean     @default(false) // Apenas primeira compra
-  billingIntervals  Json?       // Intervalos de cobrança permitidos (array de BillingInterval)
+  billingIntervals  Json?       // Intervalos de cobrança permitidos
   mpExternalId      String?     // ID externo do cupom no Mercado Pago
   
   // Estatísticas e rastreamento
   usageCount        Int         @default(0) // Contador de uso
-  totalDiscountAmount Decimal   @default(0) @db.Decimal(10, 2) // Valor total de descontos concedidos
+  totalDiscountAmount Decimal   @default(0) @db.Decimal(10, 2) // Total de descontos concedidos
   
   // Auditoria
   createdById       String      // ID do usuário que criou o cupom
   createdBy         User        @relation("couponCreator", fields: [createdById], references: [id])
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
-  deactivatedAt     DateTime?   // Data de desativação, se desativado
+  deactivatedAt     DateTime?   // Data de desativação
   
   // Relacionamentos
   subscriptions     Subscription[] // Assinaturas que usaram este cupom
@@ -667,7 +801,7 @@ model Coupon {
   @@index([createdAt])
 }
 
-// Modelo para restrições de planos por cupom (quando appliesToAllPlans = false)
+// Modelo para restrições de planos por cupom
 model CouponPlanRestriction {
   id              String    @id @default(uuid())
   
@@ -724,6 +858,8 @@ model AnalyticsReport {
   endDate         DateTime  // Data de fim do relatório
   reportData      Json      // Dados do relatório em formato JSON
   generatedBy     String?   // ID do usuário que gerou o relatório
+  
+  // Campos de auditoria
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -734,12 +870,6 @@ model AnalyticsReport {
 
 // ==================== ESTRUTURA DE AVA ====================
 
-// Enum de status padrão para todas as entidades
-enum Status {
-  ACTIVE
-  INACTIVE
-}
-
 // Categorias de cursos
 model CourseCategory {
   id          String   @id @default(uuid())
@@ -749,6 +879,8 @@ model CourseCategory {
   slug        String   @unique // URL amigável
   icon        String?  // Nome do ícone ou classe CSS
   displayOrder Int      @default(0) // Ordem de exibição
+  
+  // Campos de auditoria
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
@@ -770,6 +902,8 @@ model CourseType {
   name        String   @unique // Ex: GRATUITO, PAGO, PREMIUM, etc.
   description String?  @db.Text
   status      Status   @default(ACTIVE)
+  
+  // Campos de auditoria
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
@@ -790,6 +924,8 @@ model LessonType {
   name        String   @unique // VIDEO, TEXTO, QUIZ, etc.
   description String?  @db.Text
   status      Status   @default(ACTIVE)
+  
+  // Campos de auditoria
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
@@ -807,6 +943,8 @@ model ExamType {
   name        String   @unique // ONLINE, PRESENCIAL, etc.
   description String?  @db.Text
   status      Status   @default(ACTIVE)
+  
+  // Campos de auditoria
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
@@ -824,6 +962,8 @@ model CourseArea {
   slug        String   @unique // URL amigável
   icon        String?  // Nome do ícone ou classe CSS
   displayOrder Int      @default(0) // Ordem de exibição
+  
+  // Campos de auditoria
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
@@ -835,7 +975,7 @@ model CourseArea {
   @@map("course_areas")
 }
 
-// ==================== ESTRUTURA COMPLETA DE CURSOS ====================
+// ==================== MODELOS DE CURSOS ====================
 
 // Modelo de Curso
 model Course {
@@ -843,21 +983,15 @@ model Course {
   title             String      // Título do curso
   description       String?     @db.Text // Descrição do curso
   slug              String      @unique // URL amigável
-  thumbnailUrl      String?     // Capa do curso (991x592 png ou jpg)
+  thumbnailUrl      String?     // Capa do curso
   
-  // Coordenador (vínculo com usuário do setor pedagógico)
+  // Relações de classificação
   coordinatorId     String
   coordinator       User        @relation("courseCoordinator", fields: [coordinatorId], references: [id])
-  
-  // Modalidade (presencial, online, etc.)
   modalityId        String
   modality          CourseModality @relation(fields: [modalityId], references: [id])
-  
-  // Categoria/Área de conhecimento
   categoryId        String
   category          CourseCategory @relation(fields: [categoryId], references: [id])
-  
-  // Tipo (gratuito, pago)
   typeId            String
   type              CourseType @relation(fields: [typeId], references: [id])
   
@@ -866,16 +1000,12 @@ model Course {
   startDate         DateTime    // Data de início das aulas
   accessPeriod      Int         // Período de acesso em dias
   supportPeriod     Int?        // Período de suporte em dias (opcional)
-  
-  // Informações financeiras (para cursos pagos)
   price             Decimal?    @db.Decimal(10, 2) // Preço do curso
   
   // Status do curso
   status            Status      @default(ACTIVE)
   isPublished       Boolean     @default(false)
   isHighlighted     Boolean     @default(false) // Destaque na plataforma
-  
-  // Metadados
   videoUrl          String?     // URL do vídeo de apresentação
   
   // Campos de auditoria
@@ -884,7 +1014,7 @@ model Course {
   createdById       String?
   updatedById       String?
   
-  // Novos campos para critérios de conclusão e certificado
+  // Campos para critérios de conclusão
   completionCriteria CompletionCriteria @default(MODULE_COMPLETION)
   certificateTemplateId String?
   certificateTemplate CertificateTemplate? @relation(fields: [certificateTemplateId], references: [id])
@@ -900,10 +1030,8 @@ model Course {
   enrollments       Enrollment[] // Matrículas de alunos
   products          CourseProduct[] // Produtos vinculados
   questionBanks     QuestionBank[] // Bancos de questões
-
-  // Relações para provas e notas
-  exams             Exam[]
-  studentGrades     StudentGrade[]
+  exams             Exam[] // Provas
+  studentGrades     StudentGrade[] // Notas dos alunos
 
   @@map("courses")
   @@index([categoryId])
@@ -919,13 +1047,11 @@ model CourseProfessor {
   // Relacionamentos
   courseId          String
   course            Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
   professorId       String
   professor         User        @relation(fields: [professorId], references: [id])
   
-  // Tipo de colaborador (Professor ou Tutor)
+  // Tipo de colaborador
   collaboratorType  CollaboratorType @default(PROFESSOR)
-  
   isMain            Boolean     @default(false)
   
   // Estatísticas
@@ -938,12 +1064,6 @@ model CourseProfessor {
   
   @@unique([courseId, professorId])
   @@map("course_professors")
-}
-
-// Tipos de colaborador
-enum CollaboratorType {
-  PROFESSOR
-  TUTOR
 }
 
 // Relacionamento entre curso e produto
@@ -967,26 +1087,19 @@ model CourseProduct {
   @@map("course_products")
 }
 
-// Tipos de produto
-enum ProductType {
-  CURSO
-  COMBO
-  ASSINATURA
-}
-
 // Modelo de modalidade de curso
 model CourseModality {
   id                String      @id @default(uuid())
   name              String      @unique // ONLINE, PRESENCIAL, HIBRIDO, LIVE
   description       String?     @db.Text
   status            Status      @default(ACTIVE)
+  
+  // Campos de auditoria
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   
   // Relacionamentos
   courses           Course[]
-  
-  // Relacionamento com templates de certificado
   certificateTemplates CertificateTemplateCourseType[]
   
   @@map("course_modalities")
@@ -1007,16 +1120,14 @@ model CourseModule {
   professorId       String?
   
   // Controle de acesso
-  isRequired        Boolean     @default(false)  // Se o módulo é requisito para avançar
-  releaseType       ReleaseType @default(IMMEDIATE) // Tipo de liberação do módulo
-  releaseDate       DateTime?   // Data de liberação se for data fixa
+  isRequired        Boolean     @default(false)  // Se o módulo é requisito
+  releaseType       ReleaseType @default(IMMEDIATE) // Tipo de liberação
+  releaseDate       DateTime?   // Data de liberação fixa
   releaseDays       Int?        // Dias após inscrição para liberar
   accessExpiration  Int?        // Dias para expirar o acesso após conclusão
   
-  // Status
+  // Status e metadados
   status            Status      @default(ACTIVE)
-  
-  // Carga horária do módulo
   workload          Int?        // Em minutos
   
   // Campos de auditoria
@@ -1027,19 +1138,10 @@ model CourseModule {
   
   // Relacionamentos
   lessons           Lesson[]
-
-  // Relação para provas vinculadas ao módulo
   exams             Exam[]
   
-  @@map("course_modules")
   @@unique([courseId, order])
-}
-
-// Tipo de liberação para módulos e aulas
-enum ReleaseType {
-  IMMEDIATE         // Liberação imediata
-  FIXED_DATE        // Data específica
-  DAYS_AFTER        // Dias após matrícula/conclusão da aula anterior
+  @@map("course_modules")
 }
 
 // Modelo de aula
@@ -1050,29 +1152,23 @@ model Lesson {
   order             Int           // Ordem de exibição
   duration          Int?          // Duração em minutos
   
-  // Relacionamento com módulo
+  // Relacionamentos
   moduleId          String
   module            CourseModule  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  
-  // Relacionamento com professor
   professorId       String
   professor         User          @relation(fields: [professorId], references: [id])
-  
-  // Relacionamento com tipo de aula
   typeId            String
   type              LessonType    @relation(fields: [typeId], references: [id])
   
-  // Tipo de conteúdo específico
+  // Tipo e conteúdo
   contentType       ContentType   // Tipo específico de conteúdo
-  
-  // Conteúdo da aula (baseado no tipo)
   content           Json?         // Conteúdo estruturado baseado no tipo
   videoUrl          String?       // URL do vídeo (para tipo VIDEO)
-  textContent       String?       @db.Text // Conteúdo em texto (para tipo TEXTO)
+  textContent       String?       @db.Text // Conteúdo em texto
   attachments       Json?         // Lista de anexos
-  liveDate          DateTime?     // Data da aula ao vivo (para tipo LIVE)
-  liveUrl           String?       // URL da transmissão (para LIVE)
-  liveKey           String?       // Chave de transmissão (para LIVE)
+  liveDate          DateTime?     // Data da aula ao vivo
+  liveUrl           String?       // URL da transmissão
+  liveKey           String?       // Chave de transmissão
   
   // Controle de acesso
   isRequired        Boolean       @default(false) // Se é uma aula requisito
@@ -1080,15 +1176,15 @@ model Lesson {
   releaseType       ReleaseType   @default(IMMEDIATE) // Como a aula é liberada
   releaseDate       DateTime?     // Data específica para liberação
   releaseDays       Int?          // Dias para liberar após aula anterior
-  requiredTime      Int?          // Tempo mínimo de permanência (em segundos)
+  requiredTime      Int?          // Tempo mínimo de permanência
   maxViews          Int?          // Número máximo de visualizações
   pauseCount        Int?          // Número de pausas durante o vídeo
-  showIdentification Boolean      @default(false) // Mostrar identificação do aluno como marca d'água
+  showIdentification Boolean      @default(false) // Mostrar identificação como marca d'água
   
   // Status e configurações
-  status            Status        @default(ACTIVE) // Status geral de ativação
-  publishStatus     PublishStatus @default(DRAFT) // Status de publicação (novo campo)
-  notifyStudents    Boolean       @default(false) // Notificar alunos quando publicada
+  status            Status        @default(ACTIVE) // Status geral
+  publishStatus     PublishStatus @default(DRAFT) // Status de publicação
+  notifyStudents    Boolean       @default(false) // Notificar alunos
   
   // Campos de auditoria
   createdAt         DateTime      @default(now())
@@ -1100,33 +1196,12 @@ model Lesson {
   completedBy       CompletedLesson[]
   files             LessonFile[]
   examQuestions     ExamQuestion[]
-  
-  // Relacionamento com banco de questões (para lições do tipo quiz)
   questionBankId    String?
   questionBank      QuestionBank? @relation(fields: [questionBankId], references: [id])
-
-  //Adicionar este relacionamento
   notifications     LessonNotification[]
 
   @@map("lessons")
   @@unique([moduleId, order])
-}
-
-// Tipo de conteúdo específico da aula
-enum ContentType {
-  VIDEO               // Vídeo gravado
-  LIBRARY             // Conteúdo da biblioteca
-  UPLOAD              // Arquivo para upload (PDF, etc)
-  EAD_PLAYER          // Player de vídeo da plataforma
-  VIDEO_URL           // Link de vídeo externo (Youtube, etc)
-  LIVE                // Aula ao vivo
-  EAD_MEET            // Conferência
-  PODCAST             // Áudio/Podcast
-  EMBED               // Código incorporado
-  HTML_EDITOR         // Editor HTML
-  TEXT                // Texto formatado
-  FILE                // Arquivo para download
-  QUIZ                // Questionário/Quiz
 }
 
 // Modelo de arquivo da aula
@@ -1163,7 +1238,6 @@ model CompletedLesson {
   // Relacionamentos
   enrollmentId      String
   enrollment        Enrollment  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  
   lessonId          String
   lesson            Lesson      @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   
@@ -1173,8 +1247,6 @@ model CompletedLesson {
   viewCount         Int         @default(1) // Número de visualizações
   lastViewAt        DateTime    @default(now()) // Última visualização
   progress          Int         @default(100) // Progresso em porcentagem
-  
-  // Informações de avaliação
   score             Int?        // Pontuação obtida (se aplicável)
   
   @@unique([enrollmentId, lessonId])
@@ -1188,7 +1260,6 @@ model Enrollment {
   // Relacionamentos
   userId            String
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   courseId          String
   course            Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
   
@@ -1199,20 +1270,20 @@ model Enrollment {
   
   // Status e progresso
   status            EnrollmentStatus @default(ACTIVE)
-  progress          Int         @default(0) // Progresso em percentual (0-100)
+  progress          Int         @default(0) // Progresso em percentual
   lastAccess        DateTime?   // Último acesso ao curso
   completedLessons  Int         @default(0) // Número de aulas concluídas
   totalLessons      Int         @default(0) // Total de aulas do curso
   
   // Dados financeiros
-  paymentId         String?     // ID do pagamento relacionado (se aplicável)
+  paymentId         String?     // ID do pagamento relacionado
   price             Decimal?    @db.Decimal(10, 2) // Preço pago
   
   // Campos de auditoria
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   
-  // Outros relacionamentos
+  // Relacionamentos
   completedLessonsRel CompletedLesson[]
   certificates      Certificate[]
   
@@ -1221,14 +1292,7 @@ model Enrollment {
   @@index([status])
 }
 
-// Status de matrícula
-enum EnrollmentStatus {
-  ACTIVE            // Matrícula ativa
-  COMPLETED         // Curso concluído
-  EXPIRED           // Acesso expirado
-  CANCELED          // Matrícula cancelada
-  PENDING_PAYMENT   // Aguardando pagamento
-}
+// ==================== MODELOS DE AVALIAÇÃO ====================
 
 // Modelo para questões de exame/avaliação
 model ExamQuestion {
@@ -1248,8 +1312,6 @@ model ExamQuestion {
   
   // Relacionamentos
   answers           ExamAnswer[]
-
-  // Relações para provas e respostas de tentativas
   examRelations     ExamQuestionRelation[]
   attemptAnswers    ExamAttemptAnswer[]
   
@@ -1262,7 +1324,6 @@ model ExamAnswer {
   
   questionId        String
   question          ExamQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  
   userId            String
   user              User        @relation(fields: [userId], references: [id])
   userAnswer        String      @db.Text
@@ -1275,26 +1336,6 @@ model ExamAnswer {
   
   @@map("exam_answers")
   @@unique([questionId, userId])
-}
-
-// ==================== MODELOS DE CERTIFICADOS ====================
-
-// Enum para definir os critérios de conclusão do curso
-enum CompletionCriteria {
-  EXAM_ONLY          // Apenas prova final
-  INTERNSHIP_ONLY    // Apenas estágio
-  EXAM_AND_INTERNSHIP // Ambos (prova e estágio)
-  ATTENDANCE_ONLY    // Apenas presença/participação
-  MODULE_COMPLETION  // Conclusão de todos os módulos
-  CUSTOM            // Critério personalizado
-}
-
-// Enum para status do certificado
-enum CertificateStatus {
-  PENDING           // Pendente de emissão
-  ISSUED            // Emitido
-  REVOKED           // Revogado
-  EXPIRED           // Expirado
 }
 
 // Modelo para templates de certificado
@@ -1312,12 +1353,12 @@ model CertificateTemplate {
   
   // Regras para emissão
   requiredCompletion CompletionCriteria @default(MODULE_COMPLETION)
-  customRequirements String?   @db.Text  // Requisitos personalizados (se CUSTOM)
-  minAttendancePercentage Int? // % mínimo de presença (se aplicável)
-  minGrade          Decimal?  @db.Decimal(5, 2) // Nota mínima (se aplicável)
+  customRequirements String?   @db.Text  // Requisitos personalizados
+  minAttendancePercentage Int? // % mínimo de presença
+  minGrade          Decimal?  @db.Decimal(5, 2) // Nota mínima
   
-  // Campos dinâmicos e variáveis disponíveis
-  availableFields   Json      // Campos que podem ser usados no template
+  // Campos dinâmicos e variáveis
+  availableFields   Json      // Campos disponíveis no template
   
   // Status do template
   isDefault         Boolean   @default(false) // Se é o template padrão
@@ -1326,7 +1367,7 @@ model CertificateTemplate {
   // Relacionamentos
   certificates      Certificate[]
   courses           Course[]
-  courseTypes       CertificateTemplateCourseType[] // Relação com tipos de curso
+  courseTypes       CertificateTemplateCourseType[]
   
   // Auditoria
   createdAt         DateTime  @default(now())
@@ -1346,11 +1387,8 @@ model CertificateTemplateCourseType {
   // Relacionamentos
   templateId        String
   template          CertificateTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  
   courseTypeId      String
   courseType        CourseType @relation(fields: [courseTypeId], references: [id], onDelete: Cascade)
-  
-  // Para que modalidades este template se aplica
   modalityId        String?
   modality          CourseModality? @relation(fields: [modalityId], references: [id])
   
@@ -1365,32 +1403,31 @@ model Certificate {
   enrollmentId      String
   enrollment        Enrollment  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   
-  // Campos de modelo/template
+  // Template
   templateId        String?
   template          CertificateTemplate? @relation(fields: [templateId], references: [id])
   
-  // Status do certificado
+  // Status e identificação
   status            CertificateStatus @default(PENDING)
-  
   certificateCode   String      @unique // Código único do certificado
   certificateUrl    String?     // URL para download do certificado
   completionDate    DateTime    // Data de conclusão
-  issueDate         DateTime?   // Data de emissão (quando foi gerado)
-  expirationDate    DateTime?   // Data de expiração (se aplicável)
+  issueDate         DateTime?   // Data de emissão
+  expirationDate    DateTime?   // Data de expiração
   
-  // Metadados do certificado
+  // Metadados
   finalGrade        Decimal?    @db.Decimal(5, 2) // Nota final
   attendancePercentage Int?     // Percentual de presença
   internshipCompleted Boolean?  // Se completou estágio
   internshipHours   Int?        // Horas de estágio realizadas
   completionCriteriaMet String? @db.Text // Como os critérios foram atendidos
   
-  // Dados do emissor
+  // Emissor
   issuedById        String?
   issuedBy          User?       @relation("certificateIssuer", fields: [issuedById], references: [id])
   
   // Assinaturas
-  signatures        Json?       // Lista de assinaturas (nome, cargo, assinatura)
+  signatures        Json?       // Lista de assinaturas
   
   // Auditoria
   createdAt         DateTime    @default(now())
@@ -1399,28 +1436,7 @@ model Certificate {
   @@map("certificates")
 }
 
-// ==================== ESTRUTURA DE BANCO DE QUESTÕES ====================
-
-// Enum para tipos de questão
-enum QuestionType {
-  MULTIPLA_ESCOLHA     // Múltipla escolha (apenas uma resposta correta)
-  MULTIPLA_SELECAO     // Múltipla seleção (várias respostas corretas)
-  VERDADEIRO_FALSO     // Verdadeiro ou falso
-  DISSERTATIVA         // Questão dissertativa (resposta aberta)
-  ORDENACAO            // Ordenação de itens
-  ASSOCIACAO           // Associação de colunas
-  COMPLETAR_LACUNAS    // Completar espaços em branco
-  NUMERICA             // Resposta numérica
-}
-
-// Enum para nível de dificuldade da questão
-enum DifficultyLevel {
-  MUITO_FACIL
-  FACIL
-  MEDIO
-  DIFICIL
-  MUITO_DIFICIL
-}
+// ==================== BANCO DE QUESTÕES ====================
 
 // Modelo para banco de questões
 model QuestionBank {
@@ -1463,7 +1479,7 @@ model Question {
   // Conteúdo específico baseado no tipo
   options           Json?           // Opções para múltipla escolha/seleção
   correctAnswer     Json?           // Resposta(s) correta(s)
-  solution          String?         @db.Text  // Explicação da resposta correta (gabarito)
+  solution          String?         @db.Text  // Explicação da resposta
   
   // Metadados e configuração
   tags              String?         // Tags para categorização
@@ -1484,8 +1500,6 @@ model Question {
   
   // Relacionamentos
   answers           QuestionAnswer[]
-
-  // Relações para provas e respostas de tentativas
   examRelations     ExamQuestionRelation[]
   attemptAnswers    ExamAttemptAnswer[]
 
@@ -1503,13 +1517,12 @@ model QuestionAnswer {
   // Relacionamentos
   questionId        String
   question          Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  
   userId            String
   user              User        @relation(fields: [userId], references: [id])
   
   // Dados da resposta
-  answer            Json        // Resposta do aluno (formato depende do tipo de questão)
-  isCorrect         Boolean?    // Se a resposta está correta (null se ainda não avaliada)
+  answer            Json        // Resposta do aluno
+  isCorrect         Boolean?    // Se a resposta está correta
   score             Int?        // Pontuação obtida
   attemptTime       Int?        // Tempo gasto em segundos
   
@@ -1526,31 +1539,16 @@ model QuestionAnswer {
   @@index([isCorrect])
 }
 
-// ==================== ESTRUTURA DE PROVAS E AVALIAÇÕES ====================
-
-// Enum para tipo de liberação de prova
-enum ExamReleaseType {
-  IMMEDIATELY        // Liberação imediata após aulas anteriores
-  SPECIFIC_DATE      // Data específica
-  FLEXIBLE_PERIOD    // Período após concluir aula anterior
-}
-
-// Enum para ordem das questões
-enum QuestionOrder {
-  SEQUENTIAL         // Ordem sequencial fixa
-  RANDOM             // Ordem aleatória
-}
-
 // Modelo para provas
 model Exam {
   id                String        @id @default(uuid())
   title             String        // Título da prova
   description       String?       @db.Text
-  weight            Int           @default(1)  // Peso da prova (1-10)
-  passingPercentage Int           @default(60) // Porcentagem mínima para aprovação (ex: 60%)
-  duration          Int?          // Duração em minutos (opcional)
-  trackDispersion   Boolean       @default(false) // Contabilizar dispersão do aluno
-  notifyStudents    Boolean       @default(false) // Notificar alunos sobre a prova
+  weight            Int           @default(1)  // Peso da prova
+  passingPercentage Int           @default(60) // Porcentagem mínima para aprovação
+  duration          Int?          // Duração em minutos
+  trackDispersion   Boolean       @default(false) // Contabilizar dispersão
+  notifyStudents    Boolean       @default(false) // Notificar alunos
   
   // Configurações de liberação
   releaseType       ExamReleaseType @default(IMMEDIATELY)
@@ -1571,11 +1569,9 @@ model Exam {
   questionOrder     QuestionOrder @default(SEQUENTIAL)
   totalQuestions    Int           @default(0) // Total de questões na prova
   
-  // Relacionamento com curso
+  // Relacionamentos
   courseId          String
   course            Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
-  // Relacionamento com módulo (opcional)
   moduleId          String?
   module            CourseModule? @relation(fields: [moduleId], references: [id])
   
@@ -1597,7 +1593,7 @@ model Exam {
   @@index([moduleId])
 }
 
-// Relação entre exame e questões (permite selecionar questões de bancos diferentes)
+// Relação entre exame e questões
 model ExamQuestionRelation {
   id                String      @id @default(uuid())
   
@@ -1606,17 +1602,14 @@ model ExamQuestionRelation {
   exam              Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
   
   // A questão pode vir de:
-  // 1. Uma questão do banco de questões
   questionId        String?
   question          Question?   @relation(fields: [questionId], references: [id])
-  
-  // 2. Uma questão específica para esta prova
   examQuestionId    String?
   examQuestion      ExamQuestion? @relation(fields: [examQuestionId], references: [id])
   
-  // Informações da questão na prova
+  // Metadados da questão
   order             Int         // Ordem da questão na prova
-  points            Int         @default(1) // Pontuação específica para esta prova
+  points            Int         @default(1) // Pontuação específica
   
   // Campos de auditoria
   createdAt         DateTime    @default(now())
@@ -1633,7 +1626,6 @@ model ExamAttempt {
   // Relacionamentos
   examId            String
   exam              Exam        @relation(fields: [examId], references: [id], onDelete: Cascade)
-  
   userId            String
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   
@@ -1641,16 +1633,16 @@ model ExamAttempt {
   startedAt         DateTime    @default(now())
   completedAt       DateTime?
   isCompleted       Boolean     @default(false)
-  score             Decimal?    @db.Decimal(5, 2) // Pontuação obtida (ex: 8.5)
+  score             Decimal?    @db.Decimal(5, 2) // Pontuação obtida
   percentageScore   Decimal?    @db.Decimal(5, 2) // Porcentagem de acerto
   duration          Int?        // Tempo gasto em segundos
   attempt           Int         @default(1) // Número da tentativa
   passed            Boolean?    // Se passou na prova
   
   // Monitoramento de comportamento
-  dispersionCount   Int         @default(0) // Contagem de saídas durante a prova
-  dispersionTime    Int         @default(0) // Tempo total fora da prova em segundos
-  dispersionEvents  Json?       // Eventos de dispersão (timestamps)
+  dispersionCount   Int         @default(0) // Contagem de saídas
+  dispersionTime    Int         @default(0) // Tempo total fora da prova
+  dispersionEvents  Json?       // Eventos de dispersão
   
   // Campos de auditoria
   createdAt         DateTime    @default(now())
@@ -1670,26 +1662,21 @@ model ExamAttempt {
 model ExamAttemptAnswer {
   id                String      @id @default(uuid())
   
-  // Relacionamento com tentativa
+  // Relacionamentos
   attemptId         String
   attempt           ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  
-  // A resposta pode ser para:
-  // 1. Uma questão do banco de questões
   questionId        String?
   question          Question?   @relation(fields: [questionId], references: [id])
-  
-  // 2. Uma questão específica para esta prova
   examQuestionId    String?
   examQuestion      ExamQuestion? @relation(fields: [examQuestionId], references: [id])
   
-  // Relação com o usuário que deu a resposta (campo que faltava)
+  // Relação com o usuário
   userId            String
   user              User        @relation(fields: [userId], references: [id])
   
   // Dados da resposta
-  answer            Json        // Resposta do aluno (formato depende do tipo de questão)
-  isCorrect         Boolean?    // Se a resposta está correta (null para dissertativa)
+  answer            Json        // Resposta do aluno
+  isCorrect         Boolean?    // Se a resposta está correta
   score             Decimal?    @db.Decimal(5, 2) // Pontuação obtida
   
   // Avaliação (para questões dissertativas)
@@ -1712,14 +1699,12 @@ model StudentGrade {
   // Relacionamentos
   userId            String
   user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   courseId          String
   course            Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
   examId            String?
   exam              Exam?       @relation(fields: [examId], references: [id])
   
-  // Relacionamento com tentativa específica de prova
+  // Relacionamento com tentativa específica
   attemptId         String?     @unique
   attempt           ExamAttempt? @relation(fields: [attemptId], references: [id])
   
@@ -1730,10 +1715,8 @@ model StudentGrade {
   passingScore      Decimal?    @db.Decimal(5, 2) // Nota para aprovação
   passed            Boolean     // Se passou nesta avaliação
   
-  // Opcional: data de quando a nota foi obtida
+  // Dados adicionais
   gradedAt          DateTime    @default(now())
-  
-  // Opcional: comentário ou observação do professor
   comment           String?     @db.Text
   
   @@unique([userId, courseId, examId])
@@ -1741,11 +1724,7 @@ model StudentGrade {
   @@index([userId, courseId])
 }
 
-// Status de publicação de conteúdo
-enum PublishStatus {
-  DRAFT             // Rascunho
-  PUBLISHED         // Publicado
-}
+// ==================== NOTIFICAÇÕES ====================
 
 // Modelo para notificações de aulas
 model LessonNotification {
@@ -1782,11 +1761,9 @@ model LessonNotification {
 model UserNotification {
   id                String    @id @default(uuid())
   
-  // Relacionamento com a notificação
+  // Relacionamentos
   notificationId    String
   notification      LessonNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  
-  // Relacionamento com o usuário
   userId            String
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
@@ -1805,82 +1782,33 @@ model UserNotification {
 
 // ==================== SISTEMA DE VAGAS E RECRUTAMENTO ====================
 
-// Enum para níveis de experiência
-enum ExperienceLevel {
-  ESTAGIO
-  JUNIOR
-  PLENO
-  SENIOR
-  ESPECIALISTA
-  GERENTE
-  DIRETOR
-}
-
-// Enum para tipos de contratação
-enum HiringType {
-  CLT
-  PJ
-  ESTAGIO
-  TEMPORARIO
-  FREELANCER
-}
-
-// Enum para status da vaga
-enum JobStatus {
-  DRAFT              // Rascunho
-  PENDING_APPROVAL   // Aguardando aprovação do recrutador
-  REJECTED           // Rejeitada pelo recrutador
-  PUBLISHED          // Publicada e ativa
-  PAUSED             // Pausada temporariamente
-  CLOSED             // Fechada (prazo expirou ou atingiu limite de candidaturas)
-  FILLED             // Preenchida
-  CANCELLED          // Cancelada
-}
-
-// Enum para status da candidatura
-enum ApplicationStatus {
-  SUBMITTED          // Enviada
-  UNDER_REVIEW       // Em análise
-  INTERVIEW_SCHEDULED // Entrevista agendada
-  TECHNICAL_TEST     // Teste técnico
-  FINAL_INTERVIEW    // Entrevista final
-  OFFER_EXTENDED     // Proposta enviada
-  HIRED              // Contratado
-  REJECTED           // Rejeitado
-  CANCELLED          // Cancelado pelo candidato
-}
-
 // Modelo para vagas
 model JobOffer {
   id                String          @id @default(uuid())
   title             String          // Título/Nome da vaga
   description       String          @db.Text // Descrição detalhada da vaga
-  location          String          // Localização da vaga (cidade/estado ou remoto)
+  location          String          // Localização da vaga
   experienceLevel   ExperienceLevel // Nível de experiência requerido
   hiringType        HiringType      // Tipo de contratação
-  isConfidential    Boolean         @default(false) // Se a vaga é confidencial (nome da empresa oculto)
+  isConfidential    Boolean         @default(false) // Nome da empresa oculto
   
   // Datas e prazos
   startDate         DateTime        // Data de início da publicação
   endDate           DateTime        // Data de término da publicação
   
   // Limites e contadores
-  maxApplications   Int?            // Limite de candidaturas (null = ilimitado)
-  applicationCount  Int             @default(0) // Contador de candidaturas recebidas
+  maxApplications   Int?            // Limite de candidaturas
+  applicationCount  Int             @default(0) // Contador de candidaturas
   
   // Status e controle
   status            JobStatus       @default(DRAFT) // Status atual da vaga
-  rejectionReason   String?         @db.Text // Motivo da rejeição, se rejeitada
-  
-  // Relacionamento com empresa que publicou a vaga
-  companyId         String
-  company           User            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  
-  // Relacionamento com o recrutador que aprovou/rejeitou a vaga
-  reviewerId        String?
-  reviewer          User?           @relation("jobReviewer", fields: [reviewerId], references: [id])
+  rejectionReason   String?         @db.Text // Motivo da rejeição
   
   // Relacionamentos
+  companyId         String
+  company           User            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reviewerId        String?
+  reviewer          User?           @relation("jobReviewer", fields: [reviewerId], references: [id])
   revisions         JobRevision[]
   applications      JobApplication[]
   
@@ -1895,19 +1823,17 @@ model JobOffer {
   @@index([hiringType])
 }
 
-// Histórico de revisões de vagas (auditoria)
+// Histórico de revisões de vagas
 model JobRevision {
   id                String    @id @default(uuid())
   
-  // Relacionamento com a vaga
+  // Relacionamentos
   jobOfferId        String
   jobOffer          JobOffer  @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
-  
-  // Quem fez a revisão
   revisorId         String
   revisor           User      @relation(fields: [revisorId], references: [id])
   
-  // O que foi alterado
+  // Dados da revisão
   changesJson       Json      // Alterações realizadas em formato JSON
   
   // Campos de auditoria
@@ -1921,7 +1847,7 @@ model JobRevision {
 model Resume {
   id                String    @id @default(uuid())
   
-  // Relacionamento com o usuário (aluno)
+  // Relacionamento com o usuário
   userId            String    @unique
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
@@ -1933,8 +1859,8 @@ model Resume {
   resumeUrl         String?   // URL do currículo em PDF/DOCX
   resumeFilename    String?   // Nome do arquivo
   
-  // Campos de visibilidade
-  isPublic          Boolean   @default(false) // Se o currículo é público para empresas
+  // Visibilidade
+  isPublic          Boolean   @default(false) // Se o currículo é público
   
   // Campos de auditoria
   createdAt         DateTime  @default(now())
@@ -2004,16 +1930,14 @@ model JobApplication {
   // Relacionamentos
   jobOfferId        String
   jobOffer          JobOffer  @relation(fields: [jobOfferId], references: [id], onDelete: Cascade)
-  
   userId            String    // Candidato
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   resumeId          String
   resume            Resume    @relation(fields: [resumeId], references: [id], onDelete: Restrict)
   
   // Status e acompanhamento
   status            ApplicationStatus @default(SUBMITTED)
-  notes             String?   @db.Text // Notas internas (visíveis apenas para a empresa)
+  notes             String?   @db.Text // Notas internas
   
   // Campos de auditoria
   appliedAt         DateTime  @default(now())
@@ -2023,26 +1947,24 @@ model JobApplication {
   interviews        JobInterview[]
   statusHistory     ApplicationStatusHistory[]
 
-  @@unique([jobOfferId, userId]) // Um usuário só pode se candidatar uma vez para cada vaga
+  @@unique([jobOfferId, userId]) // Um usuário só pode se candidatar uma vez
   @@map("job_applications")
   @@index([userId])
   @@index([jobOfferId])
   @@index([status])
 }
 
-// Histórico de mudanças de status (para auditoria)
+// Histórico de mudanças de status
 model ApplicationStatusHistory {
   id                String    @id @default(uuid())
   
-  // Relacionamento com a candidatura
+  // Relacionamentos
   applicationId     String
   application       JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  
-  // Quem alterou o status
   changedById       String
   changedBy         User      @relation(fields: [changedById], references: [id])
   
-  // O que foi alterado
+  // Dados da alteração
   previousStatus    ApplicationStatus
   newStatus         ApplicationStatus
   notes             String?   @db.Text
@@ -2067,7 +1989,7 @@ model JobInterview {
   duration          Int       // Duração em minutos
   location          String?   // Local físico (se aplicável)
   meetingUrl        String?   // URL da reunião virtual
-  meetingType       String?   // Tipo de reunião (Google Meet, Zoom, etc)
+  meetingType       String?   // Tipo de reunião (Meet, Zoom, etc)
   notes             String?   @db.Text
   
   // Status
