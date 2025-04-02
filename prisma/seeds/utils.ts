@@ -1,10 +1,13 @@
 import {
+  Certificate,
+  CertificateTemplate,
   Coupon,
   Course,
   CourseArea,
   CourseCategory,
   CourseModality,
   CourseType,
+  Enrollment,
   Exam,
   ExamType,
   LessonType,
@@ -48,23 +51,85 @@ export interface SeedContext {
   questionBanks?: QuestionBank[];
   exams?: Exam[];
 
+  // Domínio de certificados
+  certificateTemplates?: CertificateTemplate[];
+  certificates?: Certificate[];
+  coursesWithCertificateCriteria?: Course[];
+
   // Adiciona suporte para propriedades dinâmicas
   [key: string]: any;
 }
 
 /**
- * Cria um slug a partir de um nome
- * @param name Nome para converter em slug
- * @returns Slug em formato URL-friendly
+ * Utilitários para manipulação de strings
  */
-export function createSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s]/g, "")
-    .replace(/\s+/g, "-");
-}
+export const StringUtils = {
+  /**
+   * Cria um slug a partir de um nome
+   * @param name Nome para converter em slug
+   * @returns Slug em formato URL-friendly
+   */
+  createSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+      .replace(/[^\w\s]/g, "") // Remove caracteres especiais
+      .replace(/\s+/g, "-") // Substitui espaços por hífens
+      .replace(/-+/g, "-"); // Remove hífens duplicados
+  },
+
+  /**
+   * Formata uma data no formato AAAAMMDD
+   * @param date Data a ser formatada
+   * @returns String no formato AAAAMMDD
+   */
+  formatDateYYYYMMDD(date: Date = new Date()): string {
+    return date.toISOString().slice(0, 10).replace(/-/g, "");
+  },
+};
+
+/**
+ * Utilitários para a geração de códigos únicos
+ */
+export const CodeGenerator = {
+  /**
+   * Gera um código único para certificado baseado em dados da matrícula
+   * @param enrollment Matrícula do aluno
+   * @param prefix Prefixo para o código (padrão: CERT)
+   * @returns Código único no formato PREFIX-AAAAMMDD-XXXX-YYYY-ZZZZZZ
+   */
+  generateCertificateCode(
+    enrollment: Enrollment,
+    prefix: string = "CERT"
+  ): string {
+    // Extrai partes para compor o código
+    const timestamp = new Date().getTime().toString().slice(-6);
+    const userId = enrollment.userId.slice(0, 4);
+    const courseId = enrollment.courseId.slice(0, 4);
+    const dateStr = StringUtils.formatDateYYYYMMDD();
+
+    // Formato: CERT-AAAAMMDD-XXXX-YYYY-ZZZZZZ
+    return `${prefix}-${dateStr}-${userId}-${courseId}-${timestamp}`;
+  },
+
+  /**
+   * Gera um código de rastreamento aleatório para diversos fins
+   * @param prefix Prefixo do código (padrão: TRK)
+   * @param length Tamanho do código (padrão: 10)
+   * @returns Código alfanumérico único
+   */
+  generateTrackingCode(prefix: string = "TRK", length: number = 10): string {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let result = "";
+
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    return `${prefix}-${result}`;
+  },
+};
 
 /**
  * Verifica requisitos no contexto e lança erro se não estiverem presentes
@@ -77,12 +142,15 @@ export function verifyContextRequirements(
   requirements: (keyof SeedContext)[],
   seedName: string
 ): void {
-  for (const req of requirements) {
-    if (!context[req]) {
-      throw new Error(
-        `${req} não encontrado no contexto. Execute os seeds correspondentes antes de ${seedName}.`
-      );
-    }
+  const missingRequirements = requirements.filter((req) => !context[req]);
+
+  if (missingRequirements.length > 0) {
+    throw new Error(
+      `Requisitos não encontrados no contexto para ${seedName}: ${missingRequirements.join(
+        ", "
+      )}. 
+      Execute os seeds correspondentes antes.`
+    );
   }
 }
 
@@ -101,6 +169,7 @@ export async function upsertEntities<T, D>(
   continueOnError: boolean = true
 ): Promise<T[]> {
   const createdItems: T[] = [];
+  const errors: { item: D; error: any }[] = [];
 
   for (const item of items) {
     try {
@@ -109,10 +178,19 @@ export async function upsertEntities<T, D>(
       createdItems.push(createdItem);
     } catch (error) {
       console.error(`Erro ao criar ${entityName}:`, error);
+      errors.push({ item, error });
+
       if (!continueOnError) {
         throw error;
       }
     }
+  }
+
+  // Resumo final
+  if (errors.length > 0) {
+    console.warn(
+      `${errors.length} erros encontrados durante o processamento de ${items.length} itens`
+    );
   }
 
   return createdItems;
@@ -143,7 +221,7 @@ function getEntityName(entity: any): string {
   if (typeof entity === "string") return entity;
 
   // Tentar encontrar propriedades comuns de nome
-  const nameProps = ["name", "title", "code", "email"];
+  const nameProps = ["name", "title", "code", "email", "certificateCode"];
   for (const prop of nameProps) {
     if (entity[prop]) return entity[prop];
   }
@@ -165,9 +243,12 @@ export async function executeSeed(
   context: SeedContext
 ): Promise<SeedContext> {
   console.log(`\n>> Executando seed: ${seedName}`);
+  const startTime = Date.now();
+
   try {
     const updatedContext = await seedFn(context);
-    console.log(`<< Seed ${seedName} concluído com sucesso`);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`<< Seed ${seedName} concluído com sucesso em ${duration}s`);
     return updatedContext;
   } catch (error) {
     console.error(`!! Erro ao executar seed ${seedName}:`, error);
@@ -187,6 +268,7 @@ export async function runSeedGroup(
   context: SeedContext
 ): Promise<SeedContext> {
   console.log(`\n=== Iniciando grupo de seeds: ${groupName} ===`);
+  const startTime = Date.now();
 
   let currentContext = { ...context };
 
@@ -194,6 +276,17 @@ export async function runSeedGroup(
     currentContext = await executeSeed(seed.name, seed.fn, currentContext);
   }
 
-  console.log(`\n=== Grupo de seeds ${groupName} finalizado ===`);
+  const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+  console.log(
+    `\n=== Grupo de seeds ${groupName} finalizado em ${duration}s ===`
+  );
   return currentContext;
+}
+
+/**
+ * Cria um slug a partir de um nome (função mantida para compatibilidade)
+ * @deprecated Use StringUtils.createSlug em vez desta função
+ */
+export function createSlug(name: string): string {
+  return StringUtils.createSlug(name);
 }
