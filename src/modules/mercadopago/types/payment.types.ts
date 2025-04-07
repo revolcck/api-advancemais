@@ -278,8 +278,8 @@ export interface PaymentResponse {
     };
   };
 
-  /** Capturar pagamento */
-  capture: boolean;
+  /** Capturar pagamento - Tornando opcional para compatibilidade com o SDK */
+  capture?: boolean;
 
   /** ID externo do pagamento */
   external_reference?: string;
@@ -310,6 +310,26 @@ export interface PaymentResponse {
 
   /** Dados adicionais */
   [key: string]: any;
+}
+
+/**
+ * Resultado da pesquisa de pagamentos
+ */
+export interface PaymentSearchResult {
+  /** Informações de paginação */
+  paging: {
+    /** Total de resultados */
+    total: number;
+
+    /** Limite de resultados por página */
+    limit: number;
+
+    /** Deslocamento atual */
+    offset: number;
+  };
+
+  /** Lista de resultados - Tornando a estrutura mais compatível com o SDK */
+  results: Array<PaymentResponse>;
 }
 
 /**

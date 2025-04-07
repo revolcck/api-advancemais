@@ -48,7 +48,7 @@ export class SubscriptionAdapter {
         response = await this.client.create(data as any);
       }
 
-      // Usando "double assertion" para conversão segura
+      // Usando double assertion para contornar o problema de tipagem
       return response as unknown as SubscriptionResponse;
     } catch (error) {
       logger.error("Erro ao criar assinatura no MercadoPago", error);
@@ -76,7 +76,7 @@ export class SubscriptionAdapter {
         response = await this.client.get(id as any);
       }
 
-      // Usando "double assertion" para conversão segura
+      // Usando double assertion para contornar o problema de tipagem
       return response as unknown as SubscriptionResponse;
     } catch (error) {
       logger.error(`Erro ao obter assinatura ${id} no MercadoPago`, error);
@@ -115,7 +115,7 @@ export class SubscriptionAdapter {
         } as any);
       }
 
-      // Usando "double assertion" para conversão segura
+      // Usando double assertion para contornar o problema de tipagem
       return response as unknown as SubscriptionResponse;
     } catch (error) {
       logger.error(`Erro ao atualizar assinatura ${id} no MercadoPago`, error);
@@ -148,7 +148,7 @@ export class SubscriptionAdapter {
         response = await this.client.search(criteria as any);
       }
 
-      // Usando "double assertion" para conversão segura
+      // Usando double assertion para contornar o problema de tipagem
       return response as unknown as SubscriptionSearchResult;
     } catch (error) {
       logger.error("Erro ao pesquisar assinaturas no MercadoPago", error);

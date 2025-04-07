@@ -47,7 +47,8 @@ export class PaymentAdapter {
         response = await this.client.create(data as any);
       }
 
-      return response as PaymentResponse;
+      // Usando double assertion para contornar o problema de tipagem
+      return response as unknown as PaymentResponse;
     } catch (error) {
       logger.error("Erro ao criar pagamento no MercadoPago", error);
       throw error;
@@ -74,7 +75,8 @@ export class PaymentAdapter {
         response = await this.client.get(id as any);
       }
 
-      return response as PaymentResponse;
+      // Usando double assertion para contornar o problema de tipagem
+      return response as unknown as PaymentResponse;
     } catch (error) {
       logger.error(`Erro ao obter pagamento ${id} no MercadoPago`, error);
       throw error;
@@ -97,34 +99,34 @@ export class PaymentAdapter {
       // Se nenhum dado for fornecido, é uma devolução total
       if (!data || !data.amount) {
         try {
-          // Primeira tentativa: como objeto
-          response = await this.client.refund({ id } as any);
+          // O SDK pode ter mudado, utilizando tipagem genérica para evitar erros
+          response = await (this.client as any).refund({ id });
         } catch (error) {
           // Segunda tentativa: passando ID diretamente
           logger.debug(
             "Primeira tentativa de devolução total falhou, tentando método alternativo",
             { error }
           );
-          response = await this.client.refund(id as any);
+          response = await (this.client as any).refund(id);
         }
       } else {
         // Devolução parcial
         try {
-          // Primeira tentativa: estrutura completa
-          response = await this.client.refundPart({
+          // Utilizando tipagem genérica para evitar erros
+          response = await (this.client as any).refundPart({
             id,
             amount: data.amount,
-          } as any);
+          });
         } catch (error) {
           // Segunda tentativa: formato alternativo
           logger.debug(
             "Primeira tentativa de devolução parcial falhou, tentando método alternativo",
             { error }
           );
-          response = await this.client.refundPart({
+          response = await (this.client as any).refundPart({
             payment_id: id,
             amount: data.amount,
-          } as any);
+          });
         }
       }
 
@@ -151,34 +153,34 @@ export class PaymentAdapter {
       // Se nenhum dado for fornecido, captura o valor total
       if (!data || !data.amount) {
         try {
-          // Primeira tentativa: como objeto
-          response = await this.client.capture({ id } as any);
+          // Utilizando tipagem genérica para evitar erros
+          response = await (this.client as any).capture({ id });
         } catch (error) {
           // Segunda tentativa: passando ID diretamente
           logger.debug(
             "Primeira tentativa de captura falhou, tentando método alternativo",
             { error }
           );
-          response = await this.client.capture(id as any);
+          response = await (this.client as any).capture(id);
         }
       } else {
         // Captura parcial
         try {
-          // Primeira tentativa: estrutura completa
-          response = await this.client.capture({
+          // Utilizando tipagem genérica para evitar erros
+          response = await (this.client as any).capture({
             id,
             amount: data.amount,
-          } as any);
+          });
         } catch (error) {
           // Segunda tentativa: formato alternativo
           logger.debug(
             "Primeira tentativa de captura parcial falhou, tentando método alternativo",
             { error }
           );
-          response = await this.client.capture({
+          response = await (this.client as any).capture({
             payment_id: id,
             amount: data.amount,
-          } as any);
+          });
         }
       }
 
@@ -199,15 +201,15 @@ export class PaymentAdapter {
       let response;
 
       try {
-        // Primeira tentativa: como objeto
-        response = await this.client.cancel({ id } as any);
+        // Utilizando tipagem genérica para evitar erros
+        response = await (this.client as any).cancel({ id });
       } catch (error) {
         // Segunda tentativa: passando ID diretamente
         logger.debug(
           "Primeira tentativa de cancelamento falhou, tentando método alternativo",
           { error }
         );
-        response = await this.client.cancel(id as any);
+        response = await (this.client as any).cancel(id);
       }
 
       return response;
@@ -243,7 +245,8 @@ export class PaymentAdapter {
         response = await this.client.search(criteria as any);
       }
 
-      return response as PaymentSearchResult;
+      // Usando double assertion para contornar o problema de tipagem
+      return response as unknown as PaymentSearchResult;
     } catch (error) {
       logger.error("Erro ao pesquisar pagamentos no MercadoPago", error);
       throw error;

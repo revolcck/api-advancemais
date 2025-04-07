@@ -45,7 +45,8 @@ export class PreferenceAdapter {
         response = await this.client.create(data as any);
       }
 
-      return response as PreferenceResponse;
+      // Usando double assertion para contornar o problema de tipagem
+      return response as unknown as PreferenceResponse;
     } catch (error) {
       logger.error("Erro ao criar preferência no MercadoPago", error);
       throw error;
@@ -72,7 +73,8 @@ export class PreferenceAdapter {
         response = await this.client.get(id as any);
       }
 
-      return response as PreferenceResponse;
+      // Usando double assertion para contornar o problema de tipagem
+      return response as unknown as PreferenceResponse;
     } catch (error) {
       logger.error(`Erro ao obter preferência ${id} no MercadoPago`, error);
       throw error;
@@ -110,7 +112,8 @@ export class PreferenceAdapter {
         } as any);
       }
 
-      return response as PreferenceResponse;
+      // Usando double assertion para contornar o problema de tipagem
+      return response as unknown as PreferenceResponse;
     } catch (error) {
       logger.error(`Erro ao atualizar preferência ${id} no MercadoPago`, error);
       throw error;
@@ -143,7 +146,8 @@ export class PreferenceAdapter {
         response = await this.client.search(criteria as any);
       }
 
-      return response as PreferenceSearchResult;
+      // Usando double assertion para contornar o problema de tipagem
+      return response as unknown as PreferenceSearchResult;
     } catch (error) {
       logger.error("Erro ao pesquisar preferências no MercadoPago", error);
       throw error;
