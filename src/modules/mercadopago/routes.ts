@@ -1,15 +1,15 @@
 /**
- * Rotas core para o módulo MercadoPago
- * Apenas endpoints essenciais para verificação de status e configuração
- *
+ * Rotas para o módulo MercadoPago
  * @module modules/mercadopago/routes
  */
 
 import { Router } from "express";
+import { webhookController } from "./controllers/webhook.controller";
+import { mercadoPagoConfig } from "./config/mercadopago.config";
+import { validate } from "@/shared/middleware/validate.middleware";
 import { ApiResponse } from "@/shared/utils/api-response.utils";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
-import { mercadoPagoConfig } from "./config/mercadopago.config";
-import { mercadoPagoCoreService } from "./services/core.service";
+import { webhookSchema } from "./validators/mercadopago.validators";
 
 // Inicializa o router
 const router: Router = Router();
@@ -30,6 +30,9 @@ router.get("/status", async (req, res) => {
     }
 
     // Realiza teste de conectividade
+    const { mercadoPagoCoreService } = await import(
+      "./services/core.service.js"
+    );
     const result = await mercadoPagoCoreService.testConnectivity();
 
     if (!result.success) {
@@ -110,5 +113,19 @@ router.get("/public-key", (req, res) => {
   }
 });
 
-// Exporta as rotas
+/**
+ * Rotas para webhooks genéricos
+ *
+ * @route POST /api/mercadopago/webhook
+ * @desc Endpoint principal para receber todos os webhooks do MercadoPago
+ */
+router.post(
+  "/webhook",
+  validate(webhookSchema),
+  webhookController.processWebhook.bind(webhookController)
+);
+
+/**
+ * Exporta as rotas
+ */
 export default router;

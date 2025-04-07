@@ -89,6 +89,7 @@ interface Environment {
       accessToken: string;
     };
     integratorId: string;
+    webhookSecret: string;
     platformId: string;
     integrator: string;
     enabled: boolean;
@@ -176,18 +177,25 @@ const envSchema = joi.object({
     "any.required": "O remetente de SMS da Brevo é obrigatório",
   }),
 
-  // Mercado Pago
-  MERCADO_PAGO_ACCESS_TOKEN: joi.string().allow(""),
-  MERCADO_PAGO_PUBLIC_KEY: joi.string().allow(""),
-  MERCADO_PAGO_ENABLED: joi.boolean().default(true),
-  MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
-  MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
-  MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
-  MERCADOPAGO_CHECKOUT_ACCESS_TOKEN: joi.string().required(),
+  // Mercado Pago - Configuração geral
+  MERCADOPAGO_ENABLED: joi.boolean().default(true),
   MERCADOPAGO_INTEGRATOR_ID: joi
     .string()
     .default("dev_24c65fb163bf11ea96500242ac130004"),
-  MERCADOPAGO_WEBHOOK_SECRET: joi.string().allow(""),
+  MERCADOPAGO_WEBHOOK_SECRET: joi.string().allow("").default(""),
+
+  // Mercado Pago - Assinaturas
+  MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
+  MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
+
+  // Mercado Pago - Checkout
+  MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
+  MERCADOPAGO_CHECKOUT_ACCESS_TOKEN: joi.string().required(),
+
+  // Remover variáveis redundantes após migração completa
+  MERCADO_PAGO_ACCESS_TOKEN: joi.string().allow(""),
+  MERCADO_PAGO_PUBLIC_KEY: joi.string().allow(""),
+  MERCADO_PAGO_ENABLED: joi.boolean().default(true),
 });
 
 /**
@@ -302,9 +310,10 @@ export const env: Environment = {
       accessToken: _env.MERCADOPAGO_CHECKOUT_ACCESS_TOKEN,
     },
     integratorId: _env.MERCADOPAGO_INTEGRATOR_ID,
+    webhookSecret: _env.MERCADOPAGO_WEBHOOK_SECRET,
     platformId: "nodejs",
     integrator: "AdvanceMais",
-    enabled: _env.MERCADO_PAGO_ENABLED,
+    enabled: _env.MERCADOPAGO_ENABLED,
   },
 };
 

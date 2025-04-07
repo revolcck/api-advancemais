@@ -44,8 +44,8 @@ router.get(
  */
 router.get(
   "/email-status",
-  //authenticate,
-  //authorize(["ADMIN", "Super Administrador"]),
+  authenticate,
+  authorize(["ADMIN", "Super Administrador"]),
   emailTestController.checkEmailStatus
 );
 
