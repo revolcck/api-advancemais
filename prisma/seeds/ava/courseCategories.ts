@@ -49,7 +49,6 @@ export async function seedCourseCategories(
       description: "Cursos sobre segurança da informação e proteção de dados",
       areaName: "Tecnologia",
     },
-    // Mais categorias conforme a necessidade...
   ];
 
   // Criar as categorias no banco de dados

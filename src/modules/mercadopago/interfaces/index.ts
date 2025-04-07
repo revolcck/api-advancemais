@@ -1,160 +1,82 @@
 /**
- * Interfaces para o módulo MercadoPago
- *
+ * Interfaces principais para o módulo MercadoPago
  * @module modules/mercadopago/interfaces
  */
 
-// ================ Interfaces de Pagamento ================
+// Reexportar tipos principais de cada categoria
+export * from "../types/common.types";
+export * from "../types/payment.types";
+export * from "../types/subscription.types";
 
 /**
- * Status possíveis de um pagamento
+ * Interface para o serviço de autenticação do MercadoPago
  */
-export enum PaymentStatus {
-  PENDING = "pending",
-  APPROVED = "approved",
-  AUTHORIZED = "authorized",
-  IN_PROCESS = "in_process",
-  IN_MEDIATION = "in_mediation",
-  REJECTED = "rejected",
-  CANCELLED = "cancelled",
-  REFUNDED = "refunded",
-  CHARGED_BACK = "charged_back",
+export interface IMercadoPagoAuthService {
+  /**
+   * Obtém o token de acesso para as APIs do MercadoPago
+   */
+  getAccessToken(): string;
+
+  /**
+   * Obtém a chave pública para uso no frontend
+   */
+  getPublicKey(): string;
+
+  /**
+   * Verifica se o serviço está em modo de teste
+   */
+  isTestMode(): boolean;
 }
 
 /**
- * Métodos de pagamento suportados
+ * Interface para o serviço core do MercadoPago
  */
-export enum PaymentMethod {
-  CREDIT_CARD = "credit_card",
-  DEBIT_CARD = "debit_card",
-  BANK_TRANSFER = "bank_transfer",
-  PIX = "pix",
-  BOLETO = "boleto",
-  ACCOUNT_MONEY = "account_money",
+export interface IMercadoPagoCoreService {
+  /**
+   * Testa a conectividade com a API do MercadoPago
+   */
+  testConnectivity(): Promise<{
+    success: boolean;
+    account?: any;
+    error?: string;
+    errorCode?: string;
+  }>;
+
+  /**
+   * Formata um erro do MercadoPago para log e retorno
+   */
+  formatError(
+    error: any,
+    operation: string
+  ): { message: string; code: string; details: any };
+
+  /**
+   * Obtém o adaptador de pagamento
+   */
+  getPaymentAdapter(type?: any): any;
+
+  /**
+   * Obtém o adaptador de preferência
+   */
+  getPreferenceAdapter(type?: any): any;
+
+  /**
+   * Obtém o adaptador de assinatura
+   */
+  getSubscriptionAdapter(): any;
+
+  /**
+   * Obtém o adaptador de ordem de mercador
+   */
+  getMerchantOrderAdapter(type?: any): any;
 }
 
 /**
- * Detalhes de cartão para pagamento
+ * Interface para validação de webhook
  */
-export interface CardDetails {
-  token: string;
-  installments: number;
-  paymentMethodId: string;
-  issuerId?: string;
-}
-
-/**
- * Item em um pagamento
- */
-export interface PaymentItem {
-  id: string;
-  title: string;
-  description?: string;
-  pictureUrl?: string;
-  categoryId?: string;
-  quantity: number;
-  unitPrice: number;
-  currencyId?: string;
-}
-
-// ================ Interfaces de Assinatura ================
-
-/**
- * Status possíveis de uma assinatura
- */
-export enum SubscriptionStatus {
-  PENDING = "pending",
-  AUTHORIZED = "authorized",
-  PAUSED = "paused",
-  CANCELLED = "cancelled",
-  ENDED = "ended",
-}
-
-/**
- * Frequência de cobrança para assinaturas
- */
-export enum BillingFrequency {
-  DAYS = "days",
-  MONTHS = "months",
-}
-
-/**
- * Ciclo de faturamento para assinatura
- */
-export interface BillingCycle {
-  frequency: number;
-  frequencyType: BillingFrequency;
-  startDate?: string;
-  endDate?: string;
-  repetitions?: number;
-}
-
-// ================ Interfaces de Webhook ================
-
-/**
- * Tipos de notificações webhook suportados pelo MercadoPago
- */
-export enum WebhookTopicType {
-  PAYMENT = "payment",
-  MERCHANT_ORDER = "merchant_order",
-  PLAN = "plan",
-  SUBSCRIPTION = "subscription",
-  INVOICE = "invoice",
-  POINT_INTEGRATION_WIRED = "point_integration_wired",
-}
-
-// ================ Interfaces da Aplicação ================
-
-/**
- * Interface para serviço de pagamento
- */
-export interface IPaymentService {
-  createPayment(data: any, userId?: string): Promise<any>;
-  getPayment(paymentId: string | number): Promise<any>;
-  refundPayment(
-    paymentId: string | number,
-    amount?: number,
-    userId?: string
-  ): Promise<any>;
-  capturePayment(paymentId: string | number, userId?: string): Promise<any>;
-  searchPayments(criteria: any): Promise<any>;
-}
-
-/**
- * Interface para serviço de assinatura
- */
-export interface ISubscriptionService {
-  createSubscription(data: any, userId?: string): Promise<any>;
-  getSubscription(subscriptionId: string): Promise<any>;
-  updateSubscription(
-    subscriptionId: string,
-    data: any,
-    userId?: string
-  ): Promise<any>;
-  cancelSubscription(subscriptionId: string, userId?: string): Promise<any>;
-  pauseSubscription(subscriptionId: string, userId?: string): Promise<any>;
-  resumeSubscription(subscriptionId: string, userId?: string): Promise<any>;
-  searchSubscriptions(criteria: any): Promise<any>;
-}
-
-/**
- * Interface para serviço de preferência de pagamento
- */
-export interface IPreferenceService {
-  createPreference(data: any, userId?: string): Promise<any>;
-  getPreference(preferenceId: string): Promise<any>;
-  updatePreference(
-    preferenceId: string,
-    data: any,
-    userId?: string
-  ): Promise<any>;
-  searchPreferences(criteria: any): Promise<any>;
-}
-
-/**
- * Interface para serviço de webhook
- */
-export interface IWebhookService {
-  processWebhook(notification: any): Promise<any>;
-  verifySignature(payload: string, signature: string): boolean;
+export interface IWebhookValidator {
+  /**
+   * Verifica a assinatura do webhook
+   */
+  verifySignature(payload: string, signature: string, secret: string): boolean;
 }

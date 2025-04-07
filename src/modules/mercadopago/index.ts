@@ -1,6 +1,6 @@
 /**
- * Módulo de integração com o MercadoPago
- * Fornece serviços para processamento de pagamentos, assinaturas e webhooks
+ * Módulo core de integração com o MercadoPago
+ * Fornece as funcionalidades essenciais para interação com a API do MercadoPago
  *
  * @module modules/mercadopago
  */
@@ -12,33 +12,20 @@ import {
   credentialsManager,
 } from "./config/credentials";
 
-// Serviços
-import { paymentService } from "./services/payment.service";
-import { subscriptionService } from "./services/subscription.service";
-import { preferenceService } from "./services/preference.service";
-import { mercadoPagoNotificationService } from "./services/notification.service";
-import {
-  templateService,
-  EmailTemplateType,
-} from "./services/template.service";
-import {
-  checkoutWebhookService,
-  subscriptionWebhookService,
-  WebhookTopicType,
-} from "./services/webhook.service";
+// Serviço principal
+import { mercadoPagoCoreService } from "./services/core.service";
 
-// Controladores
-import { paymentController } from "./controllers/payment.controller";
-import { subscriptionController } from "./controllers/subscription.controller";
-import { preferenceController } from "./controllers/preference.controller";
-import { webhookController } from "./controllers/webhook.controller";
+// Adaptadores
+import * as Adapters from "./adapters";
 
-// Rotas
-import mercadoPagoRoutes from "./routes";
-
-// DTOs e interfaces
-import * as DTOs from "./dtos/mercadopago.dto";
+// Tipos e interfaces
 import * as Interfaces from "./interfaces";
+import * as Types from "./types/common.types";
+import * as PaymentTypes from "./types/payment.types";
+import * as SubscriptionTypes from "./types/subscription.types";
+
+// Utilitários
+import * as ErrorHandler from "./utils/error-handler.util";
 
 // Exportações explícitas para todo o módulo
 export {
@@ -47,29 +34,20 @@ export {
   MercadoPagoIntegrationType,
   credentialsManager,
 
-  // Serviços
-  paymentService,
-  subscriptionService,
-  preferenceService,
-  mercadoPagoNotificationService,
-  templateService,
-  EmailTemplateType,
-  checkoutWebhookService,
-  subscriptionWebhookService,
-  WebhookTopicType,
+  // Serviço principal
+  mercadoPagoCoreService,
 
-  // Controladores
-  paymentController,
-  subscriptionController,
-  preferenceController,
-  webhookController,
+  // Adaptadores
+  Adapters,
 
-  // Rotas
-  mercadoPagoRoutes,
-
-  // DTOs e interfaces
-  DTOs,
+  // Tipos e interfaces
   Interfaces,
+  Types,
+  PaymentTypes,
+  SubscriptionTypes,
+
+  // Utilitários
+  ErrorHandler,
 };
 
 /**
@@ -94,4 +72,12 @@ export function isMercadoPagoTestMode(): boolean {
  */
 export function getMercadoPagoPublicKey(): string {
   return mercadoPagoConfig.getPublicKey();
+}
+
+/**
+ * Testa a conectividade com a API do MercadoPago
+ * @returns Resultado do teste de conectividade
+ */
+export async function testMercadoPagoConnectivity(): Promise<Interfaces.ConnectivityInfo> {
+  return await mercadoPagoCoreService.testConnectivity();
 }

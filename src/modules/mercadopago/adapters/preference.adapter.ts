@@ -5,7 +5,7 @@ import {
   PreferenceResponse,
   PreferenceSearchCriteria,
   PreferenceSearchResult,
-} from "../types/mercadopago-custom.types";
+} from "../types/payment.types";
 
 /**
  * Adaptador para o cliente de preferências do MercadoPago

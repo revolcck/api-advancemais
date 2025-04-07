@@ -6,7 +6,7 @@ import {
   SubscriptionResponse,
   SubscriptionSearchCriteria,
   SubscriptionSearchResult,
-} from "../types/subscription.types";
+} from "../types/subscription-custom.types";
 
 /**
  * Adaptador para o cliente de assinaturas do MercadoPago

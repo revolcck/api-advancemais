@@ -1,27 +1,15 @@
 /**
- * Rotas para o módulo MercadoPago
+ * Rotas core para o módulo MercadoPago
+ * Apenas endpoints essenciais para verificação de status e configuração
+ *
  * @module modules/mercadopago/routes
  */
 
 import { Router } from "express";
-import { webhookController } from "./controllers/webhook.controller";
-import { paymentController } from "./controllers/payment.controller";
-import { subscriptionController } from "./controllers/subscription.controller";
-import { preferenceController } from "./controllers/preference.controller";
-import { mercadoPagoConfig } from "./config/mercadopago.config";
-import { validate } from "@/shared/middleware/validate.middleware";
-import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
-import {
-  createPaymentSchema,
-  createPreferenceSchema,
-  createSubscriptionSchema,
-  refundPaymentSchema,
-  updateSubscriptionAmountSchema,
-  updateSubscriptionStatusSchema,
-  webhookSchema,
-} from "./validators/mercadopago.validators";
 import { ApiResponse } from "@/shared/utils/api-response.utils";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
+import { mercadoPagoConfig } from "./config/mercadopago.config";
+import { mercadoPagoCoreService } from "./services/core.service";
 
 // Inicializa o router
 const router: Router = Router();
@@ -31,8 +19,9 @@ const router: Router = Router();
  * @desc Verifica o status da integração com o MercadoPago
  * @access Público
  */
-router.get("/status", (req, res) => {
+router.get("/status", async (req, res) => {
   try {
+    // Verifica se o serviço está disponível
     if (!mercadoPagoConfig.isAvailable()) {
       throw new ServiceUnavailableError(
         "Serviço do MercadoPago não está disponível",
@@ -40,13 +29,23 @@ router.get("/status", (req, res) => {
       );
     }
 
-    const isTestMode = mercadoPagoConfig.isTestMode();
+    // Realiza teste de conectividade
+    const result = await mercadoPagoCoreService.testConnectivity();
 
+    if (!result.success) {
+      throw new ServiceUnavailableError(
+        result.error || "Falha na conectividade com a API do MercadoPago",
+        result.errorCode || "MERCADOPAGO_CONNECTIVITY_FAILED"
+      );
+    }
+
+    // Retorna status com informações básicas
     ApiResponse.success(
       res,
       {
         available: true,
-        testMode: isTestMode,
+        testMode: mercadoPagoConfig.isTestMode(),
+        account: result.account,
       },
       {
         message: "Serviço do MercadoPago está disponível",
@@ -110,152 +109,6 @@ router.get("/public-key", (req, res) => {
     }
   }
 });
-
-/**
- * Rotas para webhooks
- */
-router.post(
-  "/webhook",
-  validate(webhookSchema),
-  webhookController.processWebhook
-);
-router.post(
-  "/webhook/subscription",
-  validate(webhookSchema),
-  webhookController.processSubscriptionWebhook
-);
-router.post(
-  "/webhook/payment",
-  validate(webhookSchema),
-  webhookController.processPaymentWebhook
-);
-
-/**
- * Rotas para pagamentos
- */
-// Criar pagamento
-router.post(
-  "/payments",
-  authenticate,
-  validate(createPaymentSchema),
-  paymentController.createPayment
-);
-
-// Obter detalhes de um pagamento
-router.get("/payments/:id", authenticate, paymentController.getPayment);
-
-// Pesquisar pagamentos
-router.get("/payments/search", authenticate, paymentController.searchPayments);
-
-// Fazer refund de um pagamento
-router.post(
-  "/payments/:id/refund",
-  authenticate,
-  authorize(["ADMIN"]), // Apenas administradores podem fazer refunds
-  validate(refundPaymentSchema),
-  paymentController.refundPayment
-);
-
-// Capturar um pagamento
-router.post(
-  "/payments/:id/capture",
-  authenticate,
-  authorize(["ADMIN"]), // Apenas administradores podem capturar pagamentos
-  paymentController.capturePayment
-);
-
-/**
- * Rotas para preferências de pagamento
- */
-// Criar preferência
-router.post(
-  "/preferences",
-  authenticate,
-  validate(createPreferenceSchema),
-  preferenceController.createPreference
-);
-
-// Obter detalhes de uma preferência
-router.get(
-  "/preferences/:id",
-  authenticate,
-  preferenceController.getPreference
-);
-
-// Atualizar uma preferência
-router.patch(
-  "/preferences/:id",
-  authenticate,
-  preferenceController.updatePreference
-);
-
-// Pesquisar preferências
-router.get(
-  "/preferences/search",
-  authenticate,
-  preferenceController.searchPreferences
-);
-
-/**
- * Rotas para assinaturas
- */
-// Criar assinatura
-router.post(
-  "/subscriptions",
-  authenticate,
-  validate(createSubscriptionSchema),
-  subscriptionController.createSubscription
-);
-
-// Obter detalhes de uma assinatura
-router.get(
-  "/subscriptions/:id",
-  authenticate,
-  subscriptionController.getSubscription
-);
-
-// Pesquisar assinaturas
-router.get(
-  "/subscriptions/search",
-  authenticate,
-  subscriptionController.searchSubscriptions
-);
-
-// Atualizar uma assinatura
-router.patch(
-  "/subscriptions/:id",
-  authenticate,
-  subscriptionController.updateSubscription
-);
-
-// Cancelar uma assinatura
-router.post(
-  "/subscriptions/:id/cancel",
-  authenticate,
-  subscriptionController.cancelSubscription
-);
-
-// Pausar uma assinatura
-router.post(
-  "/subscriptions/:id/pause",
-  authenticate,
-  subscriptionController.pauseSubscription
-);
-
-// Reativar uma assinatura
-router.post(
-  "/subscriptions/:id/resume",
-  authenticate,
-  subscriptionController.resumeSubscription
-);
-
-// Atualizar valor de uma assinatura
-router.patch(
-  "/subscriptions/:id/amount",
-  authenticate,
-  validate(updateSubscriptionAmountSchema),
-  subscriptionController.updateSubscriptionAmount
-);
 
 // Exporta as rotas
 export default router;
