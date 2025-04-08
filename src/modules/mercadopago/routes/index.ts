@@ -19,7 +19,7 @@ const statusController = new StatusController();
  * @desc Verifica status de conectividade com o MercadoPago
  * @access Privado (requer autenticação)
  */
-router.get("/status", statusController.checkStatus);
+router.get("/status", authenticate, statusController.checkStatus);
 
 /**
  * @route GET /api/mercadopago/public-key
