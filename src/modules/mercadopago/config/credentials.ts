@@ -5,44 +5,26 @@
 
 import { env } from "@/config/environment";
 import { logger } from "@/shared/utils/logger.utils";
-
-/**
- * Tipos de integração suportados pelo MercadoPago
- */
-export enum MercadoPagoIntegrationType {
-  /** Integração para assinaturas */
-  SUBSCRIPTION = "subscription",
-
-  /** Integração para checkout */
-  CHECKOUT = "checkout",
-}
-
-/**
- * Interface para credenciais do MercadoPago
- */
-export interface MercadoPagoCredentials {
-  /** Token de acesso à API do MercadoPago */
-  accessToken: string;
-
-  /** Chave pública para uso no frontend */
-  publicKey: string;
-
-  /** Tipo de integração */
-  integrationType: MercadoPagoIntegrationType;
-
-  /** ID da aplicação no MercadoPago (extraído do accessToken) */
-  applicationId: string;
-}
+import { MercadoPagoIntegrationType } from "../enums";
+import {
+  IMercadoPagoCredentials,
+  ICredentialsManager,
+} from "../interfaces/config.interface";
 
 /**
  * Gerenciador de credenciais do MercadoPago
  * Permite utilizar diferentes credenciais para diferentes tipos de integração
  */
-export class MercadoPagoCredentialsManager {
+export class MercadoPagoCredentialsManager implements ICredentialsManager {
   private static instance: MercadoPagoCredentialsManager;
-  private credentials: Map<MercadoPagoIntegrationType, MercadoPagoCredentials> =
-    new Map();
+  private credentials: Map<
+    MercadoPagoIntegrationType,
+    IMercadoPagoCredentials
+  > = new Map();
   private initialized: boolean = false;
+
+  // Mapeamento de tipo de integração para segredo de webhook
+  private webhookSecrets: Map<MercadoPagoIntegrationType, string> = new Map();
 
   /**
    * Construtor privado para implementar o padrão Singleton
@@ -108,6 +90,9 @@ export class MercadoPagoCredentialsManager {
 
       // Credenciais para assinaturas
       const subscriptionAccessToken = env.mercadoPago.subscription.accessToken;
+      const subscriptionWebhookSecret =
+        env.mercadoPago.webhookSecrets?.subscription || "";
+
       if (subscriptionAccessToken) {
         this.credentials.set(MercadoPagoIntegrationType.SUBSCRIPTION, {
           accessToken: subscriptionAccessToken,
@@ -115,6 +100,13 @@ export class MercadoPagoCredentialsManager {
           integrationType: MercadoPagoIntegrationType.SUBSCRIPTION,
           applicationId: this.extractApplicationId(subscriptionAccessToken),
         });
+
+        // Armazena o segredo do webhook para assinaturas
+        this.webhookSecrets.set(
+          MercadoPagoIntegrationType.SUBSCRIPTION,
+          subscriptionWebhookSecret
+        );
+
         logger.debug("Credenciais de assinatura do MercadoPago configuradas");
       } else {
         logger.warn("Credenciais de assinatura do MercadoPago não encontradas");
@@ -122,6 +114,9 @@ export class MercadoPagoCredentialsManager {
 
       // Credenciais para checkout
       const checkoutAccessToken = env.mercadoPago.checkout.accessToken;
+      const checkoutWebhookSecret =
+        env.mercadoPago.webhookSecrets?.checkout || "";
+
       if (checkoutAccessToken) {
         this.credentials.set(MercadoPagoIntegrationType.CHECKOUT, {
           accessToken: checkoutAccessToken,
@@ -129,6 +124,13 @@ export class MercadoPagoCredentialsManager {
           integrationType: MercadoPagoIntegrationType.CHECKOUT,
           applicationId: this.extractApplicationId(checkoutAccessToken),
         });
+
+        // Armazena o segredo do webhook para checkout
+        this.webhookSecrets.set(
+          MercadoPagoIntegrationType.CHECKOUT,
+          checkoutWebhookSecret
+        );
+
         logger.debug("Credenciais de checkout do MercadoPago configuradas");
       } else {
         logger.warn("Credenciais de checkout do MercadoPago não encontradas");
@@ -159,7 +161,7 @@ export class MercadoPagoCredentialsManager {
    */
   public getCredentials(
     type: MercadoPagoIntegrationType
-  ): MercadoPagoCredentials {
+  ): IMercadoPagoCredentials {
     if (!this.initialized) {
       this.initialize();
     }
@@ -200,7 +202,7 @@ export class MercadoPagoCredentialsManager {
    */
   public updateCredentials(
     type: MercadoPagoIntegrationType,
-    credentials: Partial<MercadoPagoCredentials>
+    credentials: Partial<IMercadoPagoCredentials>
   ): void {
     if (!this.initialized) {
       this.initialize();
@@ -228,7 +230,7 @@ export class MercadoPagoCredentialsManager {
     } else {
       // Cria novas credenciais se não existirem
       if (credentials.accessToken && credentials.publicKey) {
-        const newCredentials: MercadoPagoCredentials = {
+        const newCredentials: IMercadoPagoCredentials = {
           accessToken: credentials.accessToken,
           publicKey: credentials.publicKey,
           integrationType: type,
@@ -250,10 +252,37 @@ export class MercadoPagoCredentialsManager {
 
   /**
    * Obtém o segredo para validação de webhook
+   * @param type Tipo de integração (obrigatório)
    * @returns Segredo para validação de webhook ou string vazia se não configurado
    */
-  public getWebhookSecret(): string {
-    return env.mercadoPago.webhookSecret || "";
+  public getWebhookSecret(type?: MercadoPagoIntegrationType): string {
+    if (!this.initialized) {
+      this.initialize();
+    }
+
+    // Se um tipo específico foi fornecido, tenta obter o segredo específico
+    if (type && this.webhookSecrets.has(type)) {
+      return this.webhookSecrets.get(type) || "";
+    }
+
+    // Se não foi fornecido tipo específico ou não há segredo para o tipo específico,
+    // tentamos buscar segredo do CHECKOUT como fallback (mais comum)
+    if (this.webhookSecrets.has(MercadoPagoIntegrationType.CHECKOUT)) {
+      return this.webhookSecrets.get(MercadoPagoIntegrationType.CHECKOUT) || "";
+    }
+
+    // Se ainda não encontrou, tenta o segredo de SUBSCRIPTION como último recurso
+    if (this.webhookSecrets.has(MercadoPagoIntegrationType.SUBSCRIPTION)) {
+      return (
+        this.webhookSecrets.get(MercadoPagoIntegrationType.SUBSCRIPTION) || ""
+      );
+    }
+
+    // Se não encontrou nenhum segredo, retorna string vazia
+    logger.warn(
+      `Segredo de webhook não encontrado${type ? ` para o tipo: ${type}` : ""}`
+    );
+    return "";
   }
 
   /**

@@ -1,20 +1,33 @@
+/**
+ * Adaptador para o cliente de ordens do MercadoPago
+ * @module modules/mercadopago/adapters/merchant-order.adapter
+ */
+
 import { MerchantOrder } from "mercadopago";
 import { logger } from "@/shared/utils/logger.utils";
+import { BaseAdapter } from "./base.adapter";
+import { MercadoPagoIntegrationType } from "../enums";
+import { IMerchantOrderAdapter } from "../interfaces/adapters.interface";
 import { MerchantOrderResponse } from "../types/common.types";
 
 /**
  * Adaptador para o cliente de ordens do MercadoPago
  * Encapsula as chamadas do SDK oficial com tipagem adequada
  */
-export class MerchantOrderAdapter {
-  private client: MerchantOrder;
-
+export class MerchantOrderAdapter
+  extends BaseAdapter<MerchantOrder>
+  implements IMerchantOrderAdapter
+{
   /**
    * Construtor do adaptador
    * @param client Cliente do SDK oficial do MercadoPago
+   * @param integrationType Tipo de integração
    */
-  constructor(client: MerchantOrder) {
-    this.client = client;
+  constructor(
+    client: MerchantOrder,
+    integrationType: MercadoPagoIntegrationType
+  ) {
+    super(client, integrationType);
   }
 
   /**
@@ -41,11 +54,7 @@ export class MerchantOrderAdapter {
       // Usando "double assertion" para conversão segura
       return response as unknown as MerchantOrderResponse;
     } catch (error) {
-      logger.error(
-        `Erro ao obter ordem de mercador ${id} no MercadoPago`,
-        error
-      );
-      throw error;
+      this.handleApiError(error, "get_merchant_order", { id });
     }
   }
 
@@ -71,11 +80,9 @@ export class MerchantOrderAdapter {
 
       return null;
     } catch (error) {
-      logger.error(
-        `Erro ao buscar ordem de mercador por preferência ${preferenceId}`,
-        error
-      );
-      throw error;
+      this.handleApiError(error, "get_merchant_order_by_preference", {
+        preferenceId,
+      });
     }
   }
 }

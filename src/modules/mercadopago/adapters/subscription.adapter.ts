@@ -1,5 +1,13 @@
+/**
+ * Adaptador para o cliente de assinaturas do MercadoPago
+ * @module modules/mercadopago/adapters/subscription.adapter
+ */
+
 import { PreApproval } from "mercadopago";
 import { logger } from "@/shared/utils/logger.utils";
+import { BaseAdapter } from "./base.adapter";
+import { MercadoPagoIntegrationType } from "../enums";
+import { ISubscriptionAdapter } from "../interfaces/adapters.interface";
 import {
   SubscriptionCreateData,
   SubscriptionUpdateData,
@@ -12,15 +20,16 @@ import {
  * Adaptador para o cliente de assinaturas do MercadoPago
  * Encapsula as chamadas do SDK oficial com tipagem adequada
  */
-export class SubscriptionAdapter {
-  private client: PreApproval;
-
+export class SubscriptionAdapter
+  extends BaseAdapter<PreApproval>
+  implements ISubscriptionAdapter
+{
   /**
    * Construtor do adaptador
    * @param client Cliente do SDK oficial do MercadoPago
    */
   constructor(client: PreApproval) {
-    this.client = client;
+    super(client, MercadoPagoIntegrationType.SUBSCRIPTION);
   }
 
   /**
@@ -51,8 +60,7 @@ export class SubscriptionAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as SubscriptionResponse;
     } catch (error) {
-      logger.error("Erro ao criar assinatura no MercadoPago", error);
-      throw error;
+      this.handleApiError(error, "create_subscription", { data });
     }
   }
 
@@ -79,8 +87,7 @@ export class SubscriptionAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as SubscriptionResponse;
     } catch (error) {
-      logger.error(`Erro ao obter assinatura ${id} no MercadoPago`, error);
-      throw error;
+      this.handleApiError(error, "get_subscription", { id });
     }
   }
 
@@ -118,8 +125,7 @@ export class SubscriptionAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as SubscriptionResponse;
     } catch (error) {
-      logger.error(`Erro ao atualizar assinatura ${id} no MercadoPago`, error);
-      throw error;
+      this.handleApiError(error, "update_subscription", { id, data });
     }
   }
 
@@ -151,8 +157,7 @@ export class SubscriptionAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as SubscriptionSearchResult;
     } catch (error) {
-      logger.error("Erro ao pesquisar assinaturas no MercadoPago", error);
-      throw error;
+      this.handleApiError(error, "search_subscriptions", { criteria });
     }
   }
 }

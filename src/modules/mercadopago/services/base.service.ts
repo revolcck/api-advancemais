@@ -16,10 +16,7 @@ import {
 } from "mercadopago";
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../config/mercadopago.config";
-import {
-  MercadoPagoIntegrationType,
-  credentialsManager,
-} from "../config/credentials";
+import { MercadoPagoIntegrationType } from "../enums";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
 
 /**
@@ -47,15 +44,24 @@ export abstract class MercadoPagoBaseService {
    */
   private initializeService(): void {
     try {
+      // Verifica se o serviço está disponível
+      if (!mercadoPagoConfig.isAvailable()) {
+        throw new Error("Serviço MercadoPago não está disponível");
+      }
+
+      // Obtém a configuração do SDK para o tipo específico
+      if (!mercadoPagoConfig.hasConfig(this.integrationType)) {
+        throw new Error(
+          `Configuração não encontrada para o tipo de integração: ${this.integrationType}`
+        );
+      }
+
       // Obtém a configuração do SDK
       this.sdkConfig = mercadoPagoConfig.getConfig(this.integrationType);
 
       // Obtém as credenciais
-      const credentials = credentialsManager.getCredentials(
-        this.integrationType
-      );
-      this.accessToken = credentials.accessToken;
-      this.publicKey = credentials.publicKey;
+      this.accessToken = mercadoPagoConfig.getAccessToken(this.integrationType);
+      this.publicKey = mercadoPagoConfig.getPublicKey(this.integrationType);
 
       logger.debug(
         `Serviço MercadoPago inicializado para integração: ${this.integrationType}`
@@ -168,9 +174,30 @@ export abstract class MercadoPagoBaseService {
    * @returns Verdadeiro se o serviço estiver configurado
    */
   public isConfigured(): boolean {
-    return (
-      mercadoPagoConfig.hasConfig(this.integrationType) &&
-      credentialsManager.hasCredentials(this.integrationType)
-    );
+    return mercadoPagoConfig.hasConfig(this.integrationType);
+  }
+
+  /**
+   * Obtém o tipo de integração deste serviço
+   * @returns Tipo de integração
+   */
+  public getIntegrationType(): MercadoPagoIntegrationType {
+    return this.integrationType;
+  }
+
+  /**
+   * Obtém a chave pública para uso no frontend
+   * @returns Chave pública
+   */
+  public getPublicKey(): string {
+    return this.publicKey;
+  }
+
+  /**
+   * Obtém o token de acesso
+   * @returns Token de acesso
+   */
+  public getAccessToken(): string {
+    return this.accessToken;
   }
 }

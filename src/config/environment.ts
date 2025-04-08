@@ -89,7 +89,10 @@ interface Environment {
       accessToken: string;
     };
     integratorId: string;
-    webhookSecret: string;
+    webhookSecrets: {
+      subscription: string;
+      checkout: string;
+    };
     platformId: string;
     integrator: string;
     enabled: boolean;
@@ -182,15 +185,16 @@ const envSchema = joi.object({
   MERCADOPAGO_INTEGRATOR_ID: joi
     .string()
     .default("dev_24c65fb163bf11ea96500242ac130004"),
-  MERCADOPAGO_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
   // Mercado Pago - Assinaturas
   MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
   MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
+  MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
   // Mercado Pago - Checkout
   MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
   MERCADOPAGO_CHECKOUT_ACCESS_TOKEN: joi.string().required(),
+  MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
   // Remover variáveis redundantes após migração completa
   MERCADO_PAGO_ACCESS_TOKEN: joi.string().allow(""),
@@ -310,7 +314,10 @@ export const env: Environment = {
       accessToken: _env.MERCADOPAGO_CHECKOUT_ACCESS_TOKEN,
     },
     integratorId: _env.MERCADOPAGO_INTEGRATOR_ID,
-    webhookSecret: _env.MERCADOPAGO_WEBHOOK_SECRET,
+    webhookSecrets: {
+      subscription: _env.MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET,
+      checkout: _env.MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET,
+    },
     platformId: "nodejs",
     integrator: "AdvanceMais",
     enabled: _env.MERCADOPAGO_ENABLED,

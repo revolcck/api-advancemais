@@ -12,38 +12,36 @@ import {
   Preference,
   MerchantOrder,
   CardToken,
-  PaymentRefund,
 } from "mercadopago";
 
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../config/mercadopago.config";
-import { MercadoPagoIntegrationType } from "../config/credentials";
+import { MercadoPagoIntegrationType } from "../enums";
 import { ServiceUnavailableError } from "@/shared/errors/AppError";
 import { PaymentAdapter } from "../adapters/payment.adapter";
 import { PreferenceAdapter } from "../adapters/preference.adapter";
 import { SubscriptionAdapter } from "../adapters/subscription.adapter";
 import { MerchantOrderAdapter } from "../adapters/merchant-order.adapter";
+import { IConnectivityInfo, IMercadoPagoCoreService } from "../interfaces";
 
 /**
  * Classe principal de serviço para integração com o MercadoPago
  */
-export class MercadoPagoCoreService {
+export class MercadoPagoCoreService implements IMercadoPagoCoreService {
   private static instance: MercadoPagoCoreService;
 
-  // Clientes do SDK MercadoPago
-  private _payment: Payment | null = null;
-  private _preApproval: PreApproval | null = null;
-  private _customer: Customer | null = null;
-  private _preference: Preference | null = null;
-  private _merchantOrder: MerchantOrder | null = null;
-  private _cardToken: CardToken | null = null;
-  private _paymentRefund: PaymentRefund | null = null;
-
-  // Adaptadores para os serviços do MercadoPago
-  private _paymentAdapter: PaymentAdapter | null = null;
-  private _preferenceAdapter: PreferenceAdapter | null = null;
-  private _subscriptionAdapter: SubscriptionAdapter | null = null;
-  private _merchantOrderAdapter: MerchantOrderAdapter | null = null;
+  // Cache para adaptadores
+  private adaptersCache: {
+    payment: Map<MercadoPagoIntegrationType, PaymentAdapter>;
+    preference: Map<MercadoPagoIntegrationType, PreferenceAdapter>;
+    subscription: SubscriptionAdapter | null;
+    merchantOrder: Map<MercadoPagoIntegrationType, MerchantOrderAdapter>;
+  } = {
+    payment: new Map(),
+    preference: new Map(),
+    subscription: null,
+    merchantOrder: new Map(),
+  };
 
   /**
    * Construtor privado para implementar o padrão Singleton
@@ -73,153 +71,9 @@ export class MercadoPagoCoreService {
     }
   }
 
-  // ------------- MÉTODOS DE ACESSO AOS CLIENTES DO SDK -------------
-
   /**
-   * Obtém o cliente de pagamento do MercadoPago
-   * @param type Tipo de integração (default: CHECKOUT)
-   * @returns Cliente de pagamento
-   */
-  public getPaymentClient(
-    type: MercadoPagoIntegrationType = MercadoPagoIntegrationType.CHECKOUT
-  ): Payment {
-    this.checkAvailability();
-
-    if (!this._payment) {
-      this._payment = new Payment(mercadoPagoConfig.getConfig(type));
-      logger.debug("Cliente de pagamento do MercadoPago inicializado", {
-        type,
-      });
-    }
-
-    return this._payment;
-  }
-
-  /**
-   * Obtém o cliente de assinatura do MercadoPago
-   * @returns Cliente de assinatura
-   */
-  public getSubscriptionClient(): PreApproval {
-    this.checkAvailability();
-
-    if (!this._preApproval) {
-      this._preApproval = new PreApproval(
-        mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.SUBSCRIPTION)
-      );
-      logger.debug("Cliente de assinatura do MercadoPago inicializado");
-    }
-
-    return this._preApproval;
-  }
-
-  /**
-   * Obtém o cliente de cliente do MercadoPago
-   * @param type Tipo de integração (default: CHECKOUT)
-   * @returns Cliente de cliente
-   */
-  public getCustomerClient(
-    type: MercadoPagoIntegrationType = MercadoPagoIntegrationType.CHECKOUT
-  ): Customer {
-    this.checkAvailability();
-
-    if (!this._customer) {
-      this._customer = new Customer(mercadoPagoConfig.getConfig(type));
-      logger.debug("Cliente de customer do MercadoPago inicializado", { type });
-    }
-
-    return this._customer;
-  }
-
-  /**
-   * Obtém o cliente de preferência do MercadoPago
-   * @param type Tipo de integração (default: CHECKOUT)
-   * @returns Cliente de preferência
-   */
-  public getPreferenceClient(
-    type: MercadoPagoIntegrationType = MercadoPagoIntegrationType.CHECKOUT
-  ): Preference {
-    this.checkAvailability();
-
-    if (!this._preference) {
-      this._preference = new Preference(mercadoPagoConfig.getConfig(type));
-      logger.debug("Cliente de preferência do MercadoPago inicializado", {
-        type,
-      });
-    }
-
-    return this._preference;
-  }
-
-  /**
-   * Obtém o cliente de ordem de mercador do MercadoPago
-   * @param type Tipo de integração (default: CHECKOUT)
-   * @returns Cliente de ordem de mercador
-   */
-  public getMerchantOrderClient(
-    type: MercadoPagoIntegrationType = MercadoPagoIntegrationType.CHECKOUT
-  ): MerchantOrder {
-    this.checkAvailability();
-
-    if (!this._merchantOrder) {
-      this._merchantOrder = new MerchantOrder(
-        mercadoPagoConfig.getConfig(type)
-      );
-      logger.debug("Cliente de ordem de mercador do MercadoPago inicializado", {
-        type,
-      });
-    }
-
-    return this._merchantOrder;
-  }
-
-  /**
-   * Obtém o cliente de token de cartão do MercadoPago
-   * @param type Tipo de integração (default: CHECKOUT)
-   * @returns Cliente de token de cartão
-   */
-  public getCardTokenClient(
-    type: MercadoPagoIntegrationType = MercadoPagoIntegrationType.CHECKOUT
-  ): CardToken {
-    this.checkAvailability();
-
-    if (!this._cardToken) {
-      this._cardToken = new CardToken(mercadoPagoConfig.getConfig(type));
-      logger.debug("Cliente de token de cartão do MercadoPago inicializado", {
-        type,
-      });
-    }
-
-    return this._cardToken;
-  }
-
-  /**
-   * Obtém o cliente de reembolso de pagamento do MercadoPago
-   * @param type Tipo de integração (default: CHECKOUT)
-   * @returns Cliente de reembolso de pagamento
-   */
-  public getPaymentRefundClient(
-    type: MercadoPagoIntegrationType = MercadoPagoIntegrationType.CHECKOUT
-  ): PaymentRefund {
-    this.checkAvailability();
-
-    if (!this._paymentRefund) {
-      this._paymentRefund = new PaymentRefund(
-        mercadoPagoConfig.getConfig(type)
-      );
-      logger.debug(
-        "Cliente de reembolso de pagamento do MercadoPago inicializado",
-        { type }
-      );
-    }
-
-    return this._paymentRefund;
-  }
-
-  // ------------- MÉTODOS DE ACESSO AOS ADAPTADORES -------------
-
-  /**
-   * Obtém o adaptador de pagamento do MercadoPago
-   * @param type Tipo de integração (default: CHECKOUT)
+   * Obtém o adaptador de pagamento para o tipo especificado
+   * @param type Tipo de integração
    * @returns Adaptador de pagamento
    */
   public getPaymentAdapter(
@@ -227,20 +81,28 @@ export class MercadoPagoCoreService {
   ): PaymentAdapter {
     this.checkAvailability();
 
-    if (!this._paymentAdapter) {
-      const paymentClient = this.getPaymentClient(type);
-      this._paymentAdapter = new PaymentAdapter(paymentClient);
-      logger.debug("Adaptador de pagamento do MercadoPago inicializado", {
-        type,
-      });
+    // Verifica se já existe um adaptador em cache
+    if (this.adaptersCache.payment.has(type)) {
+      return this.adaptersCache.payment.get(type)!;
     }
 
-    return this._paymentAdapter;
+    // Cria uma nova instância do cliente e do adaptador
+    const paymentClient = new Payment(mercadoPagoConfig.getConfig(type));
+    const adapter = new PaymentAdapter(paymentClient, type);
+
+    // Armazena no cache
+    this.adaptersCache.payment.set(type, adapter);
+
+    logger.debug("Adaptador de pagamento do MercadoPago inicializado", {
+      type,
+    });
+
+    return adapter;
   }
 
   /**
-   * Obtém o adaptador de preferência do MercadoPago
-   * @param type Tipo de integração (default: CHECKOUT)
+   * Obtém o adaptador de preferência para o tipo especificado
+   * @param type Tipo de integração
    * @returns Adaptador de preferência
    */
   public getPreferenceAdapter(
@@ -248,36 +110,54 @@ export class MercadoPagoCoreService {
   ): PreferenceAdapter {
     this.checkAvailability();
 
-    if (!this._preferenceAdapter) {
-      const preferenceClient = this.getPreferenceClient(type);
-      this._preferenceAdapter = new PreferenceAdapter(preferenceClient);
-      logger.debug("Adaptador de preferência do MercadoPago inicializado", {
-        type,
-      });
+    // Verifica se já existe um adaptador em cache
+    if (this.adaptersCache.preference.has(type)) {
+      return this.adaptersCache.preference.get(type)!;
     }
 
-    return this._preferenceAdapter;
+    // Cria uma nova instância do cliente e do adaptador
+    const preferenceClient = new Preference(mercadoPagoConfig.getConfig(type));
+    const adapter = new PreferenceAdapter(preferenceClient, type);
+
+    // Armazena no cache
+    this.adaptersCache.preference.set(type, adapter);
+
+    logger.debug("Adaptador de preferência do MercadoPago inicializado", {
+      type,
+    });
+
+    return adapter;
   }
 
   /**
-   * Obtém o adaptador de assinatura do MercadoPago
+   * Obtém o adaptador de assinatura (sempre usa tipo SUBSCRIPTION)
    * @returns Adaptador de assinatura
    */
   public getSubscriptionAdapter(): SubscriptionAdapter {
     this.checkAvailability();
 
-    if (!this._subscriptionAdapter) {
-      const subscriptionClient = this.getSubscriptionClient();
-      this._subscriptionAdapter = new SubscriptionAdapter(subscriptionClient);
-      logger.debug("Adaptador de assinatura do MercadoPago inicializado");
+    // Verifica se já existe um adaptador em cache
+    if (this.adaptersCache.subscription) {
+      return this.adaptersCache.subscription;
     }
 
-    return this._subscriptionAdapter;
+    // Cria uma nova instância do cliente e do adaptador
+    const subscriptionClient = new PreApproval(
+      mercadoPagoConfig.getConfig(MercadoPagoIntegrationType.SUBSCRIPTION)
+    );
+    const adapter = new SubscriptionAdapter(subscriptionClient);
+
+    // Armazena no cache
+    this.adaptersCache.subscription = adapter;
+
+    logger.debug("Adaptador de assinatura do MercadoPago inicializado");
+
+    return adapter;
   }
 
   /**
-   * Obtém o adaptador de ordem de mercador do MercadoPago
-   * @param type Tipo de integração (default: CHECKOUT)
+   * Obtém o adaptador de ordem de mercador para o tipo especificado
+   * @param type Tipo de integração
    * @returns Adaptador de ordem de mercador
    */
   public getMerchantOrderAdapter(
@@ -285,57 +165,89 @@ export class MercadoPagoCoreService {
   ): MerchantOrderAdapter {
     this.checkAvailability();
 
-    if (!this._merchantOrderAdapter) {
-      const merchantOrderClient = this.getMerchantOrderClient(type);
-      this._merchantOrderAdapter = new MerchantOrderAdapter(
-        merchantOrderClient
-      );
-      logger.debug(
-        "Adaptador de ordem de mercador do MercadoPago inicializado",
-        { type }
-      );
+    // Verifica se já existe um adaptador em cache
+    if (this.adaptersCache.merchantOrder.has(type)) {
+      return this.adaptersCache.merchantOrder.get(type)!;
     }
 
-    return this._merchantOrderAdapter;
+    // Cria uma nova instância do cliente e do adaptador
+    const merchantOrderClient = new MerchantOrder(
+      mercadoPagoConfig.getConfig(type)
+    );
+    const adapter = new MerchantOrderAdapter(merchantOrderClient, type);
+
+    // Armazena no cache
+    this.adaptersCache.merchantOrder.set(type, adapter);
+
+    logger.debug("Adaptador de ordem de mercador do MercadoPago inicializado", {
+      type,
+    });
+
+    return adapter;
   }
 
   /**
-   * Testa a conectividade com a API do Mercado Pago
+   * Testa a conectividade com a API do Mercado Pago para um tipo específico de integração
+   * @param type Tipo de integração a ser testado
    * @returns Informações da conta e status da conexão
    */
-  public async testConnectivity(): Promise<{
-    success: boolean;
-    account?: any;
-    error?: string;
-    errorCode?: string;
-  }> {
+  public async testConnectivity(
+    type: MercadoPagoIntegrationType = MercadoPagoIntegrationType.CHECKOUT
+  ): Promise<IConnectivityInfo> {
     try {
       this.checkAvailability();
 
+      // Verifica se o tipo de integração específico está disponível
+      if (!mercadoPagoConfig.hasConfig(type)) {
+        throw new ServiceUnavailableError(
+          `Configuração MercadoPago para '${type}' não está disponível`,
+          "MERCADOPAGO_CONFIG_UNAVAILABLE"
+        );
+      }
+
       // Obtém informações do usuário para testar a conexão
-      const payment = this.getPaymentClient();
-      const paymentResult = await payment.get({ id: "0" }).catch(() => {
-        // Ignora erro específico, apenas queremos verificar a conectividade
-        return { status: 200 };
-      });
+      const paymentAdapter = this.getPaymentAdapter(type);
 
-      // Se chegou até aqui, a conexão está funcionando
-      logger.info(
-        "Teste de conectividade com o Mercado Pago realizado com sucesso"
-      );
+      try {
+        // Tenta fazer uma operação simples para testar a conectividade
+        await paymentAdapter.get("0").catch(() => {
+          // Ignora erro específico, apenas queremos verificar a conectividade
+          return { status: 200 };
+        });
 
-      return {
-        success: true,
-        account: {
-          id: "connected",
-          email: mercadoPagoConfig.isTestMode()
-            ? "test_user"
-            : "production_user",
-          siteId: "MLB", // Brasil (Mercado Livre Brasil)
-        },
-      };
+        // Se chegou até aqui, a conexão está funcionando
+        logger.info(
+          `Teste de conectividade com o Mercado Pago (${type}) realizado com sucesso`
+        );
+
+        return {
+          success: true,
+          account: {
+            id: "connected",
+            email: mercadoPagoConfig.isTestMode(type)
+              ? "test_user"
+              : "production_user",
+            siteId: "MLB", // Brasil (Mercado Livre Brasil)
+          },
+        };
+      } catch (error) {
+        // Se ocorrer erro na verificação, formata o erro
+        logger.error(
+          `Erro no teste de conectividade com o Mercado Pago (${type}):`,
+          error
+        );
+
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Erro desconhecido",
+          errorCode: "MERCADOPAGO_CONNECTIVITY_ERROR",
+        };
+      }
     } catch (error) {
-      logger.error("Erro no teste de conectividade com o Mercado Pago:", error);
+      logger.error(
+        `Erro no teste de conectividade com o Mercado Pago (${type}):`,
+        error
+      );
 
       // Se for um erro já tratado
       if (error instanceof ServiceUnavailableError) {

@@ -1,5 +1,13 @@
+/**
+ * Adaptador para o cliente de preferências do MercadoPago
+ * @module modules/mercadopago/adapters/preference.adapter
+ */
+
 import { Preference } from "mercadopago";
 import { logger } from "@/shared/utils/logger.utils";
+import { BaseAdapter } from "./base.adapter";
+import { MercadoPagoIntegrationType } from "../enums";
+import { IPreferenceAdapter } from "../interfaces/adapters.interface";
 import {
   PreferenceData,
   PreferenceResponse,
@@ -11,15 +19,17 @@ import {
  * Adaptador para o cliente de preferências do MercadoPago
  * Encapsula as chamadas do SDK oficial com tipagem adequada
  */
-export class PreferenceAdapter {
-  private client: Preference;
-
+export class PreferenceAdapter
+  extends BaseAdapter<Preference>
+  implements IPreferenceAdapter
+{
   /**
    * Construtor do adaptador
    * @param client Cliente do SDK oficial do MercadoPago
+   * @param integrationType Tipo de integração
    */
-  constructor(client: Preference) {
-    this.client = client;
+  constructor(client: Preference, integrationType: MercadoPagoIntegrationType) {
+    super(client, integrationType);
   }
 
   /**
@@ -48,8 +58,7 @@ export class PreferenceAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as PreferenceResponse;
     } catch (error) {
-      logger.error("Erro ao criar preferência no MercadoPago", error);
-      throw error;
+      this.handleApiError(error, "create_preference", { data });
     }
   }
 
@@ -76,8 +85,7 @@ export class PreferenceAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as PreferenceResponse;
     } catch (error) {
-      logger.error(`Erro ao obter preferência ${id} no MercadoPago`, error);
-      throw error;
+      this.handleApiError(error, "get_preference", { id });
     }
   }
 
@@ -115,8 +123,7 @@ export class PreferenceAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as PreferenceResponse;
     } catch (error) {
-      logger.error(`Erro ao atualizar preferência ${id} no MercadoPago`, error);
-      throw error;
+      this.handleApiError(error, "update_preference", { id, data });
     }
   }
 
@@ -149,8 +156,7 @@ export class PreferenceAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as PreferenceSearchResult;
     } catch (error) {
-      logger.error("Erro ao pesquisar preferências no MercadoPago", error);
-      throw error;
+      this.handleApiError(error, "search_preferences", { criteria });
     }
   }
 }

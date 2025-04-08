@@ -4,15 +4,17 @@
  */
 
 import { MercadoPagoConfig as SDKMercadoPagoConfig } from "mercadopago";
-import { credentialsManager, MercadoPagoIntegrationType } from "./credentials";
+import { credentialsManager } from "./credentials";
 import { logger } from "@/shared/utils/logger.utils";
 import { env } from "@/config/environment";
+import { MercadoPagoIntegrationType } from "../enums";
+import { IMercadoPagoConfig } from "../interfaces";
 
 /**
  * Classe de configuração do SDK do MercadoPago
  * Gerencia diferentes instâncias de configuração para cada tipo de integração
  */
-export class MercadoPagoConfig {
+export class MercadoPagoConfig implements IMercadoPagoConfig {
   private static instance: MercadoPagoConfig;
   private configs: Map<MercadoPagoIntegrationType, SDKMercadoPagoConfig> =
     new Map();
@@ -173,11 +175,20 @@ export class MercadoPagoConfig {
   }
 
   /**
-   * Verifica se estamos em modo de teste
+   * Verifica se estamos em modo de teste para um tipo específico
+   * @param type Tipo de integração (opcional, verifica todas se não especificado)
    * @returns Verdadeiro se estamos usando credenciais de teste
    */
-  public isTestMode(): boolean {
+  public isTestMode(type?: MercadoPagoIntegrationType): boolean {
     this.ensureInitialized();
+
+    // Se um tipo específico foi fornecido
+    if (type) {
+      const config = this.configs.get(type);
+      if (!config) return true; // Assume teste se não houver configuração
+
+      return config.accessToken.startsWith("TEST-");
+    }
 
     // Verifica se o access token começa com TEST-
     for (const [_, config] of this.configs.entries()) {
@@ -192,6 +203,19 @@ export class MercadoPagoConfig {
   }
 
   /**
+   * Obtém o token de acesso para um tipo específico de integração
+   * @param type Tipo de integração
+   * @returns Token de acesso
+   * @throws Error se o token não for encontrado
+   */
+  public getAccessToken(type: MercadoPagoIntegrationType): string {
+    this.ensureInitialized();
+
+    const credentials = credentialsManager.getCredentials(type);
+    return credentials.accessToken;
+  }
+
+  /**
    * Obtém a chave pública para uso no frontend
    * Prioriza checkout sobre assinatura se ambos estiverem disponíveis
    * @param type Tipo específico de integração (opcional)
@@ -203,7 +227,7 @@ export class MercadoPagoConfig {
 
     // Se um tipo específico foi solicitado
     if (type) {
-      if (this.hasConfig(type)) {
+      if (credentialsManager.hasCredentials(type)) {
         return credentialsManager.getCredentials(type).publicKey;
       }
       throw new Error(
@@ -212,14 +236,18 @@ export class MercadoPagoConfig {
     }
 
     // Prioriza checkout se disponível
-    if (this.hasConfig(MercadoPagoIntegrationType.CHECKOUT)) {
+    if (
+      credentialsManager.hasCredentials(MercadoPagoIntegrationType.CHECKOUT)
+    ) {
       return credentialsManager.getCredentials(
         MercadoPagoIntegrationType.CHECKOUT
       ).publicKey;
     }
 
     // Fallback para assinatura
-    if (this.hasConfig(MercadoPagoIntegrationType.SUBSCRIPTION)) {
+    if (
+      credentialsManager.hasCredentials(MercadoPagoIntegrationType.SUBSCRIPTION)
+    ) {
       return credentialsManager.getCredentials(
         MercadoPagoIntegrationType.SUBSCRIPTION
       ).publicKey;
@@ -231,10 +259,11 @@ export class MercadoPagoConfig {
 
   /**
    * Obtém o segredo para validação de webhook
+   * @param type Tipo específico de integração (opcional)
    * @returns Segredo para validação de webhook
    */
-  public getWebhookSecret(): string {
-    return credentialsManager.getWebhookSecret();
+  public getWebhookSecret(type?: MercadoPagoIntegrationType): string {
+    return credentialsManager.getWebhookSecret(type);
   }
 }
 

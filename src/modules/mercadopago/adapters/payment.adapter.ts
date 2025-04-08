@@ -1,5 +1,13 @@
+/**
+ * Adaptador para o cliente de pagamentos do MercadoPago
+ * @module modules/mercadopago/adapters/payment.adapter
+ */
+
 import { Payment } from "mercadopago";
 import { logger } from "@/shared/utils/logger.utils";
+import { BaseAdapter } from "./base.adapter";
+import { MercadoPagoIntegrationType } from "../enums";
+import { IPaymentAdapter } from "../interfaces/adapters.interface";
 import {
   PaymentCreateData,
   PaymentResponse,
@@ -13,15 +21,17 @@ import {
  * Adaptador para o cliente de pagamentos do MercadoPago
  * Encapsula as chamadas do SDK oficial com tipagem adequada
  */
-export class PaymentAdapter {
-  private client: Payment;
-
+export class PaymentAdapter
+  extends BaseAdapter<Payment>
+  implements IPaymentAdapter
+{
   /**
    * Construtor do adaptador
    * @param client Cliente do SDK oficial do MercadoPago
+   * @param integrationType Tipo de integração
    */
-  constructor(client: Payment) {
-    this.client = client;
+  constructor(client: Payment, integrationType: MercadoPagoIntegrationType) {
+    super(client, integrationType);
   }
 
   /**
@@ -50,8 +60,7 @@ export class PaymentAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as PaymentResponse;
     } catch (error) {
-      logger.error("Erro ao criar pagamento no MercadoPago", error);
-      throw error;
+      this.handleApiError(error, "create_payment", { data });
     }
   }
 
@@ -78,8 +87,7 @@ export class PaymentAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as PaymentResponse;
     } catch (error) {
-      logger.error(`Erro ao obter pagamento ${id} no MercadoPago`, error);
-      throw error;
+      this.handleApiError(error, "get_payment", { id });
     }
   }
 
@@ -132,8 +140,7 @@ export class PaymentAdapter {
 
       return response;
     } catch (error) {
-      logger.error(`Erro ao reembolsar pagamento ${id} no MercadoPago`, error);
-      throw error;
+      this.handleApiError(error, "refund_payment", { id, data });
     }
   }
 
@@ -186,8 +193,7 @@ export class PaymentAdapter {
 
       return response;
     } catch (error) {
-      logger.error(`Erro ao capturar pagamento ${id} no MercadoPago`, error);
-      throw error;
+      this.handleApiError(error, "capture_payment", { id, data });
     }
   }
 
@@ -214,8 +220,7 @@ export class PaymentAdapter {
 
       return response;
     } catch (error) {
-      logger.error(`Erro ao cancelar pagamento ${id} no MercadoPago`, error);
-      throw error;
+      this.handleApiError(error, "cancel_payment", { id });
     }
   }
 
@@ -248,8 +253,7 @@ export class PaymentAdapter {
       // Usando double assertion para contornar o problema de tipagem
       return response as unknown as PaymentSearchResult;
     } catch (error) {
-      logger.error("Erro ao pesquisar pagamentos no MercadoPago", error);
-      throw error;
+      this.handleApiError(error, "search_payments", { criteria });
     }
   }
 }

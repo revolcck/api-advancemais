@@ -1,0 +1,30 @@
+src/modules/checkoutpro/
+├── config/
+│   └── checkout.config.ts           # Configurações específicas para checkout
+├── controllers/
+│   ├── payment.controller.ts        # Controlador para pagamentos
+│   ├── preference.controller.ts     # Controlador para preferências
+│   └── webhook.controller.ts        # Controlador para webhooks de pagamento
+├── dto/
+│   ├── payment.dto.ts               # DTOs para pagamentos
+│   ├── preference.dto.ts            # DTOs para preferências
+│   └── webhook.dto.ts               # DTOs para webhooks
+├── interfaces/
+│   ├── payment.interface.ts         # Interfaces para pagamentos
+│   ├── preference.interface.ts      # Interfaces para preferências
+│   └── webhook.interface.ts         # Interfaces para webhooks
+├── routes/
+│   └── index.ts                     # Rotas do módulo
+├── services/
+│   ├── payment.service.ts           # Serviço para pagamentos
+│   ├── preference.service.ts        # Serviço para preferências
+│   └── webhook.service.ts           # Serviço para webhooks
+├── types/
+│   ├── payment.types.ts             # Tipos para pagamentos
+│   ├── preference.types.ts          # Tipos para preferências
+│   └── webhook.types.ts             # Tipos para webhooks
+├── validators/
+│   ├── payment.validators.ts        # Validadores para pagamentos
+│   ├── preference.validators.ts     # Validadores para preferências
+│   └── webhook.validators.ts        # Validadores para webhooks
+├── index.ts                         # Ponto de entrada do módulo

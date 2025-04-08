@@ -6,32 +6,47 @@
 import crypto from "crypto";
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../config/mercadopago.config";
+import { MercadoPagoIntegrationType } from "../enums";
+import { WebhookEventType } from "../types/events.types";
 
 /**
- * Implementação da interface IWebhookValidator para o MercadoPago
+ * Utilitário para validação de webhooks do MercadoPago
  */
-export class MercadoPagoWebhookValidator {
+export class WebhookValidator {
   /**
    * Verifica a assinatura de um webhook do MercadoPago
    *
    * @param payload Payload do webhook em formato string
    * @param signature Assinatura recebida no cabeçalho x-signature
+   * @param type Tipo de integração (para usar o segredo específico)
    * @returns true se a assinatura for válida, false caso contrário
    */
-  public static verifySignature(payload: string, signature: string): boolean {
+  public static verifySignature(
+    payload: string,
+    signature: string,
+    type?: MercadoPagoIntegrationType
+  ): boolean {
     try {
-      // Se não há configuração de segredo, não podemos validar
-      const secret = mercadoPagoConfig.getWebhookSecret();
-      if (!secret) {
-        logger.warn(
-          "Webhook recebido, mas secret não está configurado para validação"
-        );
-        return true;
-      }
-
       // Se não há assinatura, não podemos validar
       if (!signature) {
         logger.warn("Webhook recebido sem assinatura no cabeçalho");
+        return false;
+      }
+
+      // Obtém o segredo apropriado com base no tipo de integração
+      const secret = mercadoPagoConfig.getWebhookSecret(type);
+
+      // Se não há segredo configurado, log de aviso
+      if (!secret) {
+        logger.warn(
+          `Webhook recebido, mas secret não está configurado para validação (tipo: ${
+            type || "default"
+          })`
+        );
+        // Em ambiente de desenvolvimento, permitir sem validação
+        if (process.env.NODE_ENV === "development") {
+          return true;
+        }
         return false;
       }
 
@@ -48,9 +63,12 @@ export class MercadoPagoWebhookValidator {
         logger.warn("Assinatura de webhook inválida", {
           expected: calculatedSignature,
           received: signature,
+          integrationType: type || "default",
         });
       } else {
-        logger.debug("Assinatura de webhook validada com sucesso");
+        logger.debug("Assinatura de webhook validada com sucesso", {
+          integrationType: type || "default",
+        });
       }
 
       return isValid;
@@ -61,22 +79,44 @@ export class MercadoPagoWebhookValidator {
   }
 
   /**
-   * Processa o tipo de notificação e retorna uma chave padronizada
-   *
-   * @param type Tipo de notificação do webhook
-   * @returns Tipo normalizado para processamento interno
+   * Normaliza o tipo de notificação para um tipo padrão interno
+   * @param type Tipo de notificação recebido no webhook
+   * @returns Tipo normalizado
    */
-  public static normalizeNotificationType(type: string): string {
-    // Mapeamento de tipos de notificação do MercadoPago para tipos internos
-    const typeMap: Record<string, string> = {
-      payment: "payment",
-      plan: "subscription_plan",
-      subscription: "subscription",
-      invoice: "subscription_invoice",
-      point_integration_wh: "point_integration",
-      merchant_order: "merchant_order",
+  public static normalizeEventType(type: string): WebhookEventType {
+    // Mapeamento de tipos de notificação do MercadoPago para nossos tipos internos
+    const typeMap: Record<string, WebhookEventType> = {
+      payment: WebhookEventType.PAYMENT,
+      plan: WebhookEventType.PLAN,
+      subscription: WebhookEventType.SUBSCRIPTION,
+      invoice: WebhookEventType.INVOICE,
+      point_integration_wh: WebhookEventType.POINT_INTEGRATION,
+      merchant_order: WebhookEventType.MERCHANT_ORDER,
     };
 
-    return typeMap[type] || type;
+    return typeMap[type.toLowerCase()] || (type as WebhookEventType);
+  }
+
+  /**
+   * Identifica o tipo de integração com base no tipo de evento
+   * @param eventType Tipo de evento normalizado
+   * @returns Tipo de integração correspondente
+   */
+  public static getIntegrationTypeFromEvent(
+    eventType: WebhookEventType
+  ): MercadoPagoIntegrationType {
+    // Mapeamento de tipos de evento para tipos de integração
+    switch (eventType) {
+      case WebhookEventType.SUBSCRIPTION:
+      case WebhookEventType.PLAN:
+      case WebhookEventType.INVOICE:
+        return MercadoPagoIntegrationType.SUBSCRIPTION;
+
+      case WebhookEventType.PAYMENT:
+      case WebhookEventType.MERCHANT_ORDER:
+      case WebhookEventType.POINT_INTEGRATION:
+      default:
+        return MercadoPagoIntegrationType.CHECKOUT;
+    }
   }
 }
