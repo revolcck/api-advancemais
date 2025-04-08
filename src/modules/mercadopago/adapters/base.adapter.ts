@@ -31,8 +31,8 @@ export abstract class BaseAdapter<T> {
    * @param context Informações adicionais de contexto
    * @throws O erro original com informações adicionais de contexto
    */
-  protected handleApiError<E extends Error>(
-    error: E,
+  protected handleApiError(
+    error: unknown,
     operation: string,
     context: Record<string, any> = {}
   ): never {
@@ -47,13 +47,18 @@ export abstract class BaseAdapter<T> {
               message: error.message,
               stack: error.stack,
             }
-          : error,
+          : String(error), // Converte para string se não for um Error
     };
 
     logger.error(
       `Erro ao executar operação ${operation} no MercadoPago`,
       errorDetails
     );
+
+    // Se não for um Error, converte para Error
+    if (!(error instanceof Error)) {
+      throw new Error(`Erro na operação ${operation}: ${String(error)}`);
+    }
 
     throw error;
   }
