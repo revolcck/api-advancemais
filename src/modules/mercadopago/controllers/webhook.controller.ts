@@ -35,7 +35,7 @@ class WebhookController {
         },
       });
 
-      // Validação da assinatura
+      // Validação da assinatura (se configurada)
       const rawBody = JSON.stringify(req.body);
       const signature = req.headers["x-signature"] as string;
 
