@@ -18,7 +18,6 @@ import {
   initSubscriptionSchema,
 } from "../validators/subscription.validators";
 import {
-  getSubscriptionAdapter,
   getPreferenceAdapter,
   MercadoPagoIntegrationType,
 } from "@/modules/mercadopago";
@@ -26,10 +25,22 @@ import {
   SubscriptionCheckoutResponseDTO,
   InitSubscriptionDTO,
 } from "../dto/subscription.dto";
-import { BadRequestError, NotFoundError } from "@/shared/errors/AppError";
-import { formatCurrency } from "@/shared/utils/format.utils";
-import { SubscriptionStatus } from "@prisma/client";
+import { AppError } from "@/shared/errors/AppError";
 import { prisma } from "@/config/database";
+
+// Classe customizada para erros de requisição inválida
+class BadRequestError extends AppError {
+  constructor(message: string, errorCode: string, meta?: Record<string, any>) {
+    super(message, 400, errorCode, meta);
+  }
+}
+
+// Classe customizada para erros de recurso não encontrado
+class NotFoundError extends AppError {
+  constructor(message: string, errorCode: string, meta?: Record<string, any>) {
+    super(message, 404, errorCode, meta);
+  }
+}
 
 /**
  * Controlador para gerenciamento de assinaturas
@@ -321,10 +332,14 @@ export class SubscriptionController {
     } catch (error) {
       logger.error("Erro ao iniciar checkout de assinatura:", error);
 
-      if (error instanceof BadRequestError || error instanceof NotFoundError) {
+      if (
+        error instanceof BadRequestError ||
+        error instanceof NotFoundError ||
+        error instanceof AppError
+      ) {
         ApiResponse.error(res, error.message, {
           code: error.errorCode || "CHECKOUT_ERROR",
-          statusCode: error instanceof BadRequestError ? 400 : 404,
+          statusCode: error instanceof NotFoundError ? 404 : 400,
         });
       } else {
         ApiResponse.error(res, "Erro ao iniciar checkout de assinatura", {

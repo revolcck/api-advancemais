@@ -11,7 +11,20 @@ import {
   IUpdatePlanDTO,
   IPlanService,
 } from "../interfaces/plan.interface";
-import { BadRequestError, NotFoundError } from "@/shared/errors/AppError";
+import { AppError } from "@/shared/errors/AppError";
+
+// Classes customizadas de erro para o módulo de assinatura
+class NotFoundError extends AppError {
+  constructor(message: string, errorCode: string = "NOT_FOUND") {
+    super(message, 404, errorCode);
+  }
+}
+
+class BadRequestError extends AppError {
+  constructor(message: string, errorCode: string = "BAD_REQUEST") {
+    super(message, 400, errorCode);
+  }
+}
 
 /**
  * Implementação do serviço de planos de assinatura

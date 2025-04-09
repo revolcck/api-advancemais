@@ -12,7 +12,7 @@ import {
 } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { logger } from "@/shared/utils/logger.utils";
-import { BadRequestError, NotFoundError } from "@/shared/errors/AppError";
+import { AppError } from "@/shared/errors/AppError";
 import {
   ICreateSubscriptionDTO,
   ISubscriptionPaymentDTO,
@@ -22,11 +22,22 @@ import {
 } from "../interfaces/subscription.interface";
 import {
   getSubscriptionAdapter,
-  getMerchantOrderAdapter,
-  getPaymentAdapter,
   MercadoPagoIntegrationType,
 } from "@/modules/mercadopago";
-import { addDays, addMonths, format } from "date-fns";
+import { addMonths } from "date-fns";
+
+// Classes customizadas de erro para o módulo de assinatura
+class NotFoundError extends AppError {
+  constructor(message: string, errorCode: string = "NOT_FOUND") {
+    super(message, 404, errorCode);
+  }
+}
+
+class BadRequestError extends AppError {
+  constructor(message: string, errorCode: string = "BAD_REQUEST") {
+    super(message, 400, errorCode);
+  }
+}
 
 /**
  * Implementação do serviço de assinaturas
@@ -798,10 +809,7 @@ export class SubscriptionService implements ISubscriptionService {
           amount,
           currency: "BRL",
           status: PaymentStatus.PENDING,
-          description: `Renovação da assinatura ${subscription.id} - ${format(
-            currentDate,
-            "dd/MM/yyyy"
-          )}`,
+          description: `Renovação da assinatura ${subscription.id}`,
           paymentDate: currentDate,
           discountAmount: discountAmount > 0 ? discountAmount : undefined,
           originalAmount: discountAmount > 0 ? originalAmount : undefined,

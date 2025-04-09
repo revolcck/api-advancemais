@@ -3,7 +3,7 @@
  * @module modules/subscription/routes
  */
 
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { planController } from "../controllers/plan.controller";
 import { subscriptionController } from "../controllers/subscription.controller";
 import { webhookController } from "../controllers/webhook.controller";
@@ -14,13 +14,18 @@ import { subscriptionConfig } from "../config/subscription.config";
 const router: Router = Router();
 
 // Middleware para verificar se o módulo está habilitado
-const checkModuleEnabled = (req, res, next) => {
+const checkModuleEnabled = (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
   if (!subscriptionConfig.isEnabled()) {
-    return res.status(404).json({
+    res.status(404).json({
       status: "error",
       message: "Módulo de assinaturas não está habilitado",
       code: "MODULE_DISABLED",
     });
+    return; // Apenas retorna da função, não retorna um valor
   }
   next();
 };

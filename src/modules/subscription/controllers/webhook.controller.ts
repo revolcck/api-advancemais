@@ -18,6 +18,7 @@ import {
 import { WebhookValidator } from "@/modules/mercadopago/utils/webhook-validator.util";
 import { MercadoPagoIntegrationType } from "@/modules/mercadopago/enums";
 import { WebhookEventType } from "@/modules/mercadopago/types/events.types";
+import { prisma } from "@/config/database";
 
 /**
  * Controlador para processamento de webhooks de assinatura
