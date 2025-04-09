@@ -10,6 +10,7 @@ import { MercadoPagoIntegrationType } from "../enums";
 import { WebhookValidator } from "../utils/webhook-validator.util";
 import { WebhookEventType } from "../types/events.types";
 import { WebhookService } from "../services/webhook.service";
+import { prisma } from "@/config/database";
 
 /**
  * Controlador para gerenciamento de webhooks do MercadoPago
@@ -304,6 +305,97 @@ export class WebhookController {
             "Webhook de assinatura recebido, mas ocorreu um erro no processamento",
         }
       );
+    }
+  };
+
+  /**
+   * Consulta o histórico de webhooks recebidos
+   * @route GET /api/mercadopago/webhooks/history
+   */
+  public getWebhookHistory = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const eventType = req.query.eventType as string;
+      const status = req.query.status as string;
+      const startDate = req.query.startDate
+        ? new Date(req.query.startDate as string)
+        : undefined;
+      const endDate = req.query.endDate
+        ? new Date(req.query.endDate as string)
+        : undefined;
+
+      // Construir filtros para a consulta
+      const filters: any = {
+        source: "mercadopago",
+      };
+
+      if (eventType) {
+        filters.eventType = eventType;
+      }
+
+      if (status) {
+        filters.processStatus = status;
+      }
+
+      if (startDate || endDate) {
+        filters.createdAt = {};
+
+        if (startDate) {
+          filters.createdAt.gte = startDate;
+        }
+
+        if (endDate) {
+          filters.createdAt.lte = endDate;
+        }
+      }
+
+      // Consultar total de registros
+      const total = await prisma.webhookNotification.count({
+        where: filters,
+      });
+
+      // Consultar registros com paginação
+      const webhooks = await prisma.webhookNotification.findMany({
+        where: filters,
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: limit,
+        skip: (page - 1) * limit,
+        select: {
+          id: true,
+          eventType: true,
+          eventId: true,
+          processStatus: true,
+          processedAt: true,
+          error: true,
+          createdAt: true,
+          liveMode: true,
+          apiVersion: true,
+        },
+      });
+
+      // Retornar resultado paginado
+      ApiResponse.success(res, {
+        data: webhooks,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      logger.error("Erro ao consultar histórico de webhooks", error);
+
+      ApiResponse.error(res, "Erro ao consultar histórico de webhooks", {
+        statusCode: 500,
+        code: "INTERNAL_SERVER_ERROR",
+      });
     }
   };
 }
