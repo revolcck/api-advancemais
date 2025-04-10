@@ -9,6 +9,7 @@ import { subscriptionController } from "../controllers/subscription.controller";
 import { webhookController } from "../controllers/webhook.controller";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import { subscriptionConfig } from "../config/subscription.config";
+import { ApiResponse } from "@/shared/utils/api-response.utils"; // Importação adicionada
 import {
   requireActiveSubscription,
   requirePlanFeature,
@@ -252,6 +253,65 @@ router.post(
 );
 
 /**
+ * Exemplos de rotas que utilizam os middlewares de verificação de assinatura
+ */
+
+/**
+ * @route GET /api/subscription/premium-content
+ * @desc Acessa conteúdo premium (exige assinatura ativa)
+ * @access Privado (requer assinatura ativa)
+ */
+router.get(
+  "/premium-content",
+  authenticate,
+  requireActiveSubscription,
+  (req, res) => {
+    ApiResponse.success(res, {
+      content: "Conteúdo premium disponível apenas para assinantes",
+      planInfo: req.subscriptionPlan,
+    });
+  }
+);
+
+/**
+ * @route GET /api/subscription/advanced-features
+ * @desc Acessa recursos avançados (exige plano com feature específica)
+ * @access Privado (requer plano com recurso específico)
+ */
+router.get(
+  "/advanced-features",
+  authenticate,
+  requireActiveSubscription,
+  requirePlanFeature("advancedFeatures"),
+  (req, res) => {
+    ApiResponse.success(res, {
+      message: "Você tem acesso aos recursos avançados",
+      features: req.subscriptionPlan.features.advancedFeatures,
+    });
+  }
+);
+
+/**
+ * @route POST /api/subscription/job-offers
+ * @desc Cria uma nova vaga (sujeito ao limite do plano)
+ * @access Privado (verifica limite de vagas do plano)
+ */
+router.post(
+  "/job-offers",
+  authenticate,
+  requireActiveSubscription,
+  checkJobOfferLimit,
+  (req, res) => {
+    ApiResponse.success(res, {
+      message: "Vaga criada com sucesso",
+      remainingJobOffers:
+        (req.subscriptionPlan.maxJobOffers || 0) -
+        ((req.subscription.usedJobOffers || 0) + 1),
+    });
+  }
+);
+
+/**
  * Rotas de webhooks
  */
 
@@ -291,5 +351,4 @@ router.get(
   webhookController.getWebhookHistory
 );
 
-// Exportação padrão das rotas
 export default router;
