@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
     "target": "es2021",
-    "module": "NodeNext",
+    "module": "CommonJS",
     "lib": ["es2021"],
-    "outDir": "./dist",
-    "rootDir": "./src",
+    "outDir": "dist",
+    "rootDir": "src",
     "strict": true,
     "strictPropertyInitialization": false,
     "esModuleInterop": true,
@@ -16,10 +16,10 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "sourceMap": true,
-    "moduleResolution": "NodeNext",
+    "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["src/*"]
     },
     "typeRoots": ["./node_modules/@types", "./src/shared/types"]
   },
