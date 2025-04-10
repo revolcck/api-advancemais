@@ -19,6 +19,7 @@ import {
 } from "../validators/subscription.validators";
 import {
   getPreferenceAdapter,
+  getPaymentAdapter,
   MercadoPagoIntegrationType,
 } from "@/modules/mercadopago";
 import {
@@ -27,6 +28,7 @@ import {
 } from "../dto/subscription.dto";
 import { AppError } from "@/shared/errors/AppError";
 import { prisma } from "@/config/database";
+import { PaymentStatus, SubscriptionStatus } from "@prisma/client";
 
 // Classe customizada para erros de requisição inválida
 class BadRequestError extends AppError {
@@ -201,6 +203,10 @@ export class SubscriptionController {
         Math.random() * 1000
       )}`;
 
+      // Aplica as restrições de método de pagamento
+      const paymentRestrictions =
+        this.getPaymentMethodRestrictions(paymentMethod);
+
       // Cria a preferência no MercadoPago
       const preference = await preferenceAdapter.create({
         items: [
@@ -235,8 +241,9 @@ export class SubscriptionController {
         },
         auto_return: "approved",
         payment_methods: {
-          excluded_payment_methods: [],
-          excluded_payment_types: [],
+          excluded_payment_methods:
+            paymentRestrictions.excluded_payment_methods,
+          excluded_payment_types: paymentRestrictions.excluded_payment_types,
           installments: 1,
         },
         metadata: {
@@ -600,6 +607,389 @@ export class SubscriptionController {
       });
     }
   };
+
+  /**
+   * Verifica o status da assinatura do usuário atual
+   * @route GET /api/subscription/status
+   */
+  public checkSubscriptionStatus = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        ApiResponse.error(res, "Usuário não autenticado", {
+          code: "UNAUTHORIZED",
+          statusCode: 401,
+        });
+        return;
+      }
+
+      // Busca a assinatura ativa do usuário
+      const subscription = await prisma.subscription.findFirst({
+        where: {
+          userId,
+          status: SubscriptionStatus.ACTIVE,
+        },
+        include: {
+          plan: true,
+          payments: {
+            orderBy: { paymentDate: "desc" },
+            take: 1,
+          },
+        },
+      });
+
+      // Se não tem assinatura ativa, verifica se tem assinatura pendente
+      if (!subscription) {
+        const pendingSubscription = await prisma.subscription.findFirst({
+          where: {
+            userId,
+            status: SubscriptionStatus.PENDING,
+          },
+          include: {
+            plan: true,
+            checkoutSession: true,
+          },
+        });
+
+        if (pendingSubscription) {
+          ApiResponse.success(
+            res,
+            {
+              hasActiveSubscription: false,
+              hasPendingSubscription: true,
+              subscription: {
+                id: pendingSubscription.id,
+                status: pendingSubscription.status,
+                planName: pendingSubscription.plan.name,
+                checkoutUrl: pendingSubscription.checkoutSession?.mpInitPoint,
+                expiresAt: pendingSubscription.checkoutSession?.expiresAt,
+              },
+            },
+            {
+              message: "Você tem uma assinatura pendente de pagamento",
+            }
+          );
+          return;
+        }
+
+        // Sem assinaturas
+        ApiResponse.success(
+          res,
+          {
+            hasActiveSubscription: false,
+            hasPendingSubscription: false,
+            subscription: null,
+          },
+          {
+            message: "Você não possui assinatura ativa",
+          }
+        );
+        return;
+      }
+
+      // Tem assinatura ativa, verifica se está pausada
+      if (subscription.isPaused) {
+        ApiResponse.success(
+          res,
+          {
+            hasActiveSubscription: true,
+            isPaused: true,
+            subscription: {
+              id: subscription.id,
+              status: subscription.status,
+              planName: subscription.plan.name,
+              features: subscription.plan.features,
+              nextBillingDate: subscription.nextBillingDate,
+              pausedAt: subscription.pausedAt,
+            },
+          },
+          {
+            message: "Sua assinatura está pausada",
+          }
+        );
+        return;
+      }
+
+      // Assinatura ativa e não pausada
+      ApiResponse.success(res, {
+        hasActiveSubscription: true,
+        isPaused: false,
+        subscription: {
+          id: subscription.id,
+          status: subscription.status,
+          planName: subscription.plan.name,
+          features: subscription.plan.features,
+          nextBillingDate: subscription.nextBillingDate,
+          jobOffers: {
+            max: subscription.plan.maxJobOffers,
+            used: subscription.usedJobOffers,
+            remaining:
+              (subscription.plan.maxJobOffers || 0) -
+              (subscription.usedJobOffers || 0),
+          },
+          currentPeriod: {
+            start: subscription.currentPeriodStart,
+            end: subscription.currentPeriodEnd,
+          },
+          lastPayment: subscription.payments[0] || null,
+        },
+      });
+    } catch (error) {
+      logger.error("Erro ao verificar status da assinatura:", error);
+      ApiResponse.error(res, "Erro ao verificar status da assinatura", {
+        code: "SUBSCRIPTION_STATUS_ERROR",
+        statusCode: 500,
+      });
+    }
+  };
+
+  /**
+   * Sincroniza o status da assinatura com o Mercado Pago
+   * @route POST /api/subscription/sync/:id
+   */
+  public syncSubscriptionStatus = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { id } = req.params;
+
+      // Verifica se a assinatura existe
+      const subscription = await prisma.subscription.findUnique({
+        where: { id },
+        include: { user: true, plan: true },
+      });
+
+      if (!subscription) {
+        ApiResponse.error(res, "Assinatura não encontrada", {
+          code: "SUBSCRIPTION_NOT_FOUND",
+          statusCode: 404,
+        });
+        return;
+      }
+
+      // Verifica permissão (apenas admin ou dono da assinatura)
+      const isAdmin =
+        req.user?.role === "ADMIN" ||
+        req.user?.role === "Super Administrador" ||
+        req.user?.role === "Financeiro";
+
+      if (!isAdmin && req.user?.id !== subscription.userId) {
+        ApiResponse.error(
+          res,
+          "Você não tem permissão para acessar esta assinatura",
+          {
+            code: "SUBSCRIPTION_ACCESS_DENIED",
+            statusCode: 403,
+          }
+        );
+        return;
+      }
+
+      // Se tiver ID de assinatura do MercadoPago, sincroniza com a API
+      if (subscription.mpSubscriptionId) {
+        const updatedSubscription =
+          await this.subscriptionService.updateSubscriptionFromMercadoPago(
+            subscription.mpSubscriptionId
+          );
+
+        if (updatedSubscription) {
+          ApiResponse.success(res, updatedSubscription, {
+            message: "Assinatura sincronizada com sucesso",
+          });
+        } else {
+          ApiResponse.error(
+            res,
+            "Não foi possível sincronizar com o Mercado Pago",
+            {
+              code: "SYNC_FAILED",
+              statusCode: 400,
+            }
+          );
+        }
+        return;
+      }
+
+      // Se tiver checkoutSession, verifica status da preferência
+      if (subscription.checkoutSessionId) {
+        const checkoutSession = await prisma.checkoutSession.findUnique({
+          where: { id: subscription.checkoutSessionId },
+        });
+
+        if (
+          checkoutSession &&
+          checkoutSession.mpPreferenceId &&
+          checkoutSession.status === "pending"
+        ) {
+          try {
+            // Busca a preferência no Mercado Pago
+            const preferenceAdapter = getPreferenceAdapter(
+              MercadoPagoIntegrationType.SUBSCRIPTION
+            );
+            const preference = await preferenceAdapter.get(
+              checkoutSession.mpPreferenceId
+            );
+
+            // Verifica se tem payments associados a esta preferência
+            if (preference && preference.id) {
+              // Busca pagamentos associados a esta preferência
+              const paymentAdapter = getPaymentAdapter(
+                MercadoPagoIntegrationType.SUBSCRIPTION
+              );
+              const payments = await paymentAdapter.search({
+                preference_id: preference.id,
+              });
+
+              if (payments && payments.results && payments.results.length > 0) {
+                // Encontrou pagamentos - processa o mais recente
+                const latestPayment = payments.results[0];
+
+                // Determina o status baseado no pagamento
+                let newStatus = subscription.status;
+                if (latestPayment.status === "approved") {
+                  newStatus = SubscriptionStatus.ACTIVE;
+                } else if (
+                  ["rejected", "cancelled"].includes(latestPayment.status)
+                ) {
+                  newStatus = SubscriptionStatus.PAYMENT_FAILED;
+                }
+
+                // Registra o pagamento no sistema
+                await this.subscriptionService.processPayment({
+                  subscriptionId: subscription.id,
+                  amount: latestPayment.transaction_amount,
+                  status:
+                    latestPayment.status === "approved"
+                      ? PaymentStatus.APPROVED
+                      : PaymentStatus.REJECTED,
+                  description: `Pagamento via MercadoPago - ${latestPayment.id}`,
+                  paymentDate: new Date(latestPayment.date_created),
+                  mpPaymentId: latestPayment.id.toString(),
+                  mpPreferenceId: preference.id,
+                  mpStatus: latestPayment.status,
+                  mpStatusDetail: latestPayment.status_detail,
+                  gatewayResponse: latestPayment,
+                });
+
+                // Atualiza o status da assinatura
+                const updatedSubscription =
+                  await this.subscriptionService.updateSubscription(
+                    subscription.id,
+                    {
+                      status: newStatus,
+                    }
+                  );
+
+                ApiResponse.success(res, updatedSubscription, {
+                  message: `Assinatura atualizada com base no pagamento: ${latestPayment.status}`,
+                });
+                return;
+              }
+            }
+
+            // Se não encontrou pagamentos
+            ApiResponse.success(res, subscription, {
+              message: "Nenhum pagamento encontrado para esta assinatura",
+            });
+          } catch (error) {
+            logger.error(
+              `Erro ao sincronizar preferência ${checkoutSession.mpPreferenceId}:`,
+              error
+            );
+            ApiResponse.error(res, "Erro ao sincronizar com o Mercado Pago", {
+              code: "SYNC_ERROR",
+              statusCode: 500,
+            });
+          }
+          return;
+        }
+      }
+
+      // Se chegou aqui, não tem como sincronizar
+      ApiResponse.success(res, subscription, {
+        message: "Assinatura sem referência externa para sincronização",
+      });
+    } catch (error) {
+      logger.error(`Erro ao sincronizar assinatura:`, error);
+      ApiResponse.error(res, "Erro ao sincronizar assinatura", {
+        code: "SYNC_ERROR",
+        statusCode: 500,
+      });
+    }
+  };
+
+  /**
+   * Função auxiliar para determinar quais métodos de pagamento excluir no checkout
+   * @param paymentMethod Método de pagamento selecionado pelo usuário
+   * @returns Configuração de restrições para o Mercado Pago
+   */
+  private getPaymentMethodRestrictions(paymentMethod: any): {
+    excluded_payment_methods: Array<{ id: string }>;
+    excluded_payment_types: Array<{ id: string }>;
+  } {
+    // Arrays para armazenar métodos e tipos de pagamento a serem excluídos
+    const excludedPaymentMethods: Array<{ id: string }> = [];
+    const excludedPaymentTypes: Array<{ id: string }> = [];
+
+    // Se o usuário selecionou checkout completo do MP, não excluímos nada
+    if (paymentMethod.type === "MP_CHECKOUT") {
+      return { excluded_payment_methods: [], excluded_payment_types: [] };
+    }
+
+    // Mapeamento entre os tipos de pagamento do nosso sistema e do Mercado Pago
+    const mpPaymentTypeMap: Record<string, string> = {
+      CREDIT_CARD: "credit_card",
+      DEBIT_CARD: "debit_card",
+      PIX: "pix",
+      BANK_SLIP: "ticket",
+      BANK_TRANSFER: "bank_transfer",
+    };
+
+    // Obtém o tipo equivalente no Mercado Pago
+    const selectedType = mpPaymentTypeMap[paymentMethod.type];
+
+    // Se for um tipo válido, excluímos todos os outros tipos
+    if (selectedType) {
+      // Excluir todos os tipos EXCETO o selecionado
+      Object.entries(mpPaymentTypeMap).forEach(([key, value]) => {
+        if (value && value !== selectedType) {
+          excludedPaymentTypes.push({ id: value });
+        }
+      });
+    }
+
+    // Se temos informações específicas de IDs de métodos de pagamento do MP
+    if (
+      paymentMethod.mpPaymentMethodId &&
+      paymentMethod.type === "CREDIT_CARD"
+    ) {
+      // Em caso de cartão de crédito, podemos restringir a bandeiras específicas
+      // Essa parte depende de como você armazena esses IDs no seu sistema
+      const creditCardMethods = [
+        "visa",
+        "master",
+        "amex",
+        "elo",
+        "hipercard",
+        "diners",
+      ];
+
+      creditCardMethods.forEach((method) => {
+        if (method !== paymentMethod.mpPaymentMethodId) {
+          excludedPaymentMethods.push({ id: method });
+        }
+      });
+    }
+
+    return {
+      excluded_payment_methods: excludedPaymentMethods,
+      excluded_payment_types: excludedPaymentTypes,
+    };
+  }
 
   /**
    * Obtém texto descritivo do intervalo do plano

@@ -9,6 +9,11 @@ import { subscriptionController } from "../controllers/subscription.controller";
 import { webhookController } from "../controllers/webhook.controller";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import { subscriptionConfig } from "../config/subscription.config";
+import {
+  requireActiveSubscription,
+  requirePlanFeature,
+  checkJobOfferLimit,
+} from "../middleware/subscription.middleware";
 
 // Cria o router
 const router: Router = Router();
@@ -25,7 +30,7 @@ const checkModuleEnabled = (
       message: "Módulo de assinaturas não está habilitado",
       code: "MODULE_DISABLED",
     });
-    return; // Apenas retorna da função, não retorna um valor
+    return;
   }
   next();
 };
@@ -118,6 +123,28 @@ router.patch(
  * @access Público
  */
 router.get("/payment-methods", subscriptionController.getPaymentMethods);
+
+/**
+ * @route GET /api/subscription/status
+ * @desc Verifica o status da assinatura do usuário atual
+ * @access Privado
+ */
+router.get(
+  "/status",
+  authenticate,
+  subscriptionController.checkSubscriptionStatus
+);
+
+/**
+ * @route POST /api/subscription/sync/:id
+ * @desc Sincroniza o status da assinatura com o Mercado Pago
+ * @access Privado (dono da assinatura ou admin)
+ */
+router.post(
+  "/sync/:id",
+  authenticate,
+  subscriptionController.syncSubscriptionStatus
+);
 
 /**
  * @route GET /api/subscription/my-subscriptions
@@ -264,4 +291,5 @@ router.get(
   webhookController.getWebhookHistory
 );
 
+// Exportação padrão das rotas
 export default router;
