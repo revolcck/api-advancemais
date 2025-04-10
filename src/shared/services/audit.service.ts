@@ -41,15 +41,23 @@ export class AuditService {
     details?: object,
     req?: Request
   ): void {
+    // Captura IP corretamente de diferentes fontes
+    const ip = req
+      ? (req.headers["x-forwarded-for"] as string) ||
+        req.socket?.remoteAddress ||
+        "unknown"
+      : undefined;
+
     const auditData: AuditData = {
       action,
       resource,
       resourceId,
       userId,
       details,
-      ip: req?.ip,
+      ip,
       method: req?.method,
       path: req?.originalUrl || req?.path,
+      userAgent: req?.headers?.["user-agent"] as string,
     };
 
     logger.audit(auditData);

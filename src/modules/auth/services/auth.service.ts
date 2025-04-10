@@ -1,3 +1,4 @@
+import { Request } from "express";
 import { logger } from "@/shared/utils/logger.utils";
 import {
   UnauthorizedError,
@@ -37,7 +38,10 @@ export class AuthService {
   /**
    * Autentica um usuário e retorna tokens de acesso e refresh
    */
-  public async login(data: LoginRequestDto): Promise<LoginResponseDto> {
+  public async login(
+    data: LoginRequestDto,
+    req?: Request
+  ): Promise<LoginResponseDto> {
     try {
       logger.info(`Tentativa de login para o documento: ${data.document}`);
 
@@ -54,7 +58,8 @@ export class AuthService {
           "authentication",
           undefined,
           undefined,
-          { document: data.document, reason: "user_not_found" }
+          { document: data.document, reason: "user_not_found" },
+          req
         );
         throw new UnauthorizedError("Credenciais inválidas");
       }
@@ -67,9 +72,14 @@ export class AuthService {
 
       if (!isPasswordValid) {
         logger.warn(`Falha no login: senha incorreta para ${user.email}`);
-        AuditService.log("login_failed", "authentication", undefined, user.id, {
-          reason: "invalid_password",
-        });
+        AuditService.log(
+          "login_failed",
+          "authentication",
+          undefined,
+          user.id,
+          { reason: "invalid_password" },
+          req
+        );
         throw new UnauthorizedError("Credenciais inválidas");
       }
 
@@ -96,8 +106,10 @@ export class AuthService {
         "authentication",
         undefined,
         user.id,
-        { role: user.role.name }
+        { role: user.role.name },
+        req
       );
+
       logger.info(`Login bem-sucedido para ${user.email}`, {
         userId: user.id,
         role: user.role.name,
@@ -131,7 +143,8 @@ export class AuthService {
    * Registra um novo usuário pessoa física
    */
   public async registerPessoaFisica(
-    data: RegisterPessoaFisicaDto
+    data: RegisterPessoaFisicaDto,
+    req?: Request
   ): Promise<RegisterResponseDto> {
     try {
       logger.info(
@@ -156,11 +169,18 @@ export class AuthService {
       });
 
       // Registra log de auditoria para registro bem-sucedido
-      AuditService.log(AuditAction.REGISTER, "user", user.id, user.id, {
-        name: user.personalInfo.name,
-        email: user.email,
-        role: user.role.name,
-      });
+      AuditService.log(
+        AuditAction.REGISTER,
+        "user",
+        user.id,
+        user.id,
+        {
+          name: user.personalInfo.name,
+          email: user.email,
+          role: user.role.name,
+        },
+        req
+      );
 
       logger.info(
         `Usuário pessoa física registrado com sucesso: ${user.email}`,
@@ -195,7 +215,8 @@ export class AuthService {
    * Registra um novo usuário pessoa jurídica
    */
   public async registerPessoaJuridica(
-    data: RegisterPessoaJuridicaDto
+    data: RegisterPessoaJuridicaDto,
+    req?: Request
   ): Promise<RegisterResponseDto> {
     try {
       logger.info(
@@ -220,11 +241,18 @@ export class AuthService {
       });
 
       // Registra log de auditoria para registro bem-sucedido
-      AuditService.log(AuditAction.REGISTER, "user", user.id, user.id, {
-        companyName: user.companyInfo.companyName,
-        email: user.email,
-        role: user.role.name,
-      });
+      AuditService.log(
+        AuditAction.REGISTER,
+        "user",
+        user.id,
+        user.id,
+        {
+          companyName: user.companyInfo.companyName,
+          email: user.email,
+          role: user.role.name,
+        },
+        req
+      );
 
       logger.info(
         `Usuário pessoa jurídica registrado com sucesso: ${user.email}`,
@@ -259,7 +287,8 @@ export class AuthService {
    * Atualiza o token de acesso usando o token de refresh
    */
   public async refreshToken(
-    data: RefreshTokenRequestDto
+    data: RefreshTokenRequestDto,
+    req?: Request
   ): Promise<RefreshTokenResponseDto> {
     try {
       logger.debug(`Tentativa de refresh de token`);
@@ -276,7 +305,8 @@ export class AuthService {
           "authentication",
           undefined,
           undefined,
-          { reason: tokenResult.expired ? "expired_token" : "invalid_token" }
+          { reason: tokenResult.expired ? "expired_token" : "invalid_token" },
+          req
         );
         throw new UnauthorizedError("Token inválido ou expirado");
       }
@@ -295,7 +325,8 @@ export class AuthService {
           "authentication",
           undefined,
           userId,
-          { reason: "user_not_found" }
+          { reason: "user_not_found" },
+          req
         );
         throw new NotFoundError("Usuário");
       }
@@ -310,7 +341,8 @@ export class AuthService {
           "authentication",
           undefined,
           userId,
-          { reason: "token_mismatch" }
+          { reason: "token_mismatch" },
+          req
         );
         throw new UnauthorizedError("Token inválido");
       }
@@ -337,8 +369,10 @@ export class AuthService {
         "authentication",
         undefined,
         userId,
-        { role: user.role.name }
+        { role: user.role.name },
+        req
       );
+
       logger.info(`Token atualizado com sucesso para usuário ${userId}`);
 
       // Retorna os novos tokens
@@ -362,7 +396,8 @@ export class AuthService {
    */
   public async logout(
     userId: string,
-    refreshToken: string
+    refreshToken: string,
+    req?: Request
   ): Promise<SuccessResponseDto> {
     try {
       logger.info(`Iniciando logout para usuário ID: ${userId}`);
@@ -374,7 +409,15 @@ export class AuthService {
       await this.userService.updateRefreshToken(userId, null);
 
       // Registra log de auditoria
-      AuditService.log(AuditAction.LOGOUT, "authentication", undefined, userId);
+      AuditService.log(
+        AuditAction.LOGOUT,
+        "authentication",
+        undefined,
+        userId,
+        undefined,
+        req
+      );
+
       logger.info(`Logout concluído com sucesso para usuário ${userId}`);
 
       return {
@@ -392,7 +435,8 @@ export class AuthService {
    */
   public async changePassword(
     userId: string,
-    data: ChangePasswordRequestDto
+    data: ChangePasswordRequestDto,
+    req?: Request
   ): Promise<SuccessResponseDto> {
     try {
       logger.info(`Tentativa de alteração de senha para usuário ID: ${userId}`);
@@ -404,9 +448,16 @@ export class AuthService {
         logger.warn(
           `Usuário não encontrado durante alteração de senha: ${userId}`
         );
-        AuditService.log("password_change_failed", "user", userId, userId, {
-          reason: "user_not_found",
-        });
+        AuditService.log(
+          "password_change_failed",
+          "user",
+          userId,
+          userId,
+          {
+            reason: "user_not_found",
+          },
+          req
+        );
         throw new NotFoundError("Usuário");
       }
 
@@ -420,9 +471,16 @@ export class AuthService {
         logger.warn(
           `Senha atual incorreta durante alteração de senha para usuário ${userId}`
         );
-        AuditService.log("password_change_failed", "user", userId, userId, {
-          reason: "incorrect_current_password",
-        });
+        AuditService.log(
+          "password_change_failed",
+          "user",
+          userId,
+          userId,
+          {
+            reason: "incorrect_current_password",
+          },
+          req
+        );
         throw new UnauthorizedError("Senha atual incorreta");
       }
 
@@ -434,9 +492,16 @@ export class AuthService {
         logger.warn(
           `Nova senha igual à atual durante alteração para usuário ${userId}`
         );
-        AuditService.log("password_change_failed", "user", userId, userId, {
-          reason: "same_password",
-        });
+        AuditService.log(
+          "password_change_failed",
+          "user",
+          userId,
+          userId,
+          {
+            reason: "same_password",
+          },
+          req
+        );
         throw new ValidationError("Nova senha deve ser diferente da atual");
       }
 
@@ -450,7 +515,15 @@ export class AuthService {
       }
 
       // Registra log de auditoria
-      AuditService.log(AuditAction.PASSWORD_CHANGE, "user", userId, userId);
+      AuditService.log(
+        AuditAction.PASSWORD_CHANGE,
+        "user",
+        userId,
+        userId,
+        undefined,
+        req
+      );
+
       logger.info(`Senha alterada com sucesso para usuário ${userId}`);
 
       return {

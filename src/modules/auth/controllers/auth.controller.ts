@@ -24,7 +24,8 @@ export class AuthController {
    */
   public login = async (req: Request, res: Response): Promise<void> => {
     try {
-      const result = await this.authService.login(req.body);
+      // Passa o objeto req para o serviço
+      const result = await this.authService.login(req.body, req);
 
       ApiResponse.success(res, result, {
         message: "Login realizado com sucesso",
