@@ -68,7 +68,7 @@ export class HealthService {
       const dbHealthCheck = await db.healthCheck();
 
       return {
-        isHealthy: dbHealthCheck.isConnected,
+        isHealthy: dbHealthCheck.status === "ok",
         details: {
           responseTimeMs: dbHealthCheck.responseTime,
           connections: dbHealthCheck.connections,

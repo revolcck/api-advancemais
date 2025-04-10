@@ -114,7 +114,7 @@ export class AuthMiddleware {
       req.user = {
         id: user.id,
         email: user.email,
-        role: user.role,
+        role: user.role.name,
       };
       req.token = token;
 
