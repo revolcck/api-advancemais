@@ -20,7 +20,7 @@ export interface SubscriptionConfig {
     enabled: boolean;
     useProduction: boolean;
     testMode: boolean;
-    testEnabled: boolean; // Nova propriedade para ambiente de teste
+    testEnabled: boolean; // Indica se o ambiente de teste está habilitado
   };
 
   // Configurações de renovação automática
@@ -114,23 +114,23 @@ export class SubscriptionConfigManager {
       }
 
       // Configuração para uso de credenciais de produção
+      // Nota: As variáveis de ambiente já garantem que não temos produção e teste habilitados ao mesmo tempo
       const subscriptionProdEnabled = env.mercadoPago.subscription.prodEnabled;
       const checkoutProdEnabled = env.mercadoPago.checkout.prodEnabled;
 
-      // Se qualquer tipo de integração estiver usando credenciais de produção,
-      // consideramos que o módulo está usando produção
+      // Se qualquer tipo de integração estiver usando produção, consideramos que todo o módulo está em produção
       this.config.mercadoPago.useProduction =
         subscriptionProdEnabled || checkoutProdEnabled;
 
-      // Atualizamos o modo de teste com base nas configurações do MercadoPago
-      this.config.mercadoPago.testMode = mercadoPagoConfig.isTestMode();
+      // Se estamos em produção, não podemos estar em modo de teste
+      this.config.mercadoPago.testMode = !this.config.mercadoPago.useProduction;
 
-      // Configuração para ambiente de teste habilitado
-      const subscriptionTestEnabled = env.mercadoPago.subscription.testEnabled;
-      const checkoutTestEnabled = env.mercadoPago.checkout.testEnabled;
+      // Teste só está habilitado se não estamos em produção e o teste está explicitamente habilitado
+      const subscriptionTestEnabled =
+        !subscriptionProdEnabled && env.mercadoPago.subscription.testEnabled;
+      const checkoutTestEnabled =
+        !checkoutProdEnabled && env.mercadoPago.checkout.testEnabled;
 
-      // Se qualquer tipo de integração tiver teste habilitado,
-      // consideramos que o módulo tem teste habilitado
       this.config.mercadoPago.testEnabled =
         subscriptionTestEnabled || checkoutTestEnabled;
 
@@ -222,7 +222,10 @@ export class SubscriptionConfigManager {
    * Verifica se o ambiente de teste está habilitado
    */
   public isTestEnabled(): boolean {
-    return this.config.mercadoPago.testEnabled;
+    return (
+      !this.config.mercadoPago.useProduction &&
+      this.config.mercadoPago.testEnabled
+    );
   }
 
   /**
@@ -250,7 +253,9 @@ export class SubscriptionConfigManager {
    * Verifica se estamos em modo de teste
    */
   public isTestMode(): boolean {
-    return this.config.mercadoPago.testMode;
+    return (
+      !this.config.mercadoPago.useProduction && this.config.mercadoPago.testMode
+    );
   }
 
   /**

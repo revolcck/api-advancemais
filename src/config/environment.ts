@@ -121,135 +121,168 @@ interface Environment {
  * Schema de validação para as variáveis de ambiente
  * Garante que todas as variáveis necessárias estejam presentes e sejam do tipo esperado
  */
-const envSchema = joi.object({
-  // Ambiente da aplicação
-  NODE_ENV: joi
-    .string()
-    .valid("development", "production", "test")
-    .default("development"),
-  PORT: joi.number().default(3000),
+const envSchema = joi
+  .object({
+    // Ambiente da aplicação
+    NODE_ENV: joi
+      .string()
+      .valid("development", "production", "test")
+      .default("development"),
+    PORT: joi.number().default(3000),
 
-  // Nome da aplicação
-  APP_NAME: joi.string().default("api-projeto"), // Validação adicionada
+    // Nome da aplicação
+    APP_NAME: joi.string().default("api-projeto"), // Validação adicionada
 
-  // URL e origens permitidas
-  APP_URL: joi.string().uri().default("http://localhost:3000"),
-  ALLOWED_ORIGINS: joi.string().default("*"),
+    // URL e origens permitidas
+    APP_URL: joi.string().uri().default("http://localhost:3000"),
+    ALLOWED_ORIGINS: joi.string().default("*"),
 
-  // Frontend URL
-  FRONTEND_URL: joi.string().uri().default("http://localhost:3000"),
+    // Frontend URL
+    FRONTEND_URL: joi.string().uri().default("http://localhost:3000"),
 
-  // Banco de dados
-  DATABASE_URL: joi.string().required(),
-  DATABASE_POOL_MIN: joi.number().min(1).default(2),
-  DATABASE_POOL_MAX: joi.number().min(1).default(10),
+    // Banco de dados
+    DATABASE_URL: joi.string().required(),
+    DATABASE_POOL_MIN: joi.number().min(1).default(2),
+    DATABASE_POOL_MAX: joi.number().min(1).default(10),
 
-  // Redis
-  REDIS_HOST: joi.string().default("localhost"),
-  REDIS_PORT: joi.number().default(6379),
-  REDIS_PASSWORD: joi.string().allow("").allow(null).default(""),
-  REDIS_ENABLED: joi.boolean().default(true),
+    // Redis
+    REDIS_HOST: joi.string().default("localhost"),
+    REDIS_PORT: joi.number().default(6379),
+    REDIS_PASSWORD: joi.string().allow("").allow(null).default(""),
+    REDIS_ENABLED: joi.boolean().default(true),
 
-  // JWT
-  JWT_SECRET: joi.string().min(32).required(),
-  JWT_EXPIRES_IN: joi.string().default("1h"),
-  JWT_REFRESH_EXPIRES_IN: joi.string().default("7d"),
-  JWT_ISSUER: joi.string().default("api-projeto"),
-  JWT_AUDIENCE: joi.string().default("api-clients"),
+    // JWT
+    JWT_SECRET: joi.string().min(32).required(),
+    JWT_EXPIRES_IN: joi.string().default("1h"),
+    JWT_REFRESH_EXPIRES_IN: joi.string().default("7d"),
+    JWT_ISSUER: joi.string().default("api-projeto"),
+    JWT_AUDIENCE: joi.string().default("api-clients"),
 
-  // Rate Limit
-  RATE_LIMIT_WINDOW_MS: joi.number().default(900000), // 15 minutos
-  RATE_LIMIT_MAX: joi.number().default(100), // 100 requisições
-  RATE_LIMIT_STANDARD_HEADERS: joi.boolean().default(true),
-  RATE_LIMIT_LEGACY_HEADERS: joi.boolean().default(false),
+    // Rate Limit
+    RATE_LIMIT_WINDOW_MS: joi.number().default(900000), // 15 minutos
+    RATE_LIMIT_MAX: joi.number().default(100), // 100 requisições
+    RATE_LIMIT_STANDARD_HEADERS: joi.boolean().default(true),
+    RATE_LIMIT_LEGACY_HEADERS: joi.boolean().default(false),
 
-  // Log
-  LOG_FORMAT: joi
-    .string()
-    .valid("combined", "common", "dev", "short", "tiny")
-    .default("combined"),
-  LOG_DIR: joi.string().default("logs"),
-  LOG_LEVEL: joi
-    .string()
-    .valid("error", "warn", "info", "http", "verbose", "debug", "silly")
-    .default("info"),
+    // Log
+    LOG_FORMAT: joi
+      .string()
+      .valid("combined", "common", "dev", "short", "tiny")
+      .default("combined"),
+    LOG_DIR: joi.string().default("logs"),
+    LOG_LEVEL: joi
+      .string()
+      .valid("error", "warn", "info", "http", "verbose", "debug", "silly")
+      .default("info"),
 
-  // Segurança
-  BCRYPT_SALT_ROUNDS: joi.number().min(10).max(20).default(12),
-  CSRF_PROTECTION: joi.boolean().default(true),
-  SESSION_SECRET: joi.string().allow("").allow(null).default(null),
+    // Segurança
+    BCRYPT_SALT_ROUNDS: joi.number().min(10).max(20).default(12),
+    CSRF_PROTECTION: joi.boolean().default(true),
+    SESSION_SECRET: joi.string().allow("").allow(null).default(null),
 
-  // Brevo API
-  BREVO_API_KEY: joi.string().required().messages({
-    "string.empty": "A chave de API da Brevo é obrigatória",
-    "any.required": "A chave de API da Brevo é obrigatória",
-  }),
-  BREVO_SENDER_EMAIL: joi.string().email().required().messages({
-    "string.email": "O e-mail do remetente da Brevo deve ser um e-mail válido",
-    "string.empty": "O e-mail do remetente da Brevo é obrigatório",
-    "any.required": "O e-mail do remetente da Brevo é obrigatório",
-  }),
-  BREVO_SENDER_NAME: joi.string().required().messages({
-    "string.empty": "O nome do remetente da Brevo é obrigatório",
-    "any.required": "O nome do remetente da Brevo é obrigatório",
-  }),
-  BREVO_SMS_SENDER: joi.string().required().messages({
-    "string.empty": "O remetente de SMS da Brevo é obrigatório",
-    "any.required": "O remetente de SMS da Brevo é obrigatório",
-  }),
+    // Brevo API
+    BREVO_API_KEY: joi.string().required().messages({
+      "string.empty": "A chave de API da Brevo é obrigatória",
+      "any.required": "A chave de API da Brevo é obrigatória",
+    }),
+    BREVO_SENDER_EMAIL: joi.string().email().required().messages({
+      "string.email":
+        "O e-mail do remetente da Brevo deve ser um e-mail válido",
+      "string.empty": "O e-mail do remetente da Brevo é obrigatório",
+      "any.required": "O e-mail do remetente da Brevo é obrigatório",
+    }),
+    BREVO_SENDER_NAME: joi.string().required().messages({
+      "string.empty": "O nome do remetente da Brevo é obrigatório",
+      "any.required": "O nome do remetente da Brevo é obrigatório",
+    }),
+    BREVO_SMS_SENDER: joi.string().required().messages({
+      "string.empty": "O remetente de SMS da Brevo é obrigatório",
+      "any.required": "O remetente de SMS da Brevo é obrigatório",
+    }),
 
-  // Mercado Pago - Configuração geral
-  MERCADOPAGO_ENABLED: joi.boolean().default(true),
-  MERCADOPAGO_INTEGRATOR_ID: joi
-    .string()
-    .default("dev_24c65fb163bf11ea96500242ac130004"),
+    // Mercado Pago - Configuração geral
+    MERCADOPAGO_ENABLED: joi.boolean().default(true),
+    MERCADOPAGO_INTEGRATOR_ID: joi
+      .string()
+      .default("dev_24c65fb163bf11ea96500242ac130004"),
 
-  // Mercado Pago - Assinaturas (Teste)
-  MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED: joi.boolean().default(true),
-  MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
-  MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
-  MERCADOPAGO_SUBSCRIPTION_CLIENT_ID: joi.string().required(),
-  MERCADOPAGO_SUBSCRIPTION_CLIENT_SECRET: joi.string().required(),
-  MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET: joi.string().allow("").default(""),
+    // Mercado Pago - Assinaturas (Teste)
+    MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED: joi.boolean().default(true),
+    MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
+    MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
+    MERCADOPAGO_SUBSCRIPTION_CLIENT_ID: joi.string().required(),
+    MERCADOPAGO_SUBSCRIPTION_CLIENT_SECRET: joi.string().required(),
+    MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
-  // Mercado Pago - Assinaturas (Produção)
-  MERCADOPAGO_SUBSCRIPTION_PROD_PUBLIC_KEY: joi.string().allow("").default(""),
-  MERCADOPAGO_SUBSCRIPTION_PROD_ACCESS_TOKEN: joi
-    .string()
-    .allow("")
-    .default(""),
-  MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_ID: joi.string().allow("").default(""),
-  MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_SECRET: joi
-    .string()
-    .allow("")
-    .default(""),
-  MERCADOPAGO_SUBSCRIPTION_PROD_WEBHOOK_SECRET: joi
-    .string()
-    .allow("")
-    .default(""),
-  MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED: joi.boolean().default(false),
+    // Mercado Pago - Assinaturas (Produção)
+    MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED: joi.boolean().default(false),
+    MERCADOPAGO_SUBSCRIPTION_PROD_PUBLIC_KEY: joi
+      .string()
+      .allow("")
+      .default(""),
+    MERCADOPAGO_SUBSCRIPTION_PROD_ACCESS_TOKEN: joi
+      .string()
+      .allow("")
+      .default(""),
+    MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_ID: joi.string().allow("").default(""),
+    MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_SECRET: joi
+      .string()
+      .allow("")
+      .default(""),
+    MERCADOPAGO_SUBSCRIPTION_PROD_WEBHOOK_SECRET: joi
+      .string()
+      .allow("")
+      .default(""),
 
-  // Mercado Pago - Checkout (Teste)
-  MERCADOPAGO_CHECKOUT_TEST_ENABLED: joi.boolean().default(true),
-  MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
-  MERCADOPAGO_CHECKOUT_ACCESS_TOKEN: joi.string().required(),
-  MERCADOPAGO_CHECKOUT_CLIENT_ID: joi.string().required(),
-  MERCADOPAGO_CHECKOUT_CLIENT_SECRET: joi.string().required(),
-  MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET: joi.string().allow("").default(""),
+    // Mercado Pago - Checkout (Teste)
+    MERCADOPAGO_CHECKOUT_TEST_ENABLED: joi.boolean().default(true),
+    MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
+    MERCADOPAGO_CHECKOUT_ACCESS_TOKEN: joi.string().required(),
+    MERCADOPAGO_CHECKOUT_CLIENT_ID: joi.string().required(),
+    MERCADOPAGO_CHECKOUT_CLIENT_SECRET: joi.string().required(),
+    MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
-  // Mercado Pago - Checkout (Produção)
-  MERCADOPAGO_CHECKOUT_PROD_PUBLIC_KEY: joi.string().allow("").default(""),
-  MERCADOPAGO_CHECKOUT_PROD_ACCESS_TOKEN: joi.string().allow("").default(""),
-  MERCADOPAGO_CHECKOUT_PROD_CLIENT_ID: joi.string().allow("").default(""),
-  MERCADOPAGO_CHECKOUT_PROD_CLIENT_SECRET: joi.string().allow("").default(""),
-  MERCADOPAGO_CHECKOUT_PROD_WEBHOOK_SECRET: joi.string().allow("").default(""),
-  MERCADOPAGO_CHECKOUT_PROD_ENABLED: joi.boolean().default(false),
+    // Mercado Pago - Checkout (Produção)
+    MERCADOPAGO_CHECKOUT_PROD_ENABLED: joi.boolean().default(false),
+    MERCADOPAGO_CHECKOUT_PROD_PUBLIC_KEY: joi.string().allow("").default(""),
+    MERCADOPAGO_CHECKOUT_PROD_ACCESS_TOKEN: joi.string().allow("").default(""),
+    MERCADOPAGO_CHECKOUT_PROD_CLIENT_ID: joi.string().allow("").default(""),
+    MERCADOPAGO_CHECKOUT_PROD_CLIENT_SECRET: joi.string().allow("").default(""),
+    MERCADOPAGO_CHECKOUT_PROD_WEBHOOK_SECRET: joi
+      .string()
+      .allow("")
+      .default(""),
 
-  // Remover variáveis redundantes após migração completa
-  MERCADO_PAGO_ACCESS_TOKEN: joi.string().allow(""),
-  MERCADO_PAGO_PUBLIC_KEY: joi.string().allow(""),
-  MERCADO_PAGO_ENABLED: joi.boolean().default(true),
-});
+    // Remover variáveis redundantes após migração completa
+    MERCADO_PAGO_ACCESS_TOKEN: joi.string().allow(""),
+    MERCADO_PAGO_PUBLIC_KEY: joi.string().allow(""),
+    MERCADO_PAGO_ENABLED: joi.boolean().default(true),
+  })
+  .custom((values, helpers) => {
+    // Verifica se os ambientes de teste e produção não estão habilitados simultaneamente para assinaturas
+    if (
+      values.MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED &&
+      values.MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED
+    ) {
+      return helpers.message({
+        custom:
+          "Não é possível habilitar os ambientes de teste e produção simultaneamente para assinaturas",
+      });
+    }
+
+    // Verifica se os ambientes de teste e produção não estão habilitados simultaneamente para checkout
+    if (
+      values.MERCADOPAGO_CHECKOUT_TEST_ENABLED &&
+      values.MERCADOPAGO_CHECKOUT_PROD_ENABLED
+    ) {
+      return helpers.message({
+        custom:
+          "Não é possível habilitar os ambientes de teste e produção simultaneamente para checkout",
+      });
+    }
+
+    return values;
+  });
 
 /**
  * Tenta validar as variáveis de ambiente
@@ -410,11 +443,11 @@ if (env.isDevelopment) {
     },
     logLevel: env.log.level,
     mercadoPagoEnabled: env.mercadoPago.enabled,
-    mercadoPagoSubscriptionTestEnabled:
-      env.mercadoPago.subscription.testEnabled,
-    mercadoPagoSubscriptionProdEnabled:
-      env.mercadoPago.subscription.prodEnabled,
-    mercadoPagoCheckoutTestEnabled: env.mercadoPago.checkout.testEnabled,
-    mercadoPagoCheckoutProdEnabled: env.mercadoPago.checkout.prodEnabled,
+    mercadoPagoSubscriptionMode: env.mercadoPago.subscription.prodEnabled
+      ? "PRODUÇÃO"
+      : "TESTE",
+    mercadoPagoCheckoutMode: env.mercadoPago.checkout.prodEnabled
+      ? "PRODUÇÃO"
+      : "TESTE",
   });
 }
