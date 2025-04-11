@@ -81,7 +81,9 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
           {
             applicationId: subscriptionCredentials.applicationId,
             integratorId: env.mercadoPago.integratorId,
-            testEnabled: subscriptionCredentials.testEnabled,
+            testEnabled: subscriptionCredentials.isProduction
+              ? false
+              : subscriptionCredentials.testEnabled,
           }
         );
       }
@@ -114,7 +116,9 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
           {
             applicationId: checkoutCredentials.applicationId,
             integratorId: env.mercadoPago.integratorId,
-            testEnabled: checkoutCredentials.testEnabled,
+            testEnabled: checkoutCredentials.isProduction
+              ? false
+              : checkoutCredentials.testEnabled,
           }
         );
       }

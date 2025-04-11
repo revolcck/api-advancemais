@@ -75,6 +75,7 @@ const defaultConfig: SubscriptionConfig = {
 
 /**
  * Classe para gerenciar a configuração do módulo de assinaturas
+ * Implementa o padrão Singleton e gerencia as configurações do módulo
  */
 export class SubscriptionConfigManager {
   private static instance: SubscriptionConfigManager;
@@ -114,25 +115,27 @@ export class SubscriptionConfigManager {
       }
 
       // Configuração para uso de credenciais de produção
-      // Nota: As variáveis de ambiente já garantem que não temos produção e teste habilitados ao mesmo tempo
+      // Configurações de ambiente garantem que produção e teste não podem estar habilitados simultaneamente
       const subscriptionProdEnabled = env.mercadoPago.subscription.prodEnabled;
       const checkoutProdEnabled = env.mercadoPago.checkout.prodEnabled;
 
       // Se qualquer tipo de integração estiver usando produção, consideramos que todo o módulo está em produção
-      this.config.mercadoPago.useProduction =
-        subscriptionProdEnabled || checkoutProdEnabled;
+      const isUsingProduction = subscriptionProdEnabled || checkoutProdEnabled;
+      this.config.mercadoPago.useProduction = isUsingProduction;
 
-      // Se estamos em produção, não podemos estar em modo de teste
-      this.config.mercadoPago.testMode = !this.config.mercadoPago.useProduction;
+      // Se estamos em produção, NÃO podemos estar em modo de teste
+      this.config.mercadoPago.testMode = !isUsingProduction;
 
-      // Teste só está habilitado se não estamos em produção e o teste está explicitamente habilitado
+      // Teste só está habilitado se:
+      // 1. Não estamos em produção E
+      // 2. O teste está explicitamente habilitado nas configurações
       const subscriptionTestEnabled =
         !subscriptionProdEnabled && env.mercadoPago.subscription.testEnabled;
       const checkoutTestEnabled =
         !checkoutProdEnabled && env.mercadoPago.checkout.testEnabled;
 
       this.config.mercadoPago.testEnabled =
-        subscriptionTestEnabled || checkoutTestEnabled;
+        !isUsingProduction && (subscriptionTestEnabled || checkoutTestEnabled);
 
       if (process.env.SUBSCRIPTION_AUTO_RENEWAL !== undefined) {
         this.config.autoRenewal.enabled =
@@ -222,6 +225,9 @@ export class SubscriptionConfigManager {
    * Verifica se o ambiente de teste está habilitado
    */
   public isTestEnabled(): boolean {
+    // Teste só pode estar habilitado se:
+    // 1. Não estamos usando credenciais de produção E
+    // 2. testEnabled está configurado como true
     return (
       !this.config.mercadoPago.useProduction &&
       this.config.mercadoPago.testEnabled
@@ -253,9 +259,8 @@ export class SubscriptionConfigManager {
    * Verifica se estamos em modo de teste
    */
   public isTestMode(): boolean {
-    return (
-      !this.config.mercadoPago.useProduction && this.config.mercadoPago.testMode
-    );
+    // Estamos em modo de teste se NÃO estamos em produção
+    return !this.config.mercadoPago.useProduction;
   }
 
   /**
@@ -285,8 +290,18 @@ export class SubscriptionConfigManager {
       },
     };
 
+    // Se estamos atualizando para modo de produção, desative o modo de teste
+    if (partialConfig.mercadoPago?.useProduction) {
+      this.config.mercadoPago.testMode = false;
+      this.config.mercadoPago.testEnabled = false;
+    }
+
     logger.info("Configuração do módulo de assinaturas atualizada");
   }
 }
 
+/**
+ * Instância única do gerenciador de configuração de assinaturas
+ * Uso: import { subscriptionConfig } from '../config/subscription.config';
+ */
 export const subscriptionConfig = SubscriptionConfigManager.getInstance();

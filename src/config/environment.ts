@@ -84,8 +84,6 @@ interface Environment {
       testEnabled: boolean;
       publicKey: string;
       accessToken: string;
-      clientId: string;
-      clientSecret: string;
       webhookSecret: string;
       // Credenciais de produção
       prodPublicKey: string;
@@ -99,8 +97,6 @@ interface Environment {
       testEnabled: boolean;
       publicKey: string;
       accessToken: string;
-      clientId: string;
-      clientSecret: string;
       webhookSecret: string;
       // Credenciais de produção
       prodPublicKey: string;
@@ -210,8 +206,6 @@ const envSchema = joi
     MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED: joi.boolean().default(true),
     MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
     MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
-    MERCADOPAGO_SUBSCRIPTION_CLIENT_ID: joi.string().required(),
-    MERCADOPAGO_SUBSCRIPTION_CLIENT_SECRET: joi.string().required(),
     MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
     // Mercado Pago - Assinaturas (Produção)
@@ -238,8 +232,6 @@ const envSchema = joi
     MERCADOPAGO_CHECKOUT_TEST_ENABLED: joi.boolean().default(true),
     MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
     MERCADOPAGO_CHECKOUT_ACCESS_TOKEN: joi.string().required(),
-    MERCADOPAGO_CHECKOUT_CLIENT_ID: joi.string().required(),
-    MERCADOPAGO_CHECKOUT_CLIENT_SECRET: joi.string().required(),
     MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
     // Mercado Pago - Checkout (Produção)
@@ -279,6 +271,36 @@ const envSchema = joi
         custom:
           "Não é possível habilitar os ambientes de teste e produção simultaneamente para checkout",
       });
+    }
+
+    // Se o modo de produção está habilitado, deve fornecer as credenciais de produção completas
+    if (values.MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED) {
+      if (
+        !values.MERCADOPAGO_SUBSCRIPTION_PROD_ACCESS_TOKEN ||
+        !values.MERCADOPAGO_SUBSCRIPTION_PROD_PUBLIC_KEY ||
+        !values.MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_ID ||
+        !values.MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_SECRET
+      ) {
+        return helpers.message({
+          custom:
+            "Credenciais de produção incompletas para assinaturas. Quando o modo de produção está habilitado, todas as credenciais de produção são obrigatórias.",
+        });
+      }
+    }
+
+    // Verifica o mesmo para checkout
+    if (values.MERCADOPAGO_CHECKOUT_PROD_ENABLED) {
+      if (
+        !values.MERCADOPAGO_CHECKOUT_PROD_ACCESS_TOKEN ||
+        !values.MERCADOPAGO_CHECKOUT_PROD_PUBLIC_KEY ||
+        !values.MERCADOPAGO_CHECKOUT_PROD_CLIENT_ID ||
+        !values.MERCADOPAGO_CHECKOUT_PROD_CLIENT_SECRET
+      ) {
+        return helpers.message({
+          custom:
+            "Credenciais de produção incompletas para checkout. Quando o modo de produção está habilitado, todas as credenciais de produção são obrigatórias.",
+        });
+      }
     }
 
     return values;
@@ -391,8 +413,6 @@ export const env: Environment = {
       testEnabled: _env.MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED,
       publicKey: _env.MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY,
       accessToken: _env.MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN,
-      clientId: _env.MERCADOPAGO_SUBSCRIPTION_CLIENT_ID,
-      clientSecret: _env.MERCADOPAGO_SUBSCRIPTION_CLIENT_SECRET,
       webhookSecret: _env.MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET,
       // Credenciais de produção
       prodPublicKey: _env.MERCADOPAGO_SUBSCRIPTION_PROD_PUBLIC_KEY,
@@ -406,8 +426,6 @@ export const env: Environment = {
       testEnabled: _env.MERCADOPAGO_CHECKOUT_TEST_ENABLED,
       publicKey: _env.MERCADOPAGO_CHECKOUT_PUBLIC_KEY,
       accessToken: _env.MERCADOPAGO_CHECKOUT_ACCESS_TOKEN,
-      clientId: _env.MERCADOPAGO_CHECKOUT_CLIENT_ID,
-      clientSecret: _env.MERCADOPAGO_CHECKOUT_CLIENT_SECRET,
       webhookSecret: _env.MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET,
       // Credenciais de produção
       prodPublicKey: _env.MERCADOPAGO_CHECKOUT_PROD_PUBLIC_KEY,
