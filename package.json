@@ -57,6 +57,7 @@
     "ts-jest": "^29.3.1",
     "ts-node-dev": "^2.0.0",
     "tsc-alias": "^1.8.15",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.8.3"
   },
   "pnpm": {
