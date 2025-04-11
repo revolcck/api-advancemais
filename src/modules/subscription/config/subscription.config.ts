@@ -20,6 +20,7 @@ export interface SubscriptionConfig {
     enabled: boolean;
     useProduction: boolean;
     testMode: boolean;
+    testEnabled: boolean; // Nova propriedade para ambiente de teste
   };
 
   // Configurações de renovação automática
@@ -53,6 +54,7 @@ const defaultConfig: SubscriptionConfig = {
     enabled: true,
     useProduction: false,
     testMode: true,
+    testEnabled: true, // Por padrão, habilitamos o modo de teste
   },
   autoRenewal: {
     enabled: true,
@@ -123,6 +125,15 @@ export class SubscriptionConfigManager {
       // Atualizamos o modo de teste com base nas configurações do MercadoPago
       this.config.mercadoPago.testMode = mercadoPagoConfig.isTestMode();
 
+      // Configuração para ambiente de teste habilitado
+      const subscriptionTestEnabled = env.mercadoPago.subscription.testEnabled;
+      const checkoutTestEnabled = env.mercadoPago.checkout.testEnabled;
+
+      // Se qualquer tipo de integração tiver teste habilitado,
+      // consideramos que o módulo tem teste habilitado
+      this.config.mercadoPago.testEnabled =
+        subscriptionTestEnabled || checkoutTestEnabled;
+
       if (process.env.SUBSCRIPTION_AUTO_RENEWAL !== undefined) {
         this.config.autoRenewal.enabled =
           process.env.SUBSCRIPTION_AUTO_RENEWAL === "true";
@@ -160,7 +171,16 @@ export class SubscriptionConfigManager {
 
       // Log da configuração em ambiente de desenvolvimento
       if (env.isDevelopment) {
-        logger.debug("Configuração do módulo de assinaturas:", this.config);
+        logger.debug("Configuração do módulo de assinaturas:", {
+          ...this.config,
+          mercadoPago: {
+            ...this.config.mercadoPago,
+            enabled: this.config.mercadoPago.enabled,
+            useProduction: this.config.mercadoPago.useProduction,
+            testMode: this.config.mercadoPago.testMode,
+            testEnabled: this.config.mercadoPago.testEnabled,
+          },
+        });
       }
     } catch (error) {
       logger.error(
@@ -196,6 +216,13 @@ export class SubscriptionConfigManager {
    */
   public isUsingProductionCredentials(): boolean {
     return this.config.mercadoPago.useProduction;
+  }
+
+  /**
+   * Verifica se o ambiente de teste está habilitado
+   */
+  public isTestEnabled(): boolean {
+    return this.config.mercadoPago.testEnabled;
   }
 
   /**

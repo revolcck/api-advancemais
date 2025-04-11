@@ -123,6 +123,7 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
   private initSubscriptionCredentials(): void {
     // Verifica se as credenciais de produção devem ser utilizadas
     const useProdCredentials = env.mercadoPago.subscription.prodEnabled;
+    const testEnabled = env.mercadoPago.subscription.testEnabled;
 
     // Seleciona as credenciais apropriadas
     const accessToken = useProdCredentials
@@ -133,6 +134,14 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
       ? env.mercadoPago.subscription.prodPublicKey
       : env.mercadoPago.subscription.publicKey;
 
+    const clientId = useProdCredentials
+      ? env.mercadoPago.subscription.prodClientId
+      : env.mercadoPago.subscription.clientId;
+
+    const clientSecret = useProdCredentials
+      ? env.mercadoPago.subscription.prodClientSecret
+      : env.mercadoPago.subscription.clientSecret;
+
     const webhookSecret = useProdCredentials
       ? env.mercadoPago.subscription.prodWebhookSecret
       : env.mercadoPago.subscription.webhookSecret;
@@ -141,9 +150,12 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
       this.credentials.set(MercadoPagoIntegrationType.SUBSCRIPTION, {
         accessToken,
         publicKey,
+        clientId,
+        clientSecret,
         integrationType: MercadoPagoIntegrationType.SUBSCRIPTION,
         applicationId: this.extractApplicationId(accessToken),
         isProduction: useProdCredentials,
+        testEnabled,
       });
 
       // Armazena o segredo do webhook para assinaturas
@@ -168,6 +180,7 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
   private initCheckoutCredentials(): void {
     // Verifica se as credenciais de produção devem ser utilizadas
     const useProdCredentials = env.mercadoPago.checkout.prodEnabled;
+    const testEnabled = env.mercadoPago.checkout.testEnabled;
 
     // Seleciona as credenciais apropriadas
     const accessToken = useProdCredentials
@@ -178,6 +191,14 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
       ? env.mercadoPago.checkout.prodPublicKey
       : env.mercadoPago.checkout.publicKey;
 
+    const clientId = useProdCredentials
+      ? env.mercadoPago.checkout.prodClientId
+      : env.mercadoPago.checkout.clientId;
+
+    const clientSecret = useProdCredentials
+      ? env.mercadoPago.checkout.prodClientSecret
+      : env.mercadoPago.checkout.clientSecret;
+
     const webhookSecret = useProdCredentials
       ? env.mercadoPago.checkout.prodWebhookSecret
       : env.mercadoPago.checkout.webhookSecret;
@@ -186,9 +207,12 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
       this.credentials.set(MercadoPagoIntegrationType.CHECKOUT, {
         accessToken,
         publicKey,
+        clientId,
+        clientSecret,
         integrationType: MercadoPagoIntegrationType.CHECKOUT,
         applicationId: this.extractApplicationId(accessToken),
         isProduction: useProdCredentials,
+        testEnabled,
       });
 
       // Armazena o segredo do webhook para checkout
@@ -243,7 +267,11 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
 
     const credentials = this.credentials.get(type);
     return (
-      !!credentials && !!credentials.accessToken && !!credentials.publicKey
+      !!credentials &&
+      !!credentials.accessToken &&
+      !!credentials.publicKey &&
+      !!credentials.clientId &&
+      !!credentials.clientSecret
     );
   }
 
@@ -259,6 +287,20 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
 
     const credentials = this.credentials.get(type);
     return !!credentials && !!credentials.isProduction;
+  }
+
+  /**
+   * Verifica se o modo de teste está habilitado para um tipo específico
+   * @param type Tipo de integração
+   * @returns Verdadeiro se o modo de teste estiver habilitado
+   */
+  public isTestEnabled(type: MercadoPagoIntegrationType): boolean {
+    if (!this.initialized) {
+      this.initialize();
+    }
+
+    const credentials = this.credentials.get(type);
+    return !!credentials && !!credentials.testEnabled;
   }
 
   /**
@@ -301,15 +343,23 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
       );
     } else {
       // Cria novas credenciais se não existirem
-      if (credentials.accessToken && credentials.publicKey) {
+      if (
+        credentials.accessToken &&
+        credentials.publicKey &&
+        credentials.clientId &&
+        credentials.clientSecret
+      ) {
         const isProduction = !credentials.accessToken.startsWith("TEST-");
 
         const newCredentials: IMercadoPagoCredentials = {
           accessToken: credentials.accessToken,
           publicKey: credentials.publicKey,
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
           integrationType: type,
           applicationId: this.extractApplicationId(credentials.accessToken),
           isProduction,
+          testEnabled: credentials.testEnabled,
           ...credentials,
         };
 

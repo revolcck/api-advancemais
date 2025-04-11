@@ -15,6 +15,12 @@ export interface IMercadoPagoCredentials {
   /** Chave pública para uso no frontend */
   publicKey: string;
 
+  /** ID do cliente (Client ID) */
+  clientId: string;
+
+  /** Chave secreta do cliente (Client Secret) */
+  clientSecret: string;
+
   /** Tipo de integração */
   integrationType: MercadoPagoIntegrationType;
 
@@ -23,6 +29,9 @@ export interface IMercadoPagoCredentials {
 
   /** Indica se as credenciais são de produção ou teste */
   isProduction?: boolean;
+
+  /** Indica se o ambiente de teste está habilitado (para modo de teste) */
+  testEnabled?: boolean;
 }
 
 /**
@@ -43,6 +52,11 @@ export interface ICredentialsManager {
    * Verifica se as credenciais para um tipo específico são de produção
    */
   isProductionCredentials(type: MercadoPagoIntegrationType): boolean;
+
+  /**
+   * Verifica se o modo de teste está habilitado para um tipo específico
+   */
+  isTestEnabled(type: MercadoPagoIntegrationType): boolean;
 
   /**
    * Atualiza as credenciais para um tipo específico
@@ -88,9 +102,24 @@ export interface IMercadoPagoConfig {
   isTestMode(type?: MercadoPagoIntegrationType): boolean;
 
   /**
+   * Verifica se o teste está habilitado para um tipo específico
+   */
+  isTestEnabled(type?: MercadoPagoIntegrationType): boolean;
+
+  /**
    * Obtém a chave pública para uso no frontend
    */
   getPublicKey(type?: MercadoPagoIntegrationType): string;
+
+  /**
+   * Obtém o Client ID
+   */
+  getClientId(type?: MercadoPagoIntegrationType): string;
+
+  /**
+   * Obtém o Client Secret
+   */
+  getClientSecret(type?: MercadoPagoIntegrationType): string;
 
   /**
    * Obtém o segredo para validação de webhook

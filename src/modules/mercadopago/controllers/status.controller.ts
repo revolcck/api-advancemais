@@ -50,6 +50,7 @@ export class StatusController {
           connected: true,
           account: connectivityInfo.account,
           testMode: mercadoPagoConfig.isTestMode(integrationType),
+          testEnabled: mercadoPagoConfig.isTestEnabled(integrationType),
           integrationType: integrationType || "all",
         });
       } else {
@@ -61,6 +62,7 @@ export class StatusController {
             code: connectivityInfo.errorCode || "MERCADOPAGO_CONNECTION_ERROR",
             meta: {
               testMode: mercadoPagoConfig.isTestMode(integrationType),
+              testEnabled: mercadoPagoConfig.isTestEnabled(integrationType),
               integrationType: integrationType || "all",
             },
           }
@@ -112,10 +114,13 @@ export class StatusController {
       try {
         // Obtém a chave pública
         const publicKey = mercadoPagoConfig.getPublicKey(integrationType);
+        const clientId = mercadoPagoConfig.getClientId(integrationType);
 
         ApiResponse.success(res, {
           publicKey,
+          clientId,
           testMode: mercadoPagoConfig.isTestMode(integrationType),
+          testEnabled: mercadoPagoConfig.isTestEnabled(integrationType),
           integrationType: integrationType || "default",
         });
       } catch (error) {
@@ -163,6 +168,14 @@ export class StatusController {
             MercadoPagoIntegrationType.CHECKOUT
           ),
           subscription: mercadoPagoConfig.isTestMode(
+            MercadoPagoIntegrationType.SUBSCRIPTION
+          ),
+        },
+        isTestEnabled: {
+          checkout: mercadoPagoConfig.isTestEnabled(
+            MercadoPagoIntegrationType.CHECKOUT
+          ),
+          subscription: mercadoPagoConfig.isTestEnabled(
             MercadoPagoIntegrationType.SUBSCRIPTION
           ),
         },

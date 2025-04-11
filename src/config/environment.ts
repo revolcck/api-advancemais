@@ -81,22 +81,32 @@ interface Environment {
   // Mercado Pago
   mercadoPago: {
     subscription: {
+      testEnabled: boolean;
       publicKey: string;
       accessToken: string;
+      clientId: string;
+      clientSecret: string;
       webhookSecret: string;
       // Credenciais de produção
       prodPublicKey: string;
       prodAccessToken: string;
+      prodClientId: string;
+      prodClientSecret: string;
       prodWebhookSecret: string;
       prodEnabled: boolean;
     };
     checkout: {
+      testEnabled: boolean;
       publicKey: string;
       accessToken: string;
+      clientId: string;
+      clientSecret: string;
       webhookSecret: string;
       // Credenciais de produção
       prodPublicKey: string;
       prodAccessToken: string;
+      prodClientId: string;
+      prodClientSecret: string;
       prodWebhookSecret: string;
       prodEnabled: boolean;
     };
@@ -195,13 +205,21 @@ const envSchema = joi.object({
     .default("dev_24c65fb163bf11ea96500242ac130004"),
 
   // Mercado Pago - Assinaturas (Teste)
+  MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED: joi.boolean().default(true),
   MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
   MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
+  MERCADOPAGO_SUBSCRIPTION_CLIENT_ID: joi.string().required(),
+  MERCADOPAGO_SUBSCRIPTION_CLIENT_SECRET: joi.string().required(),
   MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
   // Mercado Pago - Assinaturas (Produção)
   MERCADOPAGO_SUBSCRIPTION_PROD_PUBLIC_KEY: joi.string().allow("").default(""),
   MERCADOPAGO_SUBSCRIPTION_PROD_ACCESS_TOKEN: joi
+    .string()
+    .allow("")
+    .default(""),
+  MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_ID: joi.string().allow("").default(""),
+  MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_SECRET: joi
     .string()
     .allow("")
     .default(""),
@@ -212,13 +230,18 @@ const envSchema = joi.object({
   MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED: joi.boolean().default(false),
 
   // Mercado Pago - Checkout (Teste)
+  MERCADOPAGO_CHECKOUT_TEST_ENABLED: joi.boolean().default(true),
   MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
   MERCADOPAGO_CHECKOUT_ACCESS_TOKEN: joi.string().required(),
+  MERCADOPAGO_CHECKOUT_CLIENT_ID: joi.string().required(),
+  MERCADOPAGO_CHECKOUT_CLIENT_SECRET: joi.string().required(),
   MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
   // Mercado Pago - Checkout (Produção)
   MERCADOPAGO_CHECKOUT_PROD_PUBLIC_KEY: joi.string().allow("").default(""),
   MERCADOPAGO_CHECKOUT_PROD_ACCESS_TOKEN: joi.string().allow("").default(""),
+  MERCADOPAGO_CHECKOUT_PROD_CLIENT_ID: joi.string().allow("").default(""),
+  MERCADOPAGO_CHECKOUT_PROD_CLIENT_SECRET: joi.string().allow("").default(""),
   MERCADOPAGO_CHECKOUT_PROD_WEBHOOK_SECRET: joi.string().allow("").default(""),
   MERCADOPAGO_CHECKOUT_PROD_ENABLED: joi.boolean().default(false),
 
@@ -332,22 +355,32 @@ export const env: Environment = {
   // Mercado Pago
   mercadoPago: {
     subscription: {
+      testEnabled: _env.MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED,
       publicKey: _env.MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY,
       accessToken: _env.MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN,
+      clientId: _env.MERCADOPAGO_SUBSCRIPTION_CLIENT_ID,
+      clientSecret: _env.MERCADOPAGO_SUBSCRIPTION_CLIENT_SECRET,
       webhookSecret: _env.MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET,
       // Credenciais de produção
       prodPublicKey: _env.MERCADOPAGO_SUBSCRIPTION_PROD_PUBLIC_KEY,
       prodAccessToken: _env.MERCADOPAGO_SUBSCRIPTION_PROD_ACCESS_TOKEN,
+      prodClientId: _env.MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_ID,
+      prodClientSecret: _env.MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_SECRET,
       prodWebhookSecret: _env.MERCADOPAGO_SUBSCRIPTION_PROD_WEBHOOK_SECRET,
       prodEnabled: _env.MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED,
     },
     checkout: {
+      testEnabled: _env.MERCADOPAGO_CHECKOUT_TEST_ENABLED,
       publicKey: _env.MERCADOPAGO_CHECKOUT_PUBLIC_KEY,
       accessToken: _env.MERCADOPAGO_CHECKOUT_ACCESS_TOKEN,
+      clientId: _env.MERCADOPAGO_CHECKOUT_CLIENT_ID,
+      clientSecret: _env.MERCADOPAGO_CHECKOUT_CLIENT_SECRET,
       webhookSecret: _env.MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET,
       // Credenciais de produção
       prodPublicKey: _env.MERCADOPAGO_CHECKOUT_PROD_PUBLIC_KEY,
       prodAccessToken: _env.MERCADOPAGO_CHECKOUT_PROD_ACCESS_TOKEN,
+      prodClientId: _env.MERCADOPAGO_CHECKOUT_PROD_CLIENT_ID,
+      prodClientSecret: _env.MERCADOPAGO_CHECKOUT_PROD_CLIENT_SECRET,
       prodWebhookSecret: _env.MERCADOPAGO_CHECKOUT_PROD_WEBHOOK_SECRET,
       prodEnabled: _env.MERCADOPAGO_CHECKOUT_PROD_ENABLED,
     },
@@ -377,8 +410,11 @@ if (env.isDevelopment) {
     },
     logLevel: env.log.level,
     mercadoPagoEnabled: env.mercadoPago.enabled,
+    mercadoPagoSubscriptionTestEnabled:
+      env.mercadoPago.subscription.testEnabled,
     mercadoPagoSubscriptionProdEnabled:
       env.mercadoPago.subscription.prodEnabled,
+    mercadoPagoCheckoutTestEnabled: env.mercadoPago.checkout.testEnabled,
     mercadoPagoCheckoutProdEnabled: env.mercadoPago.checkout.prodEnabled,
   });
 }

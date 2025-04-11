@@ -81,6 +81,7 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
           {
             applicationId: subscriptionCredentials.applicationId,
             integratorId: env.mercadoPago.integratorId,
+            testEnabled: subscriptionCredentials.testEnabled,
           }
         );
       }
@@ -113,6 +114,7 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
           {
             applicationId: checkoutCredentials.applicationId,
             integratorId: env.mercadoPago.integratorId,
+            testEnabled: checkoutCredentials.testEnabled,
           }
         );
       }
@@ -213,6 +215,27 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
   }
 
   /**
+   * Verifica se o teste está habilitado para um tipo específico
+   * @param type Tipo de integração (opcional, verifica todas se não especificado)
+   * @returns Verdadeiro se o teste estiver habilitado
+   */
+  public isTestEnabled(type?: MercadoPagoIntegrationType): boolean {
+    this.ensureInitialized();
+
+    // Se um tipo específico foi fornecido
+    if (type) {
+      return credentialsManager.isTestEnabled(type);
+    }
+
+    // Se não foi especificado um tipo, retorna true se algum tipo tiver teste habilitado
+    return (
+      credentialsManager.isTestEnabled(
+        MercadoPagoIntegrationType.SUBSCRIPTION
+      ) || credentialsManager.isTestEnabled(MercadoPagoIntegrationType.CHECKOUT)
+    );
+  }
+
+  /**
    * Obtém o token de acesso para um tipo específico de integração
    * @param type Tipo de integração
    * @returns Token de acesso
@@ -265,6 +288,88 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
 
     // Erro se nenhuma configuração estiver disponível
     throw new Error("Nenhuma chave pública do MercadoPago disponível");
+  }
+
+  /**
+   * Obtém o Client ID para um tipo específico de integração
+   * @param type Tipo de integração (opcional)
+   * @returns Client ID do MercadoPago
+   * @throws Error se não for encontrado
+   */
+  public getClientId(type?: MercadoPagoIntegrationType): string {
+    this.ensureInitialized();
+
+    // Se um tipo específico foi solicitado
+    if (type) {
+      if (credentialsManager.hasCredentials(type)) {
+        return credentialsManager.getCredentials(type).clientId;
+      }
+      throw new Error(
+        `Client ID não encontrado para o tipo de integração: ${type}`
+      );
+    }
+
+    // Prioriza checkout se disponível
+    if (
+      credentialsManager.hasCredentials(MercadoPagoIntegrationType.CHECKOUT)
+    ) {
+      return credentialsManager.getCredentials(
+        MercadoPagoIntegrationType.CHECKOUT
+      ).clientId;
+    }
+
+    // Fallback para assinatura
+    if (
+      credentialsManager.hasCredentials(MercadoPagoIntegrationType.SUBSCRIPTION)
+    ) {
+      return credentialsManager.getCredentials(
+        MercadoPagoIntegrationType.SUBSCRIPTION
+      ).clientId;
+    }
+
+    // Erro se nenhuma configuração estiver disponível
+    throw new Error("Nenhum Client ID do MercadoPago disponível");
+  }
+
+  /**
+   * Obtém o Client Secret para um tipo específico de integração
+   * @param type Tipo de integração (opcional)
+   * @returns Client Secret do MercadoPago
+   * @throws Error se não for encontrado
+   */
+  public getClientSecret(type?: MercadoPagoIntegrationType): string {
+    this.ensureInitialized();
+
+    // Se um tipo específico foi solicitado
+    if (type) {
+      if (credentialsManager.hasCredentials(type)) {
+        return credentialsManager.getCredentials(type).clientSecret;
+      }
+      throw new Error(
+        `Client Secret não encontrado para o tipo de integração: ${type}`
+      );
+    }
+
+    // Prioriza checkout se disponível
+    if (
+      credentialsManager.hasCredentials(MercadoPagoIntegrationType.CHECKOUT)
+    ) {
+      return credentialsManager.getCredentials(
+        MercadoPagoIntegrationType.CHECKOUT
+      ).clientSecret;
+    }
+
+    // Fallback para assinatura
+    if (
+      credentialsManager.hasCredentials(MercadoPagoIntegrationType.SUBSCRIPTION)
+    ) {
+      return credentialsManager.getCredentials(
+        MercadoPagoIntegrationType.SUBSCRIPTION
+      ).clientSecret;
+    }
+
+    // Erro se nenhuma configuração estiver disponível
+    throw new Error("Nenhum Client Secret do MercadoPago disponível");
   }
 
   /**
