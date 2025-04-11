@@ -5,6 +5,8 @@
 
 import { env } from "@/config/environment";
 import { logger } from "@/shared/utils/logger.utils";
+import { MercadoPagoIntegrationType } from "@/modules/mercadopago/enums";
+import { mercadoPagoConfig } from "@/modules/mercadopago/config/mercadopago.config";
 
 /**
  * Interface para configuração do módulo de assinaturas
@@ -14,7 +16,11 @@ export interface SubscriptionConfig {
   enabled: boolean;
 
   // Integração com Mercado Pago
-  mercadoPagoEnabled: boolean;
+  mercadoPago: {
+    enabled: boolean;
+    useProduction: boolean;
+    testMode: boolean;
+  };
 
   // Configurações de renovação automática
   autoRenewal: {
@@ -36,9 +42,6 @@ export interface SubscriptionConfig {
     pendingUrl: string;
     cancelUrl: string;
   };
-
-  // Configurações de teste/desenvolvimento
-  testMode: boolean;
 }
 
 /**
@@ -46,7 +49,11 @@ export interface SubscriptionConfig {
  */
 const defaultConfig: SubscriptionConfig = {
   enabled: true,
-  mercadoPagoEnabled: true,
+  mercadoPago: {
+    enabled: true,
+    useProduction: false,
+    testMode: true,
+  },
   autoRenewal: {
     enabled: true,
     gracePeriodDays: 3,
@@ -62,7 +69,6 @@ const defaultConfig: SubscriptionConfig = {
     pendingUrl: `${env.frontendUrl}/subscription/pending`,
     cancelUrl: `${env.frontendUrl}/subscription/cancel`,
   },
-  testMode: env.isDevelopment,
 };
 
 /**
@@ -101,9 +107,21 @@ export class SubscriptionConfigManager {
       }
 
       if (process.env.MERCADOPAGO_ENABLED !== undefined) {
-        this.config.mercadoPagoEnabled =
+        this.config.mercadoPago.enabled =
           process.env.MERCADOPAGO_ENABLED === "true";
       }
+
+      // Configuração para uso de credenciais de produção
+      const subscriptionProdEnabled = env.mercadoPago.subscription.prodEnabled;
+      const checkoutProdEnabled = env.mercadoPago.checkout.prodEnabled;
+
+      // Se qualquer tipo de integração estiver usando credenciais de produção,
+      // consideramos que o módulo está usando produção
+      this.config.mercadoPago.useProduction =
+        subscriptionProdEnabled || checkoutProdEnabled;
+
+      // Atualizamos o modo de teste com base nas configurações do MercadoPago
+      this.config.mercadoPago.testMode = mercadoPagoConfig.isTestMode();
 
       if (process.env.SUBSCRIPTION_AUTO_RENEWAL !== undefined) {
         this.config.autoRenewal.enabled =
@@ -140,11 +158,6 @@ export class SubscriptionConfigManager {
         this.config.urls.cancelUrl = process.env.SUBSCRIPTION_CANCEL_URL;
       }
 
-      // Modo de teste
-      if (process.env.SUBSCRIPTION_TEST_MODE !== undefined) {
-        this.config.testMode = process.env.SUBSCRIPTION_TEST_MODE === "true";
-      }
-
       // Log da configuração em ambiente de desenvolvimento
       if (env.isDevelopment) {
         logger.debug("Configuração do módulo de assinaturas:", this.config);
@@ -175,7 +188,14 @@ export class SubscriptionConfigManager {
    * Verifica se a integração com Mercado Pago está habilitada
    */
   public isMercadoPagoEnabled(): boolean {
-    return this.config.enabled && this.config.mercadoPagoEnabled;
+    return this.config.enabled && this.config.mercadoPago.enabled;
+  }
+
+  /**
+   * Verifica se estamos usando credenciais de produção
+   */
+  public isUsingProductionCredentials(): boolean {
+    return this.config.mercadoPago.useProduction;
   }
 
   /**
@@ -203,7 +223,7 @@ export class SubscriptionConfigManager {
    * Verifica se estamos em modo de teste
    */
   public isTestMode(): boolean {
-    return this.config.testMode;
+    return this.config.mercadoPago.testMode;
   }
 
   /**
@@ -215,6 +235,10 @@ export class SubscriptionConfigManager {
       ...this.config,
       ...partialConfig,
       // Mescla objetos aninhados
+      mercadoPago: {
+        ...this.config.mercadoPago,
+        ...partialConfig.mercadoPago,
+      },
       autoRenewal: {
         ...this.config.autoRenewal,
         ...partialConfig.autoRenewal,

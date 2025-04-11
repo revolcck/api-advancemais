@@ -20,6 +20,9 @@ export interface IMercadoPagoCredentials {
 
   /** ID da aplicação no MercadoPago (extraído do accessToken) */
   applicationId: string;
+
+  /** Indica se as credenciais são de produção ou teste */
+  isProduction?: boolean;
 }
 
 /**
@@ -35,6 +38,11 @@ export interface ICredentialsManager {
    * Verifica se as credenciais para um tipo específico estão configuradas
    */
   hasCredentials(type: MercadoPagoIntegrationType): boolean;
+
+  /**
+   * Verifica se as credenciais para um tipo específico são de produção
+   */
+  isProductionCredentials(type: MercadoPagoIntegrationType): boolean;
 
   /**
    * Atualiza as credenciais para um tipo específico
@@ -77,7 +85,7 @@ export interface IMercadoPagoConfig {
   /**
    * Verifica se estamos em modo de teste
    */
-  isTestMode(): boolean;
+  isTestMode(type?: MercadoPagoIntegrationType): boolean;
 
   /**
    * Obtém a chave pública para uso no frontend

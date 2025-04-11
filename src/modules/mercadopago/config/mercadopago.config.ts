@@ -75,7 +75,9 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
 
         // Log das credenciais inicializadas
         logger.debug(
-          `Configuração MercadoPago para SUBSCRIPTION inicializada`,
+          `Configuração MercadoPago para SUBSCRIPTION inicializada (${
+            subscriptionCredentials.isProduction ? "produção" : "teste"
+          })`,
           {
             applicationId: subscriptionCredentials.applicationId,
             integratorId: env.mercadoPago.integratorId,
@@ -104,10 +106,15 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
         );
 
         // Log das credenciais inicializadas
-        logger.debug(`Configuração MercadoPago para CHECKOUT inicializada`, {
-          applicationId: checkoutCredentials.applicationId,
-          integratorId: env.mercadoPago.integratorId,
-        });
+        logger.debug(
+          `Configuração MercadoPago para CHECKOUT inicializada (${
+            checkoutCredentials.isProduction ? "produção" : "teste"
+          })`,
+          {
+            applicationId: checkoutCredentials.applicationId,
+            integratorId: env.mercadoPago.integratorId,
+          }
+        );
       }
 
       if (this.configs.size === 0) {
@@ -184,16 +191,19 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
 
     // Se um tipo específico foi fornecido
     if (type) {
-      const config = this.configs.get(type);
-      if (!config) return true; // Assume teste se não houver configuração
-
-      return config.accessToken.startsWith("TEST-");
+      return !credentialsManager.isProductionCredentials(type);
     }
 
-    // Verifica se o access token começa com TEST-
-    for (const [_, config] of this.configs.entries()) {
-      if (config.accessToken && !config.accessToken.startsWith("TEST-")) {
-        // Se alguma configuração não for de teste, retorna false
+    // Verifica todas as configurações
+    for (const availableType of [
+      MercadoPagoIntegrationType.SUBSCRIPTION,
+      MercadoPagoIntegrationType.CHECKOUT,
+    ]) {
+      if (
+        this.hasConfig(availableType) &&
+        credentialsManager.isProductionCredentials(availableType)
+      ) {
+        // Se alguma configuração for de produção, não estamos em modo de teste
         return false;
       }
     }
