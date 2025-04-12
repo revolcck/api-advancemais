@@ -41,7 +41,7 @@ export class WebhookController {
         },
       });
 
-      // CORREÇÃO: Verifica se é um webhook de teste
+      // Verifica se é um webhook de teste
       const isTestWebhook = WebhookValidator.isTestWebhook(req.body);
       if (isTestWebhook) {
         logger.debug("Webhook de teste detectado", { body: req.body });
@@ -57,18 +57,18 @@ export class WebhookController {
       const integrationType =
         WebhookValidator.getIntegrationTypeFromEvent(eventType);
 
-      // CORREÇÃO: Verificação mais flexível em ambiente de teste
+      // Verificação mais flexível em ambiente de teste
       const isTestMode = mercadoPagoConfig.isTestMode(integrationType);
 
-      // Valida a assinatura se fornecida
-      if (signatureHeader) {
+      // Valida a assinatura apenas se fornecida e não for modo de teste ou webhook de teste
+      if (signatureHeader && !isTestMode && !isTestWebhook) {
         const isSignatureValid = WebhookValidator.verifySignature(
           rawBody,
           signatureHeader,
           integrationType
         );
 
-        if (!isSignatureValid && !isTestMode && !isTestWebhook) {
+        if (!isSignatureValid) {
           logger.warn("Assinatura de webhook inválida", {
             signature: signatureHeader,
             integrationType,
@@ -79,18 +79,18 @@ export class WebhookController {
             statusCode: 401,
           });
           return;
-        } else if (!isSignatureValid) {
-          logger.warn(
-            "Assinatura de webhook inválida, mas continuando por ser ambiente de teste",
-            {
-              signature: signatureHeader,
-              integrationType,
-              type,
-              testMode: isTestMode,
-              isTestWebhook,
-            }
-          );
         }
+      }
+      // Se é webhook de teste ou estamos em modo de teste, aceitamos mesmo sem validação
+      else if (signatureHeader && (isTestMode || isTestWebhook)) {
+        logger.debug(
+          "Webhook aceito sem validação rigorosa por ser ambiente de teste ou webhook de teste",
+          {
+            isTestMode,
+            isTestWebhook,
+            signature: signatureHeader?.substring(0, 10) + "...",
+          }
+        );
       }
 
       // Processa o webhook
@@ -156,7 +156,7 @@ export class WebhookController {
         body: req.body,
       });
 
-      // CORREÇÃO: Verifica se é um webhook de teste
+      // Verifica se é um webhook de teste
       const isTestWebhook = WebhookValidator.isTestWebhook(req.body);
       if (isTestWebhook) {
         logger.debug("Webhook de Checkout teste detectado", { body: req.body });
@@ -169,18 +169,28 @@ export class WebhookController {
       const signatureHeader = req.headers["x-signature"] as string;
       const rawBody = JSON.stringify(req.body);
 
-      // CORREÇÃO: Verificação mais flexível em ambiente de teste
+      // Verificação mais flexível em ambiente de teste
       const isTestMode = mercadoPagoConfig.isTestMode(integrationType);
 
-      // Valida a assinatura se fornecida
-      if (signatureHeader) {
+      // Em ambiente de teste ou webhook de teste, sempre aceita
+      if (isTestMode || isTestWebhook) {
+        logger.debug(
+          "Webhook de checkout aceito automaticamente em ambiente de teste",
+          {
+            isTestMode,
+            isTestWebhook,
+          }
+        );
+      }
+      // Em produção, valida a assinatura se fornecida
+      else if (signatureHeader) {
         const isSignatureValid = WebhookValidator.verifySignature(
           rawBody,
           signatureHeader,
           integrationType
         );
 
-        if (!isSignatureValid && !isTestMode && !isTestWebhook) {
+        if (!isSignatureValid) {
           logger.warn("Assinatura de webhook de checkout inválida", {
             signature: signatureHeader,
           });
@@ -189,15 +199,6 @@ export class WebhookController {
             statusCode: 401,
           });
           return;
-        } else if (!isSignatureValid) {
-          logger.warn(
-            "Assinatura de webhook de checkout inválida, mas continuando por ser ambiente de teste",
-            {
-              signature: signatureHeader,
-              testMode: isTestMode,
-              isTestWebhook,
-            }
-          );
         }
       }
 
@@ -267,7 +268,7 @@ export class WebhookController {
         body: req.body,
       });
 
-      // CORREÇÃO: Verifica se é um webhook de teste
+      // Verifica se é um webhook de teste
       const isTestWebhook = WebhookValidator.isTestWebhook(req.body);
       if (isTestWebhook) {
         logger.debug("Webhook de Assinatura teste detectado", {
@@ -282,18 +283,28 @@ export class WebhookController {
       const signatureHeader = req.headers["x-signature"] as string;
       const rawBody = JSON.stringify(req.body);
 
-      // CORREÇÃO: Verificação mais flexível em ambiente de teste
+      // Verificação mais flexível em ambiente de teste
       const isTestMode = mercadoPagoConfig.isTestMode(integrationType);
 
-      // Valida a assinatura se fornecida
-      if (signatureHeader) {
+      // Em ambiente de teste ou webhook de teste, sempre aceita
+      if (isTestMode || isTestWebhook) {
+        logger.debug(
+          "Webhook de assinatura aceito automaticamente em ambiente de teste",
+          {
+            isTestMode,
+            isTestWebhook,
+          }
+        );
+      }
+      // Em produção, valida a assinatura se fornecida
+      else if (signatureHeader) {
         const isSignatureValid = WebhookValidator.verifySignature(
           rawBody,
           signatureHeader,
           integrationType
         );
 
-        if (!isSignatureValid && !isTestMode && !isTestWebhook) {
+        if (!isSignatureValid) {
           logger.warn("Assinatura de webhook de assinatura inválida", {
             signature: signatureHeader,
           });
@@ -302,15 +313,6 @@ export class WebhookController {
             statusCode: 401,
           });
           return;
-        } else if (!isSignatureValid) {
-          logger.warn(
-            "Assinatura de webhook de assinatura inválida, mas continuando por ser ambiente de teste",
-            {
-              signature: signatureHeader,
-              testMode: isTestMode,
-              isTestWebhook,
-            }
-          );
         }
       }
 
