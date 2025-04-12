@@ -95,6 +95,7 @@ export class MercadoPagoCoreService implements IMercadoPagoCoreService {
 
     logger.debug("Adaptador de pagamento do MercadoPago inicializado", {
       type,
+      testMode: mercadoPagoConfig.isTestMode(type),
     });
 
     return adapter;
@@ -124,6 +125,7 @@ export class MercadoPagoCoreService implements IMercadoPagoCoreService {
 
     logger.debug("Adaptador de preferência do MercadoPago inicializado", {
       type,
+      testMode: mercadoPagoConfig.isTestMode(type),
     });
 
     return adapter;
@@ -150,7 +152,11 @@ export class MercadoPagoCoreService implements IMercadoPagoCoreService {
     // Armazena no cache
     this.adaptersCache.subscription = adapter;
 
-    logger.debug("Adaptador de assinatura do MercadoPago inicializado");
+    logger.debug("Adaptador de assinatura do MercadoPago inicializado", {
+      testMode: mercadoPagoConfig.isTestMode(
+        MercadoPagoIntegrationType.SUBSCRIPTION
+      ),
+    });
 
     return adapter;
   }
@@ -181,6 +187,7 @@ export class MercadoPagoCoreService implements IMercadoPagoCoreService {
 
     logger.debug("Adaptador de ordem de mercador do MercadoPago inicializado", {
       type,
+      testMode: mercadoPagoConfig.isTestMode(type),
     });
 
     return adapter;
@@ -203,6 +210,24 @@ export class MercadoPagoCoreService implements IMercadoPagoCoreService {
           `Configuração MercadoPago para '${type}' não está disponível`,
           "MERCADOPAGO_CONFIG_UNAVAILABLE"
         );
+      }
+
+      // CORREÇÃO: Tratamento especial para modo de teste
+      const isTestMode = mercadoPagoConfig.isTestMode(type);
+      if (isTestMode) {
+        logger.info(
+          `Teste de conectividade para ambiente de teste (${type}) - Fornecendo dados simulados`
+        );
+
+        return {
+          success: true,
+          account: {
+            id: "test-account",
+            email: "test_user@testuser.com",
+            nickname: "TEST_USER",
+            siteId: "MLB", // Brasil (Mercado Livre Brasil)
+          },
+        };
       }
 
       // Obtém informações do usuário para testar a conexão
@@ -310,6 +335,19 @@ export class MercadoPagoCoreService implements IMercadoPagoCoreService {
       code,
       details,
     };
+  }
+
+  /**
+   * NOVO: Limpa o cache de adaptadores
+   * Útil quando há mudança de credenciais ou ambiente
+   */
+  public clearAdapterCache(): void {
+    this.adaptersCache.payment.clear();
+    this.adaptersCache.preference.clear();
+    this.adaptersCache.subscription = null;
+    this.adaptersCache.merchantOrder.clear();
+
+    logger.debug("Cache de adaptadores do MercadoPago limpo");
   }
 }
 

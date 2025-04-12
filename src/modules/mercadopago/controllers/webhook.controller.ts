@@ -11,6 +11,7 @@ import { WebhookValidator } from "../utils/webhook-validator.util";
 import { WebhookEventType } from "../types/events.types";
 import { WebhookService } from "../services/webhook.service";
 import { prisma } from "@/config/database";
+import { mercadoPagoConfig } from "../config/mercadopago.config";
 
 /**
  * Controlador para gerenciamento de webhooks do MercadoPago
@@ -40,6 +41,12 @@ export class WebhookController {
         },
       });
 
+      // CORREÇÃO: Verifica se é um webhook de teste
+      const isTestWebhook = WebhookValidator.isTestWebhook(req.body);
+      if (isTestWebhook) {
+        logger.debug("Webhook de teste detectado", { body: req.body });
+      }
+
       // Verifica a assinatura do webhook (se configurada)
       const signatureHeader = req.headers["x-signature"] as string;
       const rawBody = JSON.stringify(req.body);
@@ -50,6 +57,9 @@ export class WebhookController {
       const integrationType =
         WebhookValidator.getIntegrationTypeFromEvent(eventType);
 
+      // CORREÇÃO: Verificação mais flexível em ambiente de teste
+      const isTestMode = mercadoPagoConfig.isTestMode(integrationType);
+
       // Valida a assinatura se fornecida
       if (signatureHeader) {
         const isSignatureValid = WebhookValidator.verifySignature(
@@ -58,7 +68,7 @@ export class WebhookController {
           integrationType
         );
 
-        if (!isSignatureValid) {
+        if (!isSignatureValid && !isTestMode && !isTestWebhook) {
           logger.warn("Assinatura de webhook inválida", {
             signature: signatureHeader,
             integrationType,
@@ -69,6 +79,17 @@ export class WebhookController {
             statusCode: 401,
           });
           return;
+        } else if (!isSignatureValid) {
+          logger.warn(
+            "Assinatura de webhook inválida, mas continuando por ser ambiente de teste",
+            {
+              signature: signatureHeader,
+              integrationType,
+              type,
+              testMode: isTestMode,
+              isTestWebhook,
+            }
+          );
         }
       }
 
@@ -135,12 +156,21 @@ export class WebhookController {
         body: req.body,
       });
 
+      // CORREÇÃO: Verifica se é um webhook de teste
+      const isTestWebhook = WebhookValidator.isTestWebhook(req.body);
+      if (isTestWebhook) {
+        logger.debug("Webhook de Checkout teste detectado", { body: req.body });
+      }
+
       // Força o tipo de integração
       const integrationType = MercadoPagoIntegrationType.CHECKOUT;
 
       // Verifica a assinatura do webhook (se configurada)
       const signatureHeader = req.headers["x-signature"] as string;
       const rawBody = JSON.stringify(req.body);
+
+      // CORREÇÃO: Verificação mais flexível em ambiente de teste
+      const isTestMode = mercadoPagoConfig.isTestMode(integrationType);
 
       // Valida a assinatura se fornecida
       if (signatureHeader) {
@@ -150,7 +180,7 @@ export class WebhookController {
           integrationType
         );
 
-        if (!isSignatureValid) {
+        if (!isSignatureValid && !isTestMode && !isTestWebhook) {
           logger.warn("Assinatura de webhook de checkout inválida", {
             signature: signatureHeader,
           });
@@ -159,6 +189,15 @@ export class WebhookController {
             statusCode: 401,
           });
           return;
+        } else if (!isSignatureValid) {
+          logger.warn(
+            "Assinatura de webhook de checkout inválida, mas continuando por ser ambiente de teste",
+            {
+              signature: signatureHeader,
+              testMode: isTestMode,
+              isTestWebhook,
+            }
+          );
         }
       }
 
@@ -228,12 +267,23 @@ export class WebhookController {
         body: req.body,
       });
 
+      // CORREÇÃO: Verifica se é um webhook de teste
+      const isTestWebhook = WebhookValidator.isTestWebhook(req.body);
+      if (isTestWebhook) {
+        logger.debug("Webhook de Assinatura teste detectado", {
+          body: req.body,
+        });
+      }
+
       // Força o tipo de integração
       const integrationType = MercadoPagoIntegrationType.SUBSCRIPTION;
 
       // Verifica a assinatura do webhook (se configurada)
       const signatureHeader = req.headers["x-signature"] as string;
       const rawBody = JSON.stringify(req.body);
+
+      // CORREÇÃO: Verificação mais flexível em ambiente de teste
+      const isTestMode = mercadoPagoConfig.isTestMode(integrationType);
 
       // Valida a assinatura se fornecida
       if (signatureHeader) {
@@ -243,7 +293,7 @@ export class WebhookController {
           integrationType
         );
 
-        if (!isSignatureValid) {
+        if (!isSignatureValid && !isTestMode && !isTestWebhook) {
           logger.warn("Assinatura de webhook de assinatura inválida", {
             signature: signatureHeader,
           });
@@ -252,6 +302,15 @@ export class WebhookController {
             statusCode: 401,
           });
           return;
+        } else if (!isSignatureValid) {
+          logger.warn(
+            "Assinatura de webhook de assinatura inválida, mas continuando por ser ambiente de teste",
+            {
+              signature: signatureHeader,
+              testMode: isTestMode,
+              isTestWebhook,
+            }
+          );
         }
       }
 

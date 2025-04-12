@@ -50,6 +50,17 @@ export function isMercadoPagoTestMode(
 }
 
 /**
+ * Verifica se o ambiente de teste está habilitado
+ * @param type Tipo de integração (opcional)
+ * @returns Verdadeiro se o ambiente de teste estiver habilitado
+ */
+export function isMercadoPagoTestEnabled(
+  type?: MercadoPagoIntegrationType
+): boolean {
+  return mercadoPagoConfig.isTestEnabled(type);
+}
+
+/**
  * Obtém a chave pública para uso no frontend
  * @param type Tipo de integração (opcional)
  * @returns Chave pública do MercadoPago
@@ -110,6 +121,23 @@ export function getMerchantOrderAdapter(
   type: MercadoPagoIntegrationType = MercadoPagoIntegrationType.CHECKOUT
 ): Adapters.MerchantOrderAdapter {
   return mercadoPagoCoreService.getMerchantOrderAdapter(type);
+}
+
+/**
+ * Limpa o cache de adaptadores
+ * Útil quando há mudança de credenciais ou ambiente
+ */
+export function clearMercadoPagoAdapterCache(): void {
+  mercadoPagoCoreService.clearAdapterCache();
+}
+
+/**
+ * Verifica se um webhook é de teste
+ * @param payload Payload do webhook
+ * @returns Verdadeiro se o webhook for de teste
+ */
+export function isTestWebhook(payload: any): boolean {
+  return Utils.WebhookValidator.isTestWebhook(payload);
 }
 
 // Exporta os membros principais do módulo
