@@ -437,6 +437,7 @@ export class PaymentAdapter
         },
       },
       external_reference: `ext-ref-${id}`,
-    } as PaymentResponse;
+      operation_type: "regular_payment",
+    } as unknown as PaymentResponse;
   }
 }

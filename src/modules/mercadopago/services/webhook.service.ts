@@ -9,13 +9,7 @@ import {
   WebhookNotification,
   WebhookProcessResponse,
 } from "../types/common.types";
-import {
-  WebhookEventType,
-  WebhookEvent,
-  PaymentWebhookEvent,
-  SubscriptionWebhookEvent,
-  MerchantOrderWebhookEvent,
-} from "../types/events.types";
+import { WebhookEventType } from "../types/events.types";
 import { MercadoPagoIntegrationType } from "../enums";
 import {
   webhookSchema,
@@ -23,13 +17,12 @@ import {
   subscriptionWebhookSchema,
   merchantOrderWebhookSchema,
 } from "../validators/webhook.validators";
-import { mercadoPagoCoreService } from "./core.service";
 import { prisma } from "@/config/database";
 import { WebhookValidator } from "../utils/webhook-validator.util";
 import { mercadoPagoConfig } from "../config/mercadopago.config";
 
 /**
- * Serviço para processamento de webhooks do MercadoPago
+ * Classe para processamento de webhooks do MercadoPago
  * Implementa a lógica necessária para processar diferentes tipos de notificações
  */
 export class WebhookService implements IWebhookProcessor {
@@ -46,14 +39,17 @@ export class WebhookService implements IWebhookProcessor {
       const eventType = WebhookValidator.normalizeEventType(notification.type);
 
       // Define o tipo de integração (se não fornecido)
-      if (!notification.integrationType) {
-        notification.integrationType =
+      const notificationWithType = notification as WebhookNotification & {
+        integrationType?: MercadoPagoIntegrationType;
+      };
+      if (!notificationWithType.integrationType) {
+        notificationWithType.integrationType =
           WebhookValidator.getIntegrationTypeFromEvent(eventType);
       }
 
       // CORREÇÃO: Verifica se é um webhook de teste
       const isTestMode = mercadoPagoConfig.isTestMode(
-        notification.integrationType
+        notificationWithType.integrationType
       );
       const isTestWebhook = WebhookValidator.isTestWebhook(notification);
 
@@ -98,17 +94,23 @@ export class WebhookService implements IWebhookProcessor {
       switch (eventType) {
         case WebhookEventType.PAYMENT:
           return this.processPaymentWebhook(
-            notification as PaymentWebhookEvent
+            notification as WebhookNotification & {
+              integrationType?: MercadoPagoIntegrationType;
+            }
           );
 
         case WebhookEventType.SUBSCRIPTION:
           return this.processSubscriptionWebhook(
-            notification as SubscriptionWebhookEvent
+            notification as WebhookNotification & {
+              integrationType?: MercadoPagoIntegrationType;
+            }
           );
 
         case WebhookEventType.MERCHANT_ORDER:
           return this.processMerchantOrderWebhook(
-            notification as MerchantOrderWebhookEvent
+            notification as WebhookNotification & {
+              integrationType?: MercadoPagoIntegrationType;
+            }
           );
 
         default:
@@ -185,8 +187,11 @@ export class WebhookService implements IWebhookProcessor {
   ): { isValid: boolean; error?: string } {
     try {
       // CORREÇÃO: Verifica se está em modo de teste
+      const notificationWithType = notification as WebhookNotification & {
+        integrationType?: MercadoPagoIntegrationType;
+      };
       const isTestMode = mercadoPagoConfig.isTestMode(
-        notification.integrationType
+        notificationWithType.integrationType
       );
       const isTestWebhook = WebhookValidator.isTestWebhook(notification);
 
@@ -267,7 +272,9 @@ export class WebhookService implements IWebhookProcessor {
    * @returns Resultado do processamento
    */
   private async processPaymentWebhook(
-    notification: PaymentWebhookEvent
+    notification: WebhookNotification & {
+      integrationType?: MercadoPagoIntegrationType;
+    }
   ): Promise<WebhookProcessResponse> {
     try {
       const paymentId = notification.data?.id;
@@ -349,7 +356,9 @@ export class WebhookService implements IWebhookProcessor {
    * @returns Resultado do processamento
    */
   private async processSubscriptionWebhook(
-    notification: SubscriptionWebhookEvent
+    notification: WebhookNotification & {
+      integrationType?: MercadoPagoIntegrationType;
+    }
   ): Promise<WebhookProcessResponse> {
     try {
       const subscriptionId = notification.data?.id;
@@ -434,7 +443,9 @@ export class WebhookService implements IWebhookProcessor {
    * @returns Resultado do processamento
    */
   private async processMerchantOrderWebhook(
-    notification: MerchantOrderWebhookEvent
+    notification: WebhookNotification & {
+      integrationType?: MercadoPagoIntegrationType;
+    }
   ): Promise<WebhookProcessResponse> {
     try {
       const orderId = notification.data?.id;

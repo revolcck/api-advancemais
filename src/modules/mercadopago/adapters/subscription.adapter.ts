@@ -153,13 +153,25 @@ export class SubscriptionAdapter
         const nowIso = new Date().toISOString();
         const newStatus = data.status || currentSubscription.status;
 
-        // Retorna assinatura atualizada simulada
-        return {
+        // Mesclar auto_recurring corretamente, se presente
+        let updatedAutoRecurring = currentSubscription.auto_recurring;
+        if (data.auto_recurring && currentSubscription.auto_recurring) {
+          updatedAutoRecurring = {
+            ...currentSubscription.auto_recurring,
+            ...data.auto_recurring,
+          };
+        }
+
+        // Construir objeto de resposta com tipos corretos
+        const updatedSubscription = {
           ...currentSubscription,
           ...data,
           status: newStatus,
           last_modified: nowIso,
+          auto_recurring: updatedAutoRecurring,
         };
+
+        return updatedSubscription as unknown as SubscriptionResponse;
       }
 
       let response;
@@ -313,13 +325,13 @@ export class SubscriptionAdapter
         transaction_amount: 100,
         currency_id: "BRL",
         start_date: nowIso,
-        end_date: null,
+        end_date: undefined,
       },
       date_created: nowIso,
       last_modified: nowIso,
       next_payment_date: nextPaymentDate.toISOString(),
       payment_method_id: "credit_card",
       application_id: 1234567890,
-    } as SubscriptionResponse;
+    } as unknown as SubscriptionResponse;
   }
 }
