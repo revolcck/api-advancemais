@@ -2,7 +2,30 @@ import { prisma } from "@/config/database";
 import { HashUtils } from "@/shared/utils/hash.utils";
 import { ConflictError, ValidationError } from "@/shared/errors/AppError";
 import { logger } from "@/shared/utils/logger.utils";
-import { Gender, MaritalStatus, UserType } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
+
+// Define enumerações correspondentes ao schema.prisma
+enum Gender {
+  MASCULINO = "MASCULINO",
+  FEMININO = "FEMININO",
+  OUTRO = "OUTRO",
+  NAO_INFORMADO = "NAO_INFORMADO",
+}
+
+enum MaritalStatus {
+  SOLTEIRO = "SOLTEIRO",
+  CASADO = "CASADO",
+  DIVORCIADO = "DIVORCIADO",
+  VIUVO = "VIUVO",
+  UNIAO_ESTAVEL = "UNIAO_ESTAVEL",
+  OUTRO = "OUTRO",
+}
+
+enum UserType {
+  PESSOA_FISICA = "PESSOA_FISICA",
+  PESSOA_JURIDICA = "PESSOA_JURIDICA",
+}
+
 import {
   RegisterPessoaFisicaDto,
   RegisterPessoaJuridicaDto,

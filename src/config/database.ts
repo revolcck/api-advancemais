@@ -356,7 +356,7 @@ export class DatabaseManager {
 
       const startTime = performance.now();
       const result = await this.prisma.$transaction(
-        async (prismaTransaction) => {
+        async (prismaTransaction: Prisma.TransactionClient) => {
           return await fn(prismaTransaction as PrismaClient);
         }
       );
@@ -491,9 +491,9 @@ export class DatabaseManager {
       // Trunca cada tabela
       for (const { tablename } of tables) {
         if (tablename !== "_prisma_migrations") {
-          await this.prisma.$executeRaw`TRUNCATE TABLE "public"."${Prisma.raw(
-            tablename
-          )}" CASCADE;`;
+          await this.prisma.$executeRaw`TRUNCATE TABLE "public"."${Prisma.sql([
+            tablename,
+          ])}" CASCADE;`;
         }
       }
 
