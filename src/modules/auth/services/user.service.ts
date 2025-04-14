@@ -262,56 +262,54 @@ export class UserService {
       const cpf = data.cpf.replace(/\D/g, "");
 
       // Cria o usuário com transação para garantir consistência
-      const result = await prisma.$transaction(
-        async (tx: Record<string, any>) => {
-          // Cria o usuário base
-          const user = await tx.user.create({
-            data: {
-              email: data.email,
-              password: hashedPassword,
-              userType: UserType.PESSOA_FISICA,
-              matricula,
-              roleId,
-              isActive: true,
-            },
-          });
+      const result = await prisma.$transaction(async (tx: any) => {
+        // Cria o usuário base
+        const user = await tx.user.create({
+          data: {
+            email: data.email,
+            password: hashedPassword,
+            userType: UserType.PESSOA_FISICA,
+            matricula,
+            roleId,
+            isActive: true,
+          },
+        });
 
-          // Cria informações pessoais
-          const personalInfo = await tx.personalInfo.create({
+        // Cria informações pessoais
+        const personalInfo = await tx.personalInfo.create({
+          data: {
+            name: data.name,
+            cpf,
+            rg: data.rg,
+            birthDate,
+            gender: data.gender as Gender,
+            phone: data.phone,
+            companyName: data.companyName,
+            maritalStatus: data.maritalStatus as MaritalStatus,
+            userId: user.id,
+          },
+        });
+
+        // Cria endereço se informado
+        if (data.address) {
+          await tx.address.create({
             data: {
-              name: data.name,
-              cpf,
-              rg: data.rg,
-              birthDate,
-              gender: data.gender as Gender,
-              phone: data.phone,
-              companyName: data.companyName,
-              maritalStatus: data.maritalStatus as MaritalStatus,
+              ...data.address,
               userId: user.id,
             },
           });
-
-          // Cria endereço se informado
-          if (data.address) {
-            await tx.address.create({
-              data: {
-                ...data.address,
-                userId: user.id,
-              },
-            });
-          }
-
-          // Retorna usuário com suas informações
-          return await tx.user.findUnique({
-            where: { id: user.id },
-            include: {
-              role: true,
-              personalInfo: true,
-              address: true,
-            },
-          });
         }
-      );
+
+        // Retorna usuário com suas informações
+        return await tx.user.findUnique({
+          where: { id: user.id },
+          include: {
+            role: true,
+            personalInfo: true,
+            address: true,
+          },
+        });
+      });
 
       logger.info(`Usuário pessoa física criado com sucesso: ${result?.email}`);
 
@@ -356,7 +354,7 @@ export class UserService {
       const cnpj = data.cnpj.replace(/\D/g, "");
 
       // Cria o usuário com transação para garantir consistência
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: any) => {
         // Cria o usuário base
         const user = await tx.user.create({
           data: {
