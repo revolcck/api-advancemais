@@ -18,14 +18,9 @@ export class WebhookValidator {
    *
    * @param payload Payload do webhook em formato string
    * @param signature Assinatura recebida no cabeçalho x-signature
-   * @param type Tipo de integração (para usar o segredo específico)
    * @returns true se a assinatura for válida, false caso contrário
    */
-  public static verifySignature(
-    payload: string,
-    signature: string,
-    type?: MercadoPagoIntegrationType
-  ): boolean {
+  public static verifySignature(payload: string, signature: string): boolean {
     try {
       // Se não há assinatura, não podemos validar
       if (!signature) {
@@ -33,11 +28,11 @@ export class WebhookValidator {
         return false;
       }
 
-      // Obtém o segredo apropriado com base no tipo de integração
-      const secret = mercadoPagoConfig.getWebhookSecret(type);
+      // Obtém o segredo do webhook
+      const secret = mercadoPagoConfig.getWebhookSecret();
 
-      // Verifica se está em modo de teste e se não há segredo configurado
-      const isTestMode = mercadoPagoConfig.isTestMode(type);
+      // Verifica se está em modo de teste
+      const isTestMode = mercadoPagoConfig.isTestMode();
       const isTestWebhook = this.isTestWebhook(JSON.parse(payload));
 
       // Em ambiente de teste ou webhook de teste, aplicamos validação menos rigorosa
@@ -74,9 +69,7 @@ export class WebhookValidator {
       // Ambiente de produção - validação rigorosa
       if (!secret) {
         logger.warn(
-          `Webhook recebido, mas secret não está configurado para validação (tipo: ${
-            type || "default"
-          })`
+          "Webhook recebido, mas secret não está configurado para validação"
         );
         return false;
       }
@@ -94,12 +87,9 @@ export class WebhookValidator {
         logger.warn("Assinatura de webhook inválida", {
           expected: calculatedSignature,
           received: signature,
-          integrationType: type || "default",
         });
       } else {
-        logger.debug("Assinatura de webhook validada com sucesso", {
-          integrationType: type || "default",
-        });
+        logger.debug("Assinatura de webhook validada com sucesso");
       }
 
       return isValid;
@@ -107,7 +97,7 @@ export class WebhookValidator {
       logger.error("Erro ao validar assinatura de webhook", error);
 
       // Em ambiente de teste, permitimos continuar mesmo com erro
-      if (mercadoPagoConfig.isTestMode(type)) {
+      if (mercadoPagoConfig.isTestMode()) {
         logger.debug(
           "Ambiente de teste detectado, ignorando erro de validação"
         );

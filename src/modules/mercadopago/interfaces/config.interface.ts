@@ -15,10 +15,10 @@ export interface IMercadoPagoCredentials {
   /** Chave pública para uso no frontend */
   publicKey: string;
 
-  /** ID do cliente (Client ID) */
+  /** ID do cliente (Client ID) - Para ambiente de produção */
   clientId: string;
 
-  /** Chave secreta do cliente (Client Secret) */
+  /** Chave secreta do cliente (Client Secret) - Para ambiente de produção */
   clientSecret: string;
 
   /** Tipo de integração */
@@ -69,7 +69,7 @@ export interface ICredentialsManager {
   /**
    * Obtém o segredo para validação de webhook
    */
-  getWebhookSecret(type?: MercadoPagoIntegrationType): string;
+  getWebhookSecret(): string;
 
   /**
    * Verifica se o módulo MercadoPago está habilitado
@@ -124,5 +124,5 @@ export interface IMercadoPagoConfig {
   /**
    * Obtém o segredo para validação de webhook
    */
-  getWebhookSecret(type?: MercadoPagoIntegrationType): string;
+  getWebhookSecret(): string;
 }

@@ -50,78 +50,44 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
         return;
       }
 
-      // Inicializa configuração para assinaturas
-      if (
-        credentialsManager.hasCredentials(
-          MercadoPagoIntegrationType.SUBSCRIPTION
-        )
-      ) {
-        const subscriptionCredentials = credentialsManager.getCredentials(
-          MercadoPagoIntegrationType.SUBSCRIPTION
-        );
+      // Configura todos os tipos de integração
+      const types = [
+        MercadoPagoIntegrationType.CHECKOUT,
+        MercadoPagoIntegrationType.SUBSCRIPTION,
+      ];
 
-        // Configura o SDK com accessToken
-        this.configs.set(
-          MercadoPagoIntegrationType.SUBSCRIPTION,
-          new SDKMercadoPagoConfig({
-            accessToken: subscriptionCredentials.accessToken,
-            options: {
+      types.forEach((type) => {
+        if (credentialsManager.hasCredentials(type)) {
+          const credentials = credentialsManager.getCredentials(type);
+
+          // Configura o SDK com accessToken
+          this.configs.set(
+            type,
+            new SDKMercadoPagoConfig({
+              accessToken: credentials.accessToken,
+              options: {
+                integratorId: env.mercadoPago.integratorId,
+                corporationId: "AdvanceMais",
+                plataformId: "nodejs",
+              },
+            })
+          );
+
+          // Log das credenciais inicializadas
+          logger.debug(
+            `Configuração MercadoPago para ${type} inicializada (${
+              credentials.isProduction ? "produção" : "teste"
+            })`,
+            {
+              applicationId: credentials.applicationId,
               integratorId: env.mercadoPago.integratorId,
-              corporationId: env.mercadoPago.integrator,
-              plataformId: env.mercadoPago.platformId,
-            },
-          })
-        );
-
-        // Log das credenciais inicializadas
-        logger.debug(
-          `Configuração MercadoPago para SUBSCRIPTION inicializada (${
-            subscriptionCredentials.isProduction ? "produção" : "teste"
-          })`,
-          {
-            applicationId: subscriptionCredentials.applicationId,
-            integratorId: env.mercadoPago.integratorId,
-            testEnabled: subscriptionCredentials.isProduction
-              ? false
-              : subscriptionCredentials.testEnabled,
-          }
-        );
-      }
-
-      // Inicializa configuração para checkout
-      if (
-        credentialsManager.hasCredentials(MercadoPagoIntegrationType.CHECKOUT)
-      ) {
-        const checkoutCredentials = credentialsManager.getCredentials(
-          MercadoPagoIntegrationType.CHECKOUT
-        );
-        // Configura o SDK com accessToken
-        this.configs.set(
-          MercadoPagoIntegrationType.CHECKOUT,
-          new SDKMercadoPagoConfig({
-            accessToken: checkoutCredentials.accessToken,
-            options: {
-              integratorId: env.mercadoPago.integratorId,
-              corporationId: env.mercadoPago.integrator,
-              plataformId: env.mercadoPago.platformId,
-            },
-          })
-        );
-
-        // Log das credenciais inicializadas
-        logger.debug(
-          `Configuração MercadoPago para CHECKOUT inicializada (${
-            checkoutCredentials.isProduction ? "produção" : "teste"
-          })`,
-          {
-            applicationId: checkoutCredentials.applicationId,
-            integratorId: env.mercadoPago.integratorId,
-            testEnabled: checkoutCredentials.isProduction
-              ? false
-              : checkoutCredentials.testEnabled,
-          }
-        );
-      }
+              testEnabled: credentials.isProduction
+                ? false
+                : credentials.testEnabled,
+            }
+          );
+        }
+      });
 
       if (this.configs.size === 0) {
         logger.warn("Nenhuma configuração do MercadoPago foi inicializada");
@@ -378,11 +344,10 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
 
   /**
    * Obtém o segredo para validação de webhook
-   * @param type Tipo específico de integração (opcional)
    * @returns Segredo para validação de webhook
    */
-  public getWebhookSecret(type?: MercadoPagoIntegrationType): string {
-    return credentialsManager.getWebhookSecret(type);
+  public getWebhookSecret(): string {
+    return credentialsManager.getWebhookSecret();
   }
 }
 

@@ -16,15 +16,34 @@ import {
  * Permite utilizar diferentes credenciais para diferentes tipos de integração
  */
 export class MercadoPagoCredentialsManager implements ICredentialsManager {
+  getCredentials(type: MercadoPagoIntegrationType): IMercadoPagoCredentials {
+    throw new Error("Method not implemented.");
+  }
+  hasCredentials(type: MercadoPagoIntegrationType): boolean {
+    throw new Error("Method not implemented.");
+  }
+  isProductionCredentials(type: MercadoPagoIntegrationType): boolean {
+    throw new Error("Method not implemented.");
+  }
+  isTestEnabled(type: MercadoPagoIntegrationType): boolean {
+    throw new Error("Method not implemented.");
+  }
+  updateCredentials(type: MercadoPagoIntegrationType, credentials: Partial<IMercadoPagoCredentials>): void {
+    throw new Error("Method not implemented.");
+  }
+  getWebhookSecret(type?: MercadoPagoIntegrationType): string {
+    throw new Error("Method not implemented.");
+  }
+  isEnabled(): boolean {
+    throw new Error("Method not implemented.");
+  }
   private static instance: MercadoPagoCredentialsManager;
-  private credentials: Map<
+  private credentials: Map
     MercadoPagoIntegrationType,
     IMercadoPagoCredentials
   > = new Map();
   private initialized: boolean = false;
-
-  // Mapeamento de tipo de integração para segredo de webhook
-  private webhookSecrets: Map<MercadoPagoIntegrationType, string> = new Map();
+  private webhookSecret: string = "";
 
   /**
    * Construtor privado para implementar o padrão Singleton
@@ -94,11 +113,53 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
         return;
       }
 
-      // Credenciais para assinaturas
-      this.initSubscriptionCredentials();
+      // Define o webhook secret global
+      this.webhookSecret = env.mercadoPago.webhookSecret;
 
-      // Credenciais para checkout
-      this.initCheckoutCredentials();
+      // Determina se deve usar credenciais de produção
+      const useProdCredentials = env.mercadoPago.prodEnabled;
+
+      // Configura as credenciais para ambos os tipos de integração
+      const types = [
+        MercadoPagoIntegrationType.CHECKOUT,
+        MercadoPagoIntegrationType.SUBSCRIPTION
+      ];
+
+      types.forEach(type => {
+        if (useProdCredentials) {
+          // Usar credenciais de produção
+          this.credentials.set(type, {
+            accessToken: env.mercadoPago.prodAccessToken,
+            publicKey: env.mercadoPago.prodPublicKey,
+            clientId: env.mercadoPago.prodClientId,
+            clientSecret: env.mercadoPago.prodClientSecret,
+            integrationType: type,
+            applicationId: this.extractApplicationId(env.mercadoPago.prodAccessToken),
+            isProduction: true,
+            testEnabled: false,
+          });
+          
+          logger.debug(
+            `Credenciais de ${type} do MercadoPago configuradas (PRODUÇÃO)`
+          );
+        } else {
+          // Usar credenciais de teste
+          this.credentials.set(type, {
+            accessToken: env.mercadoPago.accessToken,
+            publicKey: env.mercadoPago.publicKey,
+            clientId: "", // Não é necessário para ambiente de teste
+            clientSecret: "", // Não é necessário para ambiente de teste
+            integrationType: type,
+            applicationId: this.extractApplicationId(env.mercadoPago.accessToken),
+            isProduction: false,
+            testEnabled: true,
+          });
+          
+          logger.debug(
+            `Credenciais de ${type} do MercadoPago configuradas (TESTE)`
+          );
+        }
+      });
 
       // Verifica se pelo menos um tipo de credencial foi configurado
       if (this.credentials.size === 0) {
@@ -114,162 +175,6 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
       const errorMessage = "Falha ao inicializar credenciais do MercadoPago";
       logger.error(errorMessage, error);
       throw new Error(errorMessage);
-    }
-  }
-
-  /**
-   * Inicializa as credenciais para assinaturas (teste ou produção)
-   */
-  private initSubscriptionCredentials(): void {
-    // Verifica se as credenciais de produção devem ser utilizadas
-    const useProdCredentials = env.mercadoPago.subscription.prodEnabled;
-    const testEnabled =
-      !useProdCredentials && env.mercadoPago.subscription.testEnabled;
-
-    if (useProdCredentials) {
-      // Credenciais de PRODUÇÃO
-      const accessToken = env.mercadoPago.subscription.prodAccessToken;
-      const publicKey = env.mercadoPago.subscription.prodPublicKey;
-      const clientId = env.mercadoPago.subscription.prodClientId;
-      const clientSecret = env.mercadoPago.subscription.prodClientSecret;
-      const webhookSecret = env.mercadoPago.subscription.prodWebhookSecret;
-
-      if (accessToken) {
-        this.credentials.set(MercadoPagoIntegrationType.SUBSCRIPTION, {
-          accessToken,
-          publicKey,
-          clientId,
-          clientSecret,
-          integrationType: MercadoPagoIntegrationType.SUBSCRIPTION,
-          applicationId: this.extractApplicationId(accessToken),
-          isProduction: true,
-          testEnabled: false,
-        });
-
-        // Armazena o segredo do webhook para assinaturas
-        this.webhookSecrets.set(
-          MercadoPagoIntegrationType.SUBSCRIPTION,
-          webhookSecret
-        );
-
-        logger.debug(
-          "Credenciais de assinatura do MercadoPago configuradas (PRODUÇÃO)"
-        );
-      } else {
-        logger.warn(
-          "Credenciais de assinatura do MercadoPago de produção não encontradas"
-        );
-      }
-    } else {
-      // Credenciais de TESTE
-      const accessToken = env.mercadoPago.subscription.accessToken;
-      const publicKey = env.mercadoPago.subscription.publicKey;
-      const webhookSecret = env.mercadoPago.subscription.webhookSecret;
-
-      if (accessToken) {
-        this.credentials.set(MercadoPagoIntegrationType.SUBSCRIPTION, {
-          accessToken,
-          publicKey,
-          clientId: "", // Não é necessário para ambiente de teste
-          clientSecret: "", // Não é necessário para ambiente de teste
-          integrationType: MercadoPagoIntegrationType.SUBSCRIPTION,
-          applicationId: this.extractApplicationId(accessToken),
-          isProduction: false,
-          testEnabled: testEnabled,
-        });
-
-        // Armazena o segredo do webhook para assinaturas
-        this.webhookSecrets.set(
-          MercadoPagoIntegrationType.SUBSCRIPTION,
-          webhookSecret
-        );
-
-        logger.debug(
-          "Credenciais de assinatura do MercadoPago configuradas (TESTE)"
-        );
-      } else {
-        logger.warn(
-          "Credenciais de assinatura do MercadoPago de teste não encontradas"
-        );
-      }
-    }
-  }
-
-  /**
-   * Inicializa as credenciais para checkout (teste ou produção)
-   */
-  private initCheckoutCredentials(): void {
-    // Verifica se as credenciais de produção devem ser utilizadas
-    const useProdCredentials = env.mercadoPago.checkout.prodEnabled;
-    const testEnabled =
-      !useProdCredentials && env.mercadoPago.checkout.testEnabled;
-
-    if (useProdCredentials) {
-      // Credenciais de PRODUÇÃO
-      const accessToken = env.mercadoPago.checkout.prodAccessToken;
-      const publicKey = env.mercadoPago.checkout.prodPublicKey;
-      const clientId = env.mercadoPago.checkout.prodClientId;
-      const clientSecret = env.mercadoPago.checkout.prodClientSecret;
-      const webhookSecret = env.mercadoPago.checkout.prodWebhookSecret;
-
-      if (accessToken) {
-        this.credentials.set(MercadoPagoIntegrationType.CHECKOUT, {
-          accessToken,
-          publicKey,
-          clientId,
-          clientSecret,
-          integrationType: MercadoPagoIntegrationType.CHECKOUT,
-          applicationId: this.extractApplicationId(accessToken),
-          isProduction: true,
-          testEnabled: false,
-        });
-
-        // Armazena o segredo do webhook para checkout
-        this.webhookSecrets.set(
-          MercadoPagoIntegrationType.CHECKOUT,
-          webhookSecret
-        );
-
-        logger.debug(
-          "Credenciais de checkout do MercadoPago configuradas (PRODUÇÃO)"
-        );
-      } else {
-        logger.warn(
-          "Credenciais de checkout do MercadoPago de produção não encontradas"
-        );
-      }
-    } else {
-      // Credenciais de TESTE
-      const accessToken = env.mercadoPago.checkout.accessToken;
-      const publicKey = env.mercadoPago.checkout.publicKey;
-      const webhookSecret = env.mercadoPago.checkout.webhookSecret;
-
-      if (accessToken) {
-        this.credentials.set(MercadoPagoIntegrationType.CHECKOUT, {
-          accessToken,
-          publicKey,
-          clientId: "", // Não é necessário para ambiente de teste
-          clientSecret: "", // Não é necessário para ambiente de teste
-          integrationType: MercadoPagoIntegrationType.CHECKOUT,
-          applicationId: this.extractApplicationId(accessToken),
-          isProduction: false,
-          testEnabled: testEnabled,
-        });
-
-        // Armazena o segredo do webhook para checkout
-        this.webhookSecrets.set(
-          MercadoPagoIntegrationType.CHECKOUT,
-          webhookSecret
-        );
-
-        logger.debug(
-          "Credenciais de checkout do MercadoPago configuradas (TESTE)"
-        );
-      } else {
-        logger.warn(
-          "Credenciais de checkout do MercadoPago de teste não encontradas"
-        );
-      }
     }
   }
 
@@ -311,9 +216,7 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
     return (
       !!credentials &&
       !!credentials.accessToken &&
-      !!credentials.publicKey &&
-      !!credentials.clientId &&
-      !!credentials.clientSecret
+      !!credentials.publicKey
     );
   }
 
@@ -394,9 +297,7 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
       // Cria novas credenciais se não existirem
       if (
         credentials.accessToken &&
-        credentials.publicKey &&
-        credentials.clientId &&
-        credentials.clientSecret
+        credentials.publicKey
       ) {
         const isProduction = !credentials.accessToken.startsWith("TEST-");
         const testEnabled = !isProduction && (credentials.testEnabled ?? true);
@@ -404,8 +305,8 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
         const newCredentials: IMercadoPagoCredentials = {
           accessToken: credentials.accessToken,
           publicKey: credentials.publicKey,
-          clientId: credentials.clientId,
-          clientSecret: credentials.clientSecret,
+          clientId: credentials.clientId || "",
+          clientSecret: credentials.clientSecret || "",
           integrationType: type,
           applicationId: this.extractApplicationId(credentials.accessToken),
           isProduction,
@@ -427,37 +328,14 @@ export class MercadoPagoCredentialsManager implements ICredentialsManager {
 
   /**
    * Obtém o segredo para validação de webhook
-   * @param type Tipo de integração (obrigatório)
    * @returns Segredo para validação de webhook ou string vazia se não configurado
    */
-  public getWebhookSecret(type?: MercadoPagoIntegrationType): string {
+  public getWebhookSecret(): string {
     if (!this.initialized) {
       this.initialize();
     }
 
-    // Se um tipo específico foi fornecido, tenta obter o segredo específico
-    if (type && this.webhookSecrets.has(type)) {
-      return this.webhookSecrets.get(type) || "";
-    }
-
-    // Se não foi fornecido tipo específico ou não há segredo para o tipo específico,
-    // tentamos buscar segredo do CHECKOUT como fallback (mais comum)
-    if (this.webhookSecrets.has(MercadoPagoIntegrationType.CHECKOUT)) {
-      return this.webhookSecrets.get(MercadoPagoIntegrationType.CHECKOUT) || "";
-    }
-
-    // Se ainda não encontrou, tenta o segredo de SUBSCRIPTION como último recurso
-    if (this.webhookSecrets.has(MercadoPagoIntegrationType.SUBSCRIPTION)) {
-      return (
-        this.webhookSecrets.get(MercadoPagoIntegrationType.SUBSCRIPTION) || ""
-      );
-    }
-
-    // Se não encontrou nenhum segredo, retorna string vazia
-    logger.warn(
-      `Segredo de webhook não encontrado${type ? ` para o tipo: ${type}` : ""}`
-    );
-    return "";
+    return this.webhookSecret || "";
   }
 
   /**

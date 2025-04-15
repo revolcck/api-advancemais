@@ -78,38 +78,24 @@ interface Environment {
     smsSender: string;
   };
 
-  // Mercado Pago
+  // Mercado Pago - configuração simplificada
   mercadoPago: {
-    subscription: {
-      testEnabled: boolean;
-      publicKey: string;
-      accessToken: string;
-      webhookSecret: string;
-      // Credenciais de produção
-      prodPublicKey: string;
-      prodAccessToken: string;
-      prodClientId: string;
-      prodClientSecret: string;
-      prodWebhookSecret: string;
-      prodEnabled: boolean;
-    };
-    checkout: {
-      testEnabled: boolean;
-      publicKey: string;
-      accessToken: string;
-      webhookSecret: string;
-      // Credenciais de produção
-      prodPublicKey: string;
-      prodAccessToken: string;
-      prodClientId: string;
-      prodClientSecret: string;
-      prodWebhookSecret: string;
-      prodEnabled: boolean;
-    };
-    integratorId: string;
-    platformId: string;
-    integrator: string;
     enabled: boolean;
+    integratorId: string;
+
+    // Credenciais de teste
+    publicKey: string;
+    accessToken: string;
+
+    // Configurações de produção
+    prodEnabled: boolean;
+    prodPublicKey: string;
+    prodAccessToken: string;
+    prodClientId: string;
+    prodClientSecret: string;
+
+    // Webhook
+    webhookSecret: string;
   };
 }
 
@@ -196,54 +182,25 @@ const envSchema = joi
       "any.required": "O remetente de SMS da Brevo é obrigatório",
     }),
 
-    // Mercado Pago - Configuração geral
+    // MercadoPago - Schema simplificado
     MERCADOPAGO_ENABLED: joi.boolean().default(true),
     MERCADOPAGO_INTEGRATOR_ID: joi
       .string()
       .default("dev_24c65fb163bf11ea96500242ac130004"),
 
-    // Mercado Pago - Assinaturas (Teste)
-    MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED: joi.boolean().default(true),
-    MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY: joi.string().required(),
-    MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN: joi.string().required(),
-    MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET: joi.string().allow("").default(""),
+    // Credenciais de teste
+    MERCADOPAGO_PUBLIC_KEY: joi.string().required(),
+    MERCADOPAGO_ACCESS_TOKEN: joi.string().required(),
 
-    // Mercado Pago - Assinaturas (Produção)
-    MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED: joi.boolean().default(false),
-    MERCADOPAGO_SUBSCRIPTION_PROD_PUBLIC_KEY: joi
-      .string()
-      .allow("")
-      .default(""),
-    MERCADOPAGO_SUBSCRIPTION_PROD_ACCESS_TOKEN: joi
-      .string()
-      .allow("")
-      .default(""),
-    MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_ID: joi.string().allow("").default(""),
-    MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_SECRET: joi
-      .string()
-      .allow("")
-      .default(""),
-    MERCADOPAGO_SUBSCRIPTION_PROD_WEBHOOK_SECRET: joi
-      .string()
-      .allow("")
-      .default(""),
+    // Credenciais de produção
+    MERCADOPAGO_PROD_ENABLED: joi.boolean().default(false),
+    MERCADOPAGO_PROD_PUBLIC_KEY: joi.string().allow("").default(""),
+    MERCADOPAGO_PROD_ACCESS_TOKEN: joi.string().allow("").default(""),
+    MERCADOPAGO_PROD_CLIENT_ID: joi.string().allow("").default(""),
+    MERCADOPAGO_PROD_CLIENT_SECRET: joi.string().allow("").default(""),
 
-    // Mercado Pago - Checkout (Teste)
-    MERCADOPAGO_CHECKOUT_TEST_ENABLED: joi.boolean().default(true),
-    MERCADOPAGO_CHECKOUT_PUBLIC_KEY: joi.string().required(),
-    MERCADOPAGO_CHECKOUT_ACCESS_TOKEN: joi.string().required(),
-    MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET: joi.string().allow("").default(""),
-
-    // Mercado Pago - Checkout (Produção)
-    MERCADOPAGO_CHECKOUT_PROD_ENABLED: joi.boolean().default(false),
-    MERCADOPAGO_CHECKOUT_PROD_PUBLIC_KEY: joi.string().allow("").default(""),
-    MERCADOPAGO_CHECKOUT_PROD_ACCESS_TOKEN: joi.string().allow("").default(""),
-    MERCADOPAGO_CHECKOUT_PROD_CLIENT_ID: joi.string().allow("").default(""),
-    MERCADOPAGO_CHECKOUT_PROD_CLIENT_SECRET: joi.string().allow("").default(""),
-    MERCADOPAGO_CHECKOUT_PROD_WEBHOOK_SECRET: joi
-      .string()
-      .allow("")
-      .default(""),
+    // Webhook
+    MERCADOPAGO_WEBHOOK_SECRET: joi.string().allow("").default(""),
 
     // Remover variáveis redundantes após migração completa
     MERCADO_PAGO_ACCESS_TOKEN: joi.string().allow(""),
@@ -251,54 +208,29 @@ const envSchema = joi
     MERCADO_PAGO_ENABLED: joi.boolean().default(true),
   })
   .custom((values, helpers) => {
-    // Verifica se os ambientes de teste e produção não estão habilitados simultaneamente para assinaturas
+    // Verifica se os ambientes de teste e produção não estão habilitados simultaneamente
     if (
-      values.MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED &&
-      values.MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED
+      values.MERCADOPAGO_PROD_ENABLED &&
+      (values.MERCADOPAGO_PUBLIC_KEY.startsWith("TEST-") ||
+        values.MERCADOPAGO_ACCESS_TOKEN.startsWith("TEST-"))
     ) {
       return helpers.message({
         custom:
-          "Não é possível habilitar os ambientes de teste e produção simultaneamente para assinaturas",
-      });
-    }
-
-    // Verifica se os ambientes de teste e produção não estão habilitados simultaneamente para checkout
-    if (
-      values.MERCADOPAGO_CHECKOUT_TEST_ENABLED &&
-      values.MERCADOPAGO_CHECKOUT_PROD_ENABLED
-    ) {
-      return helpers.message({
-        custom:
-          "Não é possível habilitar os ambientes de teste e produção simultaneamente para checkout",
+          "Não é possível usar credenciais de teste quando o modo de produção está habilitado",
       });
     }
 
     // Se o modo de produção está habilitado, deve fornecer as credenciais de produção completas
-    if (values.MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED) {
+    if (values.MERCADOPAGO_PROD_ENABLED) {
       if (
-        !values.MERCADOPAGO_SUBSCRIPTION_PROD_ACCESS_TOKEN ||
-        !values.MERCADOPAGO_SUBSCRIPTION_PROD_PUBLIC_KEY ||
-        !values.MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_ID ||
-        !values.MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_SECRET
+        !values.MERCADOPAGO_PROD_ACCESS_TOKEN ||
+        !values.MERCADOPAGO_PROD_PUBLIC_KEY ||
+        !values.MERCADOPAGO_PROD_CLIENT_ID ||
+        !values.MERCADOPAGO_PROD_CLIENT_SECRET
       ) {
         return helpers.message({
           custom:
-            "Credenciais de produção incompletas para assinaturas. Quando o modo de produção está habilitado, todas as credenciais de produção são obrigatórias.",
-        });
-      }
-    }
-
-    // Verifica o mesmo para checkout
-    if (values.MERCADOPAGO_CHECKOUT_PROD_ENABLED) {
-      if (
-        !values.MERCADOPAGO_CHECKOUT_PROD_ACCESS_TOKEN ||
-        !values.MERCADOPAGO_CHECKOUT_PROD_PUBLIC_KEY ||
-        !values.MERCADOPAGO_CHECKOUT_PROD_CLIENT_ID ||
-        !values.MERCADOPAGO_CHECKOUT_PROD_CLIENT_SECRET
-      ) {
-        return helpers.message({
-          custom:
-            "Credenciais de produção incompletas para checkout. Quando o modo de produção está habilitado, todas as credenciais de produção são obrigatórias.",
+            "Credenciais de produção incompletas. Quando o modo de produção está habilitado, todas as credenciais de produção são obrigatórias.",
         });
       }
     }
@@ -407,38 +339,24 @@ export const env: Environment = {
     smsSender: _env.BREVO_SMS_SENDER,
   },
 
-  // Mercado Pago
+  // MercadoPago - configuração simplificada
   mercadoPago: {
-    subscription: {
-      testEnabled: _env.MERCADOPAGO_SUBSCRIPTION_TEST_ENABLED,
-      publicKey: _env.MERCADOPAGO_SUBSCRIPTION_PUBLIC_KEY,
-      accessToken: _env.MERCADOPAGO_SUBSCRIPTION_ACCESS_TOKEN,
-      webhookSecret: _env.MERCADOPAGO_SUBSCRIPTION_WEBHOOK_SECRET,
-      // Credenciais de produção
-      prodPublicKey: _env.MERCADOPAGO_SUBSCRIPTION_PROD_PUBLIC_KEY,
-      prodAccessToken: _env.MERCADOPAGO_SUBSCRIPTION_PROD_ACCESS_TOKEN,
-      prodClientId: _env.MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_ID,
-      prodClientSecret: _env.MERCADOPAGO_SUBSCRIPTION_PROD_CLIENT_SECRET,
-      prodWebhookSecret: _env.MERCADOPAGO_SUBSCRIPTION_PROD_WEBHOOK_SECRET,
-      prodEnabled: _env.MERCADOPAGO_SUBSCRIPTION_PROD_ENABLED,
-    },
-    checkout: {
-      testEnabled: _env.MERCADOPAGO_CHECKOUT_TEST_ENABLED,
-      publicKey: _env.MERCADOPAGO_CHECKOUT_PUBLIC_KEY,
-      accessToken: _env.MERCADOPAGO_CHECKOUT_ACCESS_TOKEN,
-      webhookSecret: _env.MERCADOPAGO_CHECKOUT_WEBHOOK_SECRET,
-      // Credenciais de produção
-      prodPublicKey: _env.MERCADOPAGO_CHECKOUT_PROD_PUBLIC_KEY,
-      prodAccessToken: _env.MERCADOPAGO_CHECKOUT_PROD_ACCESS_TOKEN,
-      prodClientId: _env.MERCADOPAGO_CHECKOUT_PROD_CLIENT_ID,
-      prodClientSecret: _env.MERCADOPAGO_CHECKOUT_PROD_CLIENT_SECRET,
-      prodWebhookSecret: _env.MERCADOPAGO_CHECKOUT_PROD_WEBHOOK_SECRET,
-      prodEnabled: _env.MERCADOPAGO_CHECKOUT_PROD_ENABLED,
-    },
-    integratorId: _env.MERCADOPAGO_INTEGRATOR_ID,
-    platformId: "nodejs",
-    integrator: "AdvanceMais",
     enabled: _env.MERCADOPAGO_ENABLED,
+    integratorId: _env.MERCADOPAGO_INTEGRATOR_ID,
+
+    // Credenciais de teste
+    publicKey: _env.MERCADOPAGO_PUBLIC_KEY,
+    accessToken: _env.MERCADOPAGO_ACCESS_TOKEN,
+
+    // Configurações de produção
+    prodEnabled: _env.MERCADOPAGO_PROD_ENABLED,
+    prodPublicKey: _env.MERCADOPAGO_PROD_PUBLIC_KEY,
+    prodAccessToken: _env.MERCADOPAGO_PROD_ACCESS_TOKEN,
+    prodClientId: _env.MERCADOPAGO_PROD_CLIENT_ID,
+    prodClientSecret: _env.MERCADOPAGO_PROD_CLIENT_SECRET,
+
+    // Webhook
+    webhookSecret: _env.MERCADOPAGO_WEBHOOK_SECRET,
   },
 };
 
@@ -461,11 +379,6 @@ if (env.isDevelopment) {
     },
     logLevel: env.log.level,
     mercadoPagoEnabled: env.mercadoPago.enabled,
-    mercadoPagoSubscriptionMode: env.mercadoPago.subscription.prodEnabled
-      ? "PRODUÇÃO"
-      : "TESTE",
-    mercadoPagoCheckoutMode: env.mercadoPago.checkout.prodEnabled
-      ? "PRODUÇÃO"
-      : "TESTE",
+    mercadoPagoMode: env.mercadoPago.prodEnabled ? "PRODUÇÃO" : "TESTE",
   });
 }
