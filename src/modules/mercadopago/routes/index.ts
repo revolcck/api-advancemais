@@ -1,6 +1,5 @@
 /**
  * Rotas para o módulo core do MercadoPago
- * Implementa autenticação e autorização baseada em papéis
  * @module modules/mercadopago/routes
  */
 
@@ -80,30 +79,6 @@ router.get(
   authenticate,
   authorize(["ADMIN", "Super Administrador", "Financeiro"]),
   webhookController.getWebhookHistory
-);
-
-/**
- * @route GET /api/mercadopago/payments/:id
- * @desc Consulta informações de um pagamento específico
- * @access Privado (requer permissão financeira)
- */
-router.get(
-  "/payments/:id",
-  authenticate,
-  authorize(["ADMIN", "Super Administrador", "Financeiro"]),
-  statusController.getPaymentInfo
-);
-
-/**
- * @route GET /api/mercadopago/subscriptions/:id
- * @desc Consulta informações de uma assinatura específica
- * @access Privado (requer permissão financeira)
- */
-router.get(
-  "/subscriptions/:id",
-  authenticate,
-  authorize(["ADMIN", "Super Administrador", "Financeiro"]),
-  statusController.getSubscriptionInfo
 );
 
 export default router;

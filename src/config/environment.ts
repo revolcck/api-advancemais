@@ -78,11 +78,8 @@ interface Environment {
     smsSender: string;
   };
 
-  // Mercado Pago - configuração simplificada
+  // MercadoPago - configuração simplificada
   mercadoPago: {
-    enabled: boolean;
-    integratorId: string;
-
     // Credenciais de teste
     publicKey: string;
     accessToken: string;
@@ -183,12 +180,6 @@ const envSchema = joi
     }),
 
     // MercadoPago - Schema simplificado
-    MERCADOPAGO_ENABLED: joi.boolean().default(true),
-    MERCADOPAGO_INTEGRATOR_ID: joi
-      .string()
-      .default("dev_24c65fb163bf11ea96500242ac130004"),
-
-    // Credenciais de teste
     MERCADOPAGO_PUBLIC_KEY: joi.string().required(),
     MERCADOPAGO_ACCESS_TOKEN: joi.string().required(),
 
@@ -201,11 +192,6 @@ const envSchema = joi
 
     // Webhook
     MERCADOPAGO_WEBHOOK_SECRET: joi.string().allow("").default(""),
-
-    // Remover variáveis redundantes após migração completa
-    MERCADO_PAGO_ACCESS_TOKEN: joi.string().allow(""),
-    MERCADO_PAGO_PUBLIC_KEY: joi.string().allow(""),
-    MERCADO_PAGO_ENABLED: joi.boolean().default(true),
   })
   .custom((values, helpers) => {
     // Verifica se os ambientes de teste e produção não estão habilitados simultaneamente
@@ -341,9 +327,6 @@ export const env: Environment = {
 
   // MercadoPago - configuração simplificada
   mercadoPago: {
-    enabled: _env.MERCADOPAGO_ENABLED,
-    integratorId: _env.MERCADOPAGO_INTEGRATOR_ID,
-
     // Credenciais de teste
     publicKey: _env.MERCADOPAGO_PUBLIC_KEY,
     accessToken: _env.MERCADOPAGO_ACCESS_TOKEN,
@@ -378,7 +361,6 @@ if (env.isDevelopment) {
       max: env.rateLimit.max,
     },
     logLevel: env.log.level,
-    mercadoPagoEnabled: env.mercadoPago.enabled,
     mercadoPagoMode: env.mercadoPago.prodEnabled ? "PRODUÇÃO" : "TESTE",
   });
 }

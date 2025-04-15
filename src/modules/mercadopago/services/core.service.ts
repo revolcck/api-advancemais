@@ -7,11 +7,9 @@
 import {
   MercadoPagoConfig,
   Payment,
-  Customer,
   PreApproval,
   Preference,
   MerchantOrder,
-  CardToken,
 } from "mercadopago";
 
 import { logger } from "@/shared/utils/logger.utils";
@@ -212,7 +210,7 @@ export class MercadoPagoCoreService implements IMercadoPagoCoreService {
         );
       }
 
-      // CORREÇÃO: Tratamento especial para modo de teste
+      // Tratamento especial para modo de teste
       const isTestMode = mercadoPagoConfig.isTestMode(type);
       if (isTestMode) {
         logger.info(
@@ -338,7 +336,7 @@ export class MercadoPagoCoreService implements IMercadoPagoCoreService {
   }
 
   /**
-   * NOVO: Limpa o cache de adaptadores
+   * Limpa o cache de adaptadores
    * Útil quando há mudança de credenciais ou ambiente
    */
   public clearAdapterCache(): void {

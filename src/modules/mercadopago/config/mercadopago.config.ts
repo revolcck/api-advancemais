@@ -6,7 +6,6 @@
 import { MercadoPagoConfig as SDKMercadoPagoConfig } from "mercadopago";
 import { credentialsManager } from "./credentials";
 import { logger } from "@/shared/utils/logger.utils";
-import { env } from "@/config/environment";
 import { MercadoPagoIntegrationType } from "../enums";
 import { IMercadoPagoConfig } from "../interfaces";
 
@@ -41,15 +40,6 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
    */
   private initialize(): void {
     try {
-      // Verifica se o módulo está habilitado
-      if (!credentialsManager.isEnabled()) {
-        logger.info(
-          "Módulo MercadoPago está desabilitado, pulando inicialização"
-        );
-        this.isInitialized = true;
-        return;
-      }
-
       // Configura todos os tipos de integração
       const types = [
         MercadoPagoIntegrationType.CHECKOUT,
@@ -66,8 +56,8 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
             new SDKMercadoPagoConfig({
               accessToken: credentials.accessToken,
               options: {
-                integratorId: env.mercadoPago.integratorId,
-                corporationId: "AdvanceMais",
+                integratorId: "dev_24c65fb163bf11ea96500242ac130004", // ID padrão para integração
+                corporationId: "YourCompanyName",
                 plataformId: "nodejs",
               },
             })
@@ -80,7 +70,6 @@ export class MercadoPagoConfig implements IMercadoPagoConfig {
             })`,
             {
               applicationId: credentials.applicationId,
-              integratorId: env.mercadoPago.integratorId,
               testEnabled: credentials.isProduction
                 ? false
                 : credentials.testEnabled,
