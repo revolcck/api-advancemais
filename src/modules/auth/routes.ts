@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { AuthController } from "../controllers/auth.controller";
+import { AuthController } from "./controllers/auth.controller";
 import { validate } from "@/shared/middleware/validate.middleware";
 import {
   loginSchema,
@@ -7,7 +7,7 @@ import {
   registerPessoaJuridicaSchema,
   refreshTokenSchema,
   changePasswordSchema,
-} from "../validators/auth.validators";
+} from "./validators/auth.validators";
 import { authenticate } from "@/shared/middleware/auth.middleware";
 
 // Inicializa o router

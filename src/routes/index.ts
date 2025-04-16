@@ -1,5 +1,5 @@
 import { Router } from "express";
-import authRoutes from "@/modules/auth/routes/auth.routes";
+import authRoutes from "@/modules/auth/routes";
 import healthRoutes from "@/shared/routes/health.routes";
 import communicationsRoutes from "@/modules/communications/routes";
 import mercadoPagoRoutes from "@/modules/mercadopago/routes";

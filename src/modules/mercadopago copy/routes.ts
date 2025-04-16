@@ -4,7 +4,7 @@
  */
 
 import { Router } from "express";
-import { WebhookController, StatusController } from "../controllers";
+import { WebhookController, StatusController } from "./controllers";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 
 // Cria o router

@@ -20,7 +20,7 @@ import { PaymentFactory } from "./factories/payment.factory";
 import * as Interfaces from "./interfaces";
 import * as Types from "./types";
 
-// Serviço principal
+// Serviço principal (apenas o core)
 import { mercadoPagoCoreService } from "./services/core.service";
 
 // Adaptadores
@@ -87,7 +87,6 @@ export function getPaymentService(
 /**
  * Obtém o serviço de assinatura do MercadoPago
  * @returns Serviço de assinatura
- * @deprecated Este método está mantido para compatibilidade, mas está sendo transferido para o módulo específico de assinatura
  */
 export function getSubscriptionService(): Interfaces.ISubscriptionService {
   return mercadoPagoServiceFactory.getSubscriptionService();
