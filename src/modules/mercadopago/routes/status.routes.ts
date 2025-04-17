@@ -5,10 +5,6 @@ import { Router } from "express";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import { StatusController } from "../controllers/status.controller";
 
-// Constantes de roles do sistema
-const ADMIN_ROLES = ["Super Administrador", "Administrador"];
-const FINANCE_ROLES = [...ADMIN_ROLES, "Setor Pedagógico", "RH"];
-
 const router: Router = Router();
 const statusController = new StatusController();
 
@@ -20,7 +16,7 @@ const statusController = new StatusController();
 router.get(
   "/",
   authenticate,
-  authorize(ADMIN_ROLES),
+  authorize(["Super Administrador", "Administrador"]),
   statusController.checkStatus
 );
 
@@ -39,7 +35,7 @@ router.get("/public-key", statusController.getPublicKey);
 router.get(
   "/config",
   authenticate,
-  authorize(ADMIN_ROLES),
+  authorize(["Super Administrador", "Administrador"]),
   statusController.getConfig
 );
 

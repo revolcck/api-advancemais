@@ -71,7 +71,7 @@ router.get(
   "/admin/list",
   authenticate,
   authorize(["ADMIN", "Super Administrador", "Financeiro"]),
-  subscriptionController.listSubscriptions
+  subscriptionController.listSubscriptions // Substituir quando implementar versão administrativa
 );
 
 /**
@@ -83,7 +83,7 @@ router.post(
   "/admin/:id/update",
   authenticate,
   authorize(["ADMIN", "Super Administrador", "Financeiro"]),
-  subscriptionController.cancelSubscription
+  subscriptionController.cancelSubscription // Substituir quando implementar versão administrativa
 );
 
 export default router;

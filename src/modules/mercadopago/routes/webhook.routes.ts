@@ -6,10 +6,6 @@ import { Router } from "express";
 import { WebhookController } from "../webhooks/controllers/webhook.controller";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 
-// Constantes de roles do sistema
-const ADMIN_ROLES = ["Super Administrador", "Administrador"];
-const FINANCE_ROLES = [...ADMIN_ROLES, "Setor Pedagógico", "RH"];
-
 const router: Router = Router();
 const webhookController = new WebhookController();
 
@@ -42,7 +38,7 @@ router.post("/subscription", webhookController.handleWebhook);
 router.get(
   "/history",
   authenticate,
-  authorize(FINANCE_ROLES),
+  authorize(["ADMIN", "Super Administrador", "Financeiro"]),
   webhookController.getWebhookHistory
 );
 
@@ -54,7 +50,7 @@ router.get(
 router.get(
   "/test",
   authenticate,
-  authorize(ADMIN_ROLES),
+  authorize(["ADMIN", "Super Administrador"]),
   webhookController.testWebhook
 );
 

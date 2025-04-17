@@ -7,20 +7,6 @@ import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import { validate } from "@/shared/middleware/validate.middleware";
 import { createCoursePaymentSchema } from "../validators/schemas/mercadopago.schema";
 
-// Constantes de roles do sistema
-const ADMIN_ROLES = ["Super Administrador", "Administrador"];
-const FINANCE_ROLES = [...ADMIN_ROLES, "Setor Pedagógico", "RH"];
-const STUDENT_ROLES = ["Aluno"];
-const PROFESSOR_ROLES = ["Professor"];
-const ALL_ROLES = [
-  ...ADMIN_ROLES,
-  ...FINANCE_ROLES,
-  ...STUDENT_ROLES,
-  ...PROFESSOR_ROLES,
-  "Empresa",
-  "Recrutadores",
-];
-
 // Inicializa o router
 const router: Router = Router();
 const coursePaymentController = new CoursePaymentController();
@@ -78,20 +64,8 @@ router.get(
 router.get(
   "/admin/payments",
   authenticate,
-  authorize(FINANCE_ROLES),
-  coursePaymentController.getPaymentConfig // Substituir pelo método adequado quando implementado
-);
-
-/**
- * @route POST /api/mercadopago/courses/admin/refund/:paymentId
- * @desc Permite que administradores reembolsem um pagamento
- * @access Privado (requer permissão administrativa)
- */
-router.post(
-  "/admin/refund/:paymentId",
-  authenticate,
-  authorize(ADMIN_ROLES),
-  coursePaymentController.getPaymentConfig // Substituir pelo método adequado quando implementado
+  authorize(["ADMIN", "Super Administrador", "Financeiro"]),
+  coursePaymentController.getPaymentConfig
 );
 
 export default router;
