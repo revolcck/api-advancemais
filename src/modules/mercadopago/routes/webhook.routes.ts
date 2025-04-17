@@ -1,11 +1,19 @@
 /**
  * Rotas para webhooks de notificação do MercadoPago
- * Estas rotas não usam autenticação para receber callbacks do MercadoPago
+ * @module modules/mercadopago/routes/webhook
+ *
+ * Estas rotas não usam autenticação para receber callbacks do MercadoPago,
+ * mas utilizam validação de assinatura para garantir a autenticidade.
  */
 import { Router } from "express";
-import { WebhookController } from "../webhooks/controllers/webhook.controller";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
+import { WebhookController } from "../webhooks/controllers/webhook.controller";
 
+// Importação de constantes
+import { WEBHOOK_ROUTES } from "../constants/routes.constants";
+import { PERMISSIONS } from "@/shared/constants/permissions.constants";
+
+// Inicializa o router
 const router: Router = Router();
 const webhookController = new WebhookController();
 
@@ -14,21 +22,21 @@ const webhookController = new WebhookController();
  * @desc Endpoint principal para receber notificações do MercadoPago
  * @access Público (necessário para integrações)
  */
-router.post("/", webhookController.handleWebhook);
+router.post(WEBHOOK_ROUTES.ROOT, webhookController.handleWebhook);
 
 /**
  * @route POST /api/mercadopago/webhooks/checkout
  * @desc Endpoint específico para webhooks do Checkout Pro
  * @access Público (necessário para integrações)
  */
-router.post("/checkout", webhookController.handleWebhook);
+router.post(WEBHOOK_ROUTES.CHECKOUT, webhookController.handleWebhook);
 
 /**
  * @route POST /api/mercadopago/webhooks/subscription
  * @desc Endpoint específico para webhooks de Assinaturas
  * @access Público (necessário para integrações)
  */
-router.post("/subscription", webhookController.handleWebhook);
+router.post(WEBHOOK_ROUTES.SUBSCRIPTION, webhookController.handleWebhook);
 
 /**
  * @route GET /api/mercadopago/webhooks/history
@@ -36,9 +44,9 @@ router.post("/subscription", webhookController.handleWebhook);
  * @access Privado (requer permissão de administração financeira)
  */
 router.get(
-  "/history",
+  WEBHOOK_ROUTES.HISTORY,
   authenticate,
-  authorize(["ADMIN", "Super Administrador", "Financeiro"]),
+  authorize(PERMISSIONS.FINANCIAL),
   webhookController.getWebhookHistory
 );
 
@@ -48,9 +56,9 @@ router.get(
  * @access Privado (apenas administradores)
  */
 router.get(
-  "/test",
+  WEBHOOK_ROUTES.TEST,
   authenticate,
-  authorize(["ADMIN", "Super Administrador"]),
+  authorize(PERMISSIONS.ADMIN),
   webhookController.testWebhook
 );
 

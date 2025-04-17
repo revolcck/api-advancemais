@@ -1,11 +1,16 @@
 /**
  * Rotas para pagamentos de cursos via MercadoPago
+ * @module modules/mercadopago/routes/courses
  */
 import { Router } from "express";
-import { CoursePaymentController } from "../courses/controllers/course-payment.controller";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import { validate } from "@/shared/middleware/validate.middleware";
+import { CoursePaymentController } from "../courses/controllers/course-payment.controller";
 import { createCoursePaymentSchema } from "../validators/schemas/mercadopago.schema";
+
+// Importação de constantes
+import { COURSE_ROUTES } from "../constants/routes.constants";
+import { PERMISSIONS } from "@/shared/constants/permissions.constants";
 
 // Inicializa o router
 const router: Router = Router();
@@ -17,7 +22,7 @@ const coursePaymentController = new CoursePaymentController();
  * @access Privado (requer autenticação do usuário)
  */
 router.post(
-  "/payment",
+  COURSE_ROUTES.PAYMENT,
   authenticate,
   validate(createCoursePaymentSchema),
   coursePaymentController.createCoursePayment
@@ -29,7 +34,7 @@ router.post(
  * @access Privado (requer autenticação do usuário)
  */
 router.get(
-  "/payment/:checkoutId",
+  COURSE_ROUTES.PAYMENT_STATUS,
   authenticate,
   coursePaymentController.checkPaymentStatus
 );
@@ -40,7 +45,7 @@ router.get(
  * @access Privado (requer autenticação do usuário)
  */
 router.get(
-  "/access/:courseId",
+  COURSE_ROUTES.ACCESS,
   authenticate,
   coursePaymentController.checkCourseAccess
 );
@@ -51,7 +56,7 @@ router.get(
  * @access Privado (requer autenticação do usuário)
  */
 router.get(
-  "/payment-config",
+  COURSE_ROUTES.PAYMENT_CONFIG,
   authenticate,
   coursePaymentController.getPaymentConfig
 );
@@ -62,9 +67,9 @@ router.get(
  * @access Privado (requer permissão administrativa)
  */
 router.get(
-  "/admin/payments",
+  COURSE_ROUTES.ADMIN_PAYMENTS,
   authenticate,
-  authorize(["ADMIN", "Super Administrador", "Financeiro"]),
+  authorize(PERMISSIONS.FINANCIAL),
   coursePaymentController.getPaymentConfig
 );
 

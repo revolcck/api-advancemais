@@ -81,16 +81,18 @@ export interface RoleConfig {
 
 /**
  * Tipo para constantes de referência a papéis
+ * Atualizado para refletir a estrutura padronizada de roles no sistema
  */
 export interface RolesConstants {
   ADMIN: string;
+  ADMINISTRATOR: string;
+  FINANCIAL: string;
   PROFESSOR: string;
-  ALUNO: string;
-  EMPRESA: string;
-  SETOR_PEDAGOGICO: string;
-  RECRUTADORES: string;
-  RH: string;
-  ADMINISTRADOR: string;
+  STUDENT: string;
+  COMPANY: string;
+  PEDAGOGICAL: string;
+  RECRUITER: string;
+  HR: string;
 }
 
 /**

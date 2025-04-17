@@ -1,20 +1,30 @@
 /**
  * Rotas para o módulo MercadoPago
- * Centraliza todas as operações relacionadas a pagamentos e assinaturas
  * @module modules/mercadopago/routes
+ *
+ * Este arquivo centraliza todas as rotas relacionadas a pagamentos e
+ * assinaturas via MercadoPago e aplica middlewares comuns.
  */
 import { Router, Request, Response, NextFunction } from "express";
-import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
+import { logger } from "@/shared/utils/logger.utils";
+import { env } from "@/config/environment";
+import { ApiResponse } from "@/shared/utils/api-response.utils";
+
+// Importação de sub-rotas
 import courseRoutes from "./courses.routes";
 import subscriberRoutes from "./subscriber.routes";
 import webhookRoutes from "./webhook.routes";
 import statusRoutes from "./status.routes";
-import { logger } from "@/shared/utils/logger.utils";
-import { env } from "@/config/environment";
 
+// Importação de constantes
+import { MERCADOPAGO_ROUTES } from "../constants/routes.constants";
+
+// Inicializa o router principal
 const router: Router = Router();
 
-// Middleware para logging de todas as requisições do módulo MercadoPago
+/**
+ * Middleware para logging de todas as requisições do módulo MercadoPago
+ */
 const logMercadoPagoRequest = (
   req: Request,
   _res: Response,
@@ -28,7 +38,9 @@ const logMercadoPagoRequest = (
   next();
 };
 
-// Verifica se o módulo MercadoPago está habilitado
+/**
+ * Middleware para verificar se o módulo MercadoPago está habilitado
+ */
 const checkMercadoPagoEnabled = (
   _req: Request,
   res: Response,
@@ -41,11 +53,15 @@ const checkMercadoPagoEnabled = (
         env.mercadoPago.prodAccessToken.length > 10));
 
   if (!mpEnabled) {
-    return res.status(503).json({
-      status: "error",
-      message: "Serviço de pagamento indisponível. Tente novamente mais tarde.",
-      code: "SERVICE_UNAVAILABLE",
-    });
+    ApiResponse.error(
+      res,
+      "Serviço de pagamento indisponível. Tente novamente mais tarde.",
+      {
+        statusCode: 503,
+        code: "SERVICE_UNAVAILABLE",
+      }
+    );
+    return; // Adicionado return para evitar que o código continue
   }
 
   next();
@@ -56,48 +72,56 @@ router.use(logMercadoPagoRequest);
 
 // Aplica o middleware de verificação em todas as rotas exceto webhooks
 // Os webhooks precisam sempre funcionar, mesmo quando o módulo está "desabilitado"
-router.use(/^(?!\/webhooks).*$/, checkMercadoPagoEnabled);
+router.use(
+  new RegExp(`^(?!${MERCADOPAGO_ROUTES.WEBHOOKS}).*$`),
+  checkMercadoPagoEnabled
+);
 
 /**
  * @route /api/mercadopago/status
  * @desc Rotas de status e configuração do MercadoPago
  * @access Misto (algumas públicas, outras privadas)
  */
-router.use("/status", statusRoutes);
+router.use(MERCADOPAGO_ROUTES.STATUS, statusRoutes);
 
 /**
  * @route /api/mercadopago/webhooks
  * @desc Rotas para webhooks e processamento de notificações do MercadoPago
  * @access Público (para integrações) e Privado (para admins)
  */
-router.use("/webhooks", webhookRoutes);
+router.use(MERCADOPAGO_ROUTES.WEBHOOKS, webhookRoutes);
 
 /**
  * @route /api/mercadopago/courses
  * @desc Rotas para pagamentos de cursos via MercadoPago
  * @access Privado (requer autenticação)
  */
-router.use("/courses", courseRoutes);
+router.use(MERCADOPAGO_ROUTES.COURSES, courseRoutes);
 
 /**
  * @route /api/mercadopago/subscriber
  * @desc Rotas para gerenciamento de assinaturas via MercadoPago
  * @access Privado (requer autenticação)
  */
-router.use("/subscriber", subscriberRoutes);
+router.use(MERCADOPAGO_ROUTES.SUBSCRIBER, subscriberRoutes);
 
 /**
  * @route GET /api/mercadopago/health
  * @desc Endpoint para verificação rápida da saúde do módulo
  * @access Público
  */
-router.get("/health", (req: Request, res: Response) => {
-  res.status(200).json({
-    status: "success",
-    message: "MercadoPago service is running",
-    mode: env.mercadoPago.prodEnabled ? "production" : "sandbox",
-    timestamp: new Date().toISOString(),
-  });
+router.get(MERCADOPAGO_ROUTES.HEALTH, (req: Request, res: Response) => {
+  ApiResponse.success(
+    res,
+    {
+      status: "success",
+      mode: env.mercadoPago.prodEnabled ? "production" : "sandbox",
+      timestamp: new Date().toISOString(),
+    },
+    {
+      message: "MercadoPago service is running",
+    }
+  );
 });
 
 export default router;

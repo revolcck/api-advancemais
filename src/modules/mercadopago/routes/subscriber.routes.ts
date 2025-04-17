@@ -1,15 +1,21 @@
 /**
  * Rotas para gerenciamento de assinaturas via MercadoPago
+ * @module modules/mercadopago/routes/subscriber
  */
 import { Router } from "express";
-import { SubscriptionController } from "../subscriber/controllers/subscription.controller";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import { validate } from "@/shared/middleware/validate.middleware";
+import { SubscriptionController } from "../subscriber/controllers/subscription.controller";
 import {
   createSubscriptionSchema,
   cancelSubscriptionSchema,
 } from "../subscriber/validators/subscription.validator";
 
+// Importação de constantes
+import { SUBSCRIBER_ROUTES } from "../constants/routes.constants";
+import { PERMISSIONS } from "@/shared/constants/permissions.constants";
+
+// Inicializa o router
 const router: Router = Router();
 const subscriptionController = new SubscriptionController();
 
@@ -19,7 +25,7 @@ const subscriptionController = new SubscriptionController();
  * @access Privado (requer autenticação do usuário)
  */
 router.post(
-  "/",
+  SUBSCRIBER_ROUTES.ROOT,
   authenticate,
   validate(createSubscriptionSchema),
   subscriptionController.createSubscription
@@ -30,14 +36,22 @@ router.post(
  * @desc Obtém detalhes de uma assinatura específica
  * @access Privado (requer autenticação e propriedade do recurso)
  */
-router.get("/:id", authenticate, subscriptionController.getSubscription);
+router.get(
+  SUBSCRIBER_ROUTES.SUBSCRIPTION,
+  authenticate,
+  subscriptionController.getSubscription
+);
 
 /**
  * @route GET /api/mercadopago/subscriber
  * @desc Lista as assinaturas do usuário autenticado
  * @access Privado (requer autenticação)
  */
-router.get("/", authenticate, subscriptionController.listSubscriptions);
+router.get(
+  SUBSCRIBER_ROUTES.ROOT,
+  authenticate,
+  subscriptionController.listSubscriptions
+);
 
 /**
  * @route POST /api/mercadopago/subscriber/:id/cancel
@@ -45,7 +59,7 @@ router.get("/", authenticate, subscriptionController.listSubscriptions);
  * @access Privado (requer autenticação e propriedade do recurso)
  */
 router.post(
-  "/:id/cancel",
+  SUBSCRIBER_ROUTES.CANCEL,
   authenticate,
   validate(cancelSubscriptionSchema),
   subscriptionController.cancelSubscription
@@ -57,7 +71,7 @@ router.post(
  * @access Privado (requer autenticação)
  */
 router.get(
-  "/check",
+  SUBSCRIBER_ROUTES.CHECK,
   authenticate,
   subscriptionController.checkActiveSubscription
 );
@@ -68,10 +82,10 @@ router.get(
  * @access Privado (requer permissão administrativa)
  */
 router.get(
-  "/admin/list",
+  SUBSCRIBER_ROUTES.ADMIN_LIST,
   authenticate,
-  authorize(["ADMIN", "Super Administrador", "Financeiro"]),
-  subscriptionController.listSubscriptions // Substituir quando implementar versão administrativa
+  authorize(PERMISSIONS.FINANCIAL),
+  subscriptionController.listSubscriptions
 );
 
 /**
@@ -80,10 +94,10 @@ router.get(
  * @access Privado (requer permissão administrativa)
  */
 router.post(
-  "/admin/:id/update",
+  SUBSCRIBER_ROUTES.ADMIN_UPDATE,
   authenticate,
-  authorize(["ADMIN", "Super Administrador", "Financeiro"]),
-  subscriptionController.cancelSubscription // Substituir quando implementar versão administrativa
+  authorize(PERMISSIONS.FINANCIAL),
+  subscriptionController.cancelSubscription
 );
 
 export default router;

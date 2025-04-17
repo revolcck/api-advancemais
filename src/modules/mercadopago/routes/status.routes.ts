@@ -1,10 +1,16 @@
 /**
  * Rotas para verificação de status e configuração do MercadoPago
+ * @module modules/mercadopago/routes/status
  */
 import { Router } from "express";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import { StatusController } from "../controllers/status.controller";
 
+// Importação de constantes
+import { STATUS_ROUTES } from "../constants/routes.constants";
+import { PERMISSIONS } from "@/shared/constants/permissions.constants";
+
+// Inicializa o router
 const router: Router = Router();
 const statusController = new StatusController();
 
@@ -14,9 +20,9 @@ const statusController = new StatusController();
  * @access Privado (requer permissão de administração)
  */
 router.get(
-  "/",
+  STATUS_ROUTES.ROOT,
   authenticate,
-  authorize(["Super Administrador", "Administrador"]),
+  authorize(PERMISSIONS.ADMIN),
   statusController.checkStatus
 );
 
@@ -25,7 +31,7 @@ router.get(
  * @desc Obtém a chave pública do MercadoPago para uso no frontend
  * @access Público
  */
-router.get("/public-key", statusController.getPublicKey);
+router.get(STATUS_ROUTES.PUBLIC_KEY, statusController.getPublicKey);
 
 /**
  * @route GET /api/mercadopago/status/config
@@ -33,9 +39,9 @@ router.get("/public-key", statusController.getPublicKey);
  * @access Privado (requer permissão de administração do sistema)
  */
 router.get(
-  "/config",
+  STATUS_ROUTES.CONFIG,
   authenticate,
-  authorize(["Super Administrador", "Administrador"]),
+  authorize(PERMISSIONS.ADMIN),
   statusController.getConfig
 );
 
