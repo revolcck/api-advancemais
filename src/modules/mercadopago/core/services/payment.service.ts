@@ -1,4 +1,5 @@
 import { Preference, Payment } from "mercadopago";
+import axios from "axios";
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../config/mercadopago.config";
 import { prisma } from "@/config/database";
@@ -263,7 +264,7 @@ export class PaymentService implements IPaymentService {
       logger.info(`Pagamento ${paymentId} cancelado com sucesso`);
 
       return {
-        id: response.id || "",
+        id: String(response.id) || "",
         status: response.status || "",
       };
     } catch (error) {
@@ -288,18 +289,27 @@ export class PaymentService implements IPaymentService {
     try {
       logger.info(`Reembolsando pagamento ${paymentId}`);
 
-      // MercadoPago SDK não possui método refund diretamente
-      // Implementação alternativa usando axios ou adaptando para a versão atual do SDK
-      // Esta é uma implementação fictícia, deve ser atualizada conforme a API real
-      const response = await this.paymentClient.refundPartial({
-        payment_id: paymentId,
-      });
+      // Implementação usando API REST direta do MercadoPago
+      const accessToken = mercadoPagoConfig.isProductionMode()
+        ? env.mercadoPago.prodAccessToken
+        : env.mercadoPago.accessToken;
+
+      const response = await axios.post(
+        `https://api.mercadopago.com/v1/payments/${paymentId}/refunds`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       logger.info(`Pagamento ${paymentId} reembolsado com sucesso`);
 
       return {
-        id: String(response.id || ""),
-        status: response.status || "",
+        id: String(response.data.id) || "",
+        status: response.data.status || "",
       };
     } catch (error) {
       logger.error(`Erro ao reembolsar pagamento ${paymentId}`, error);
@@ -325,5 +335,4 @@ export class PaymentService implements IPaymentService {
   }
 }
 
-// Exporta instância única para uso em toda a aplicação
 export const paymentService = new PaymentService();

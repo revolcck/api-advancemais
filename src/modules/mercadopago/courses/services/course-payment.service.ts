@@ -101,7 +101,7 @@ export class CoursePaymentService implements ICoursePaymentService {
         description: course.description?.substring(0, 255) || course.title,
         quantity: 1,
         unit_price: Number(course.price),
-        picture_url: course.thumbnailUrl || undefined, // Converte null para undefined
+        picture_url: course.thumbnailUrl || undefined,
         category_id: course.category?.name,
       };
 
@@ -416,17 +416,48 @@ export class CoursePaymentService implements ICoursePaymentService {
         status === MercadoPagoPaymentStatus.REJECTED ||
         status === MercadoPagoPaymentStatus.CANCELLED
       ) {
-        // Se o pagamento foi rejeitado, registra o status
+        // Criamos um registro de tentativa de pagamento no banco
+        const paymentAttempt = await prisma.payment.create({
+          data: {
+            amount: enrollment.price || 0,
+            currency: "BRL",
+            status:
+              status === MercadoPagoPaymentStatus.REJECTED
+                ? "REJECTED"
+                : "CANCELLED",
+            paymentDate: new Date(),
+            description: `Tentativa de pagamento do curso ${courseId}`,
+            mpPaymentId: paymentId,
+            mpExternalReference: enrollment.id,
+            mpStatus: status,
+            failureReason:
+              status === MercadoPagoPaymentStatus.REJECTED
+                ? "Pagamento rejeitado pela processadora"
+                : "Pagamento cancelado",
+            subscriptionId: "00000000-0000-0000-0000-000000000000", // ID temporário para manter a constraint
+          },
+        });
+
+        // Atualiza a matrícula para refletir a falha no pagamento
         await prisma.enrollment.update({
           where: { id: enrollment.id },
           data: {
-            // Mantém como pendente para permitir nova tentativa
-            // ou poderia ser alterado para um status específico de falha
+            status: "PENDING_PAYMENT", // Mantém como pendente para permitir nova tentativa
+            paymentId: paymentId, // Registra o ID do pagamento para rastreamento
+            updatedAt: new Date(),
           },
         });
 
         logger.info(
-          `Pagamento rejeitado/cancelado para matrícula ${enrollment.id} no curso ${courseId}`
+          `Pagamento ${paymentId} rejeitado/cancelado para matrícula ${enrollment.id} no curso ${courseId}`,
+          {
+            enrollmentId: enrollment.id,
+            userId,
+            courseId,
+            status,
+            paymentAttemptId: paymentAttempt.id,
+            timestamp: new Date(),
+          }
         );
 
         // Registra ação de auditoria
@@ -440,6 +471,7 @@ export class CoursePaymentService implements ICoursePaymentService {
             courseName: enrollment.course.title,
             mpPaymentId: paymentId,
             status,
+            paymentAttemptId: paymentAttempt.id,
           }
         );
       }
@@ -561,22 +593,81 @@ export class CoursePaymentService implements ICoursePaymentService {
         enrollment.status === "PENDING_PAYMENT" &&
         checkoutSession.mpPreferenceId
       ) {
+        const mpPreferenceId = checkoutSession.mpPreferenceId;
+
         try {
-          // Busca o pagamento no MercadoPago (opcional)
-          // Esta lógica depende de como você rastreia pagamentos
-          // Pode ser omitido se os webhooks forem suficientes
+          // Estratégia 1: Verificar pagamentos no banco de dados local
+          const recentPayment = await prisma.payment.findFirst({
+            where: {
+              OR: [
+                { mpPreferenceId: mpPreferenceId },
+                { mpExternalReference: checkoutId },
+              ],
+              status: { not: "PENDING" }, // Priorizamos pagamentos não pendentes
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 1,
+          });
+
+          if (recentPayment) {
+            logger.info(
+              `Encontrado pagamento recente para preferência ${mpPreferenceId}: ${recentPayment.status}`
+            );
+
+            // Se o pagamento foi aprovado mas a matrícula ainda está pendente, atualizamos
+            if (recentPayment.status === "APPROVED") {
+              await this.processCoursePayment(
+                courseId,
+                enrollment.userId,
+                recentPayment.mpPaymentId || "",
+                MercadoPagoPaymentStatus.APPROVED
+              );
+
+              // Retornamos status atualizado
+              return {
+                status: "COMPLETED",
+                courseId,
+                paymentId: recentPayment.mpPaymentId || mpPreferenceId,
+                paymentStatus: "APPROVED",
+              };
+            }
+
+            // Se não foi aprovado, retornamos o status atual
+            return {
+              status: "PENDING",
+              courseId,
+              paymentId: recentPayment.mpPaymentId || mpPreferenceId,
+              paymentStatus: recentPayment.status,
+            };
+          }
+
+          // Se não encontrar no banco, poderia consultar a API do MercadoPago
+
+          logger.info(
+            `Nenhum pagamento encontrado para preferência ${mpPreferenceId}, status permanece pendente`
+          );
 
           return {
             status: "PENDING",
             courseId,
-            paymentId: checkoutSession.mpPreferenceId,
+            paymentId: mpPreferenceId,
             paymentStatus: "PENDING",
           };
         } catch (error) {
           logger.warn(
-            `Erro ao verificar status do pagamento ${checkoutSession.mpPreferenceId}`,
+            `Erro ao verificar status do pagamento ${mpPreferenceId}: ${
+              error instanceof Error ? error.message : "Erro desconhecido"
+            }`,
             error
           );
+
+          // Em caso de erro, ainda retorna que está pendente
+          return {
+            status: "PENDING",
+            courseId,
+            paymentId: mpPreferenceId,
+            paymentStatus: "PENDING",
+          };
         }
       }
 
@@ -606,5 +697,4 @@ export class CoursePaymentService implements ICoursePaymentService {
   }
 }
 
-// Exporta instância única para uso em toda a aplicação
 export const coursePaymentService = new CoursePaymentService();

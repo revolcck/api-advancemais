@@ -78,5 +78,4 @@ export class MercadoPagoConfigFactory {
   }
 }
 
-// Exporta uma instância pré-configurada para uso em todo o aplicativo
 export const mercadoPagoConfig = MercadoPagoConfigFactory.getInstance();

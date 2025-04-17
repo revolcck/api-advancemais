@@ -4,6 +4,8 @@ import { logger } from "@/shared/utils/logger.utils";
 import { WebhookService } from "../services/webhook.service";
 import { validateWebhookSignature } from "../../utils/mercadopago.util";
 import { env } from "@/config/environment";
+import { prisma } from "@/config/database";
+import { PaginationUtils } from "@/shared/utils/pagination.utils";
 
 /**
  * Controlador para endpoints de webhook do MercadoPago
@@ -87,11 +89,11 @@ export class WebhookController {
    */
   public testWebhook = async (req: Request, res: Response): Promise<void> => {
     try {
-      // Apenas disponível em ambientes de desenvolvimento
-      if (!env.isDevelopment) {
+      // Apenas disponível em ambientes de desenvolvimento ou homologação
+      if (env.isProduction) {
         ApiResponse.error(
           res,
-          "Endpoint disponível apenas em ambiente de desenvolvimento",
+          "Endpoint disponível apenas em ambiente de desenvolvimento ou homologação",
           {
             statusCode: 403,
             code: "FORBIDDEN",
@@ -104,9 +106,122 @@ export class WebhookController {
         message: "Endpoint de teste de webhook disponível",
         environment: env.nodeEnv,
         webhookUrl: `${env.appUrl}/api/mercadopago/webhooks`,
+        currentTime: new Date().toISOString(),
       });
     } catch (error) {
       logger.error("Erro no endpoint de teste de webhook", error);
+      throw error;
+    }
+  };
+
+  /**
+   * Consulta o histórico de webhooks recebidos
+   * @route GET /api/mercadopago/webhooks/history
+   */
+  public getWebhookHistory = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      // Extrair e validar parâmetros de paginação e filtros
+      const { page, limit, skip, sortOrder } =
+        PaginationUtils.normalizePaginationParams({
+          page: Number(req.query.page) || 1,
+          limit: Number(req.query.limit) || 20,
+          sortBy: req.query.sortBy as string,
+          sortOrder: (req.query.sortOrder as "asc" | "desc") || "desc",
+        });
+
+      // Extrair filtros específicos
+      const source = req.query.source as string;
+      const eventType = req.query.eventType as string;
+      const status = req.query.status as string;
+      const startDate = req.query.startDate
+        ? new Date(req.query.startDate as string)
+        : undefined;
+      const endDate = req.query.endDate
+        ? new Date(req.query.endDate as string)
+        : undefined;
+
+      logger.info("Consultando histórico de webhooks", {
+        page,
+        limit,
+        source,
+        eventType,
+        status,
+        startDate,
+        endDate,
+      });
+
+      // Construir filtros para consulta
+      const filter: any = {};
+
+      if (source) {
+        filter.source = source;
+      }
+
+      if (eventType) {
+        filter.eventType = eventType;
+      }
+
+      if (status) {
+        filter.processStatus = status;
+      }
+
+      // Aplicar filtro de data se fornecido
+      if (startDate || endDate) {
+        filter.createdAt = {};
+
+        if (startDate) {
+          filter.createdAt.gte = startDate;
+        }
+
+        if (endDate) {
+          filter.createdAt.lte = endDate;
+        }
+      }
+
+      // Contar total de registros com os filtros aplicados
+      const totalItems = await prisma.webhookNotification.count({
+        where: filter,
+      });
+
+      // Buscar registros
+      const webhooks = await prisma.webhookNotification.findMany({
+        where: filter,
+        orderBy: {
+          createdAt: sortOrder,
+        },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          source: true,
+          eventType: true,
+          eventId: true,
+          liveMode: true,
+          processStatus: true,
+          processedAt: true,
+          error: true,
+          createdAt: true,
+          // Exclui rawData para não sobrecarregar a resposta
+        },
+      });
+
+      // Calcular informações de paginação
+      const totalPages = Math.ceil(totalItems / limit);
+
+      // Retornar resposta paginada
+      ApiResponse.paginated(res, webhooks, {
+        currentPage: page,
+        itemsPerPage: limit,
+        totalItems,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      });
+    } catch (error) {
+      logger.error("Erro ao consultar histórico de webhooks", error);
       throw error;
     }
   };

@@ -1,6 +1,5 @@
 import { MercadoPagoPaymentStatus } from "../../dto/payment.dto";
 import {
-  SubscriptionCreationRequest,
   SubscriptionResponseDto,
   SubscriptionDetailsDto,
   SubscriptionCheckDto,

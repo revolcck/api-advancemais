@@ -1,20 +1,26 @@
+/**
+ * Rotas para o módulo MercadoPago
+ * Centraliza todas as operações relacionadas a pagamentos e assinaturas
+ */
 import { Router } from "express";
+import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import courseRoutes from "./courses.routes";
 import subscriberRoutes from "./subscriber.routes";
 import webhookRoutes from "./webhook.routes";
+import statusRoutes from "./status.routes";
 
-/**
- * Configuração centralizada de rotas do módulo MercadoPago
- */
 const router: Router = Router();
 
-// Rotas para webhooks (sem autenticação)
-router.use("/webhooks", webhookRoutes);
+// Rotas de status e configuração
+router.use("/status", statusRoutes);
 
-// Rotas para assinantes (requerem autenticação)
-router.use("/subscriber", subscriberRoutes);
+// Rotas para webhooks (sem autenticação - necessário para integrações)
+router.use("/webhooks", webhookRoutes);
 
 // Rotas para pagamentos de cursos (requerem autenticação)
 router.use("/courses", courseRoutes);
+
+// Rotas para assinantes (requerem autenticação)
+router.use("/subscriber", subscriberRoutes);
 
 export default router;

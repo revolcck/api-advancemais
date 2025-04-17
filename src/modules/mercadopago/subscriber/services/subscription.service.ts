@@ -2,7 +2,7 @@ import axios from "axios";
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../../core/config/mercadopago.config";
 import { prisma } from "@/config/database";
-import { Prisma, SubscriptionStatus } from "@prisma/client";
+import { SubscriptionStatus } from "@prisma/client";
 import { MercadoPagoPaymentStatus } from "../../dto/payment.dto";
 import { AuditService } from "@/shared/services/audit.service";
 import {
@@ -784,5 +784,4 @@ export class SubscriptionService implements ISubscriptionService {
   }
 }
 
-// Exporta instância única para uso em toda a aplicação
 export const subscriptionService = new SubscriptionService();

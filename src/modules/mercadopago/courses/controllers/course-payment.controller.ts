@@ -143,7 +143,7 @@ export class CoursePaymentController {
    * @route GET /api/mercadopago/courses/payment-config
    */
   public getPaymentConfig = async (
-    req: Request,
+    _req: Request,
     res: Response
   ): Promise<void> => {
     try {

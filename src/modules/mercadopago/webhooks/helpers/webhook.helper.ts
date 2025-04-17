@@ -19,9 +19,20 @@ export async function acquireWebhookLock(
 ): Promise<boolean> {
   try {
     const lockKey = `webhook:lock:${eventId}`;
-    const result = await redisService.set(lockKey, "1", ttlSeconds, "NX");
 
-    return result === "OK";
+    // Verifica se a chave já existe
+    const exists = await redisService.exists(lockKey);
+
+    // Se a chave já existe, não conseguimos adquirir o lock
+    if (exists) {
+      return false;
+    }
+
+    // Caso contrário, define a chave com TTL
+    await redisService.set(lockKey, "1", ttlSeconds);
+
+    // Lock adquirido com sucesso
+    return true;
   } catch (error) {
     logger.error(`Erro ao adquirir lock para webhook ${eventId}`, error);
     // Se o Redis falhar, permitimos o processamento para evitar perder eventos
