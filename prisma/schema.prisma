@@ -1,7 +1,7 @@
 // Definição de migrações Prisma para o sistema
 generator client {
   provider = "prisma-client-js"
-  output   = "node_modules/.prisma/client"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
