@@ -5,11 +5,11 @@
 import { Router } from "express";
 import { authenticate, authorize } from "@/shared/middleware/auth.middleware";
 import { validate } from "@/shared/middleware/validate.middleware";
-import { SubscriptionController } from "../subscriber/controllers/subscription.controller";
+import { SubscriptionController } from "../subscription/controllers/subscription.controller";
 import {
   createSubscriptionSchema,
   cancelSubscriptionSchema,
-} from "../subscriber/validators/subscription.validator";
+} from "../subscription/validators/subscription.validator";
 
 // Importação de constantes
 import { SUBSCRIBER_ROUTES } from "../constants/routes.constants";

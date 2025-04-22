@@ -2,7 +2,7 @@ import axios from "axios";
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../../core/config/mercadopago.config";
 import { prisma } from "@/config/database";
-import { SubscriptionStatus } from "@prisma/client";
+import { SubscriptionStatus, PaymentStatus } from "@prisma/client";
 import { MercadoPagoPaymentStatus } from "../../dto/payment.dto";
 import { AuditService } from "@/shared/services/audit.service";
 import {
@@ -23,7 +23,8 @@ import {
   SubscriptionCheckDto,
   RecurringData,
   CancelSubscriptionResponseDto,
-} from "../../dto/subscription.dto";
+} from "../dto/subscription.dto";
+import { PlanService } from "./plan.service";
 
 /**
  * Serviço para gestão de assinaturas via MercadoPago
@@ -31,6 +32,7 @@ import {
 export class SubscriptionService implements ISubscriptionService {
   private baseUrl: string;
   private accessToken: string;
+  private planService: PlanService;
 
   constructor() {
     // MercadoPago não oferece SDK completo para assinaturas,
@@ -39,6 +41,7 @@ export class SubscriptionService implements ISubscriptionService {
     this.accessToken = mercadoPagoConfig.isProductionMode()
       ? env.mercadoPago.prodAccessToken
       : env.mercadoPago.accessToken;
+    this.planService = new PlanService();
   }
 
   /**
@@ -59,6 +62,12 @@ export class SubscriptionService implements ISubscriptionService {
       logger.info(
         `Criando assinatura para plano ${planId} e usuário ${userId}`
       );
+
+      // Verifica se o plano está ativo
+      const isPlanActive = await this.planService.isPlanActive(planId);
+      if (!isPlanActive) {
+        throw new ValidationError("O plano selecionado não está ativo");
+      }
 
       // Busca informações do plano
       const plan = await prisma.subscriptionPlan.findUnique({
@@ -640,6 +649,19 @@ export class SubscriptionService implements ISubscriptionService {
           },
         });
 
+        // Armazena registro de pagamento
+        await prisma.payment.create({
+          data: {
+            subscriptionId: subscription.id,
+            amount: subscription.plan.price,
+            status: "APPROVED" as PaymentStatus,
+            paymentDate: new Date(),
+            description: `Pagamento de assinatura: ${subscription.plan.name}`,
+            mpPaymentId: paymentId,
+            mpStatus: status,
+          },
+        });
+
         logger.info(
           `Assinatura ${subscription.id} ativada/renovada com sucesso. Próxima cobrança: ${nextBillingDate}`
         );
@@ -677,6 +699,22 @@ export class SubscriptionService implements ISubscriptionService {
             renewalFailures,
             renewalAttemptDate: new Date(),
             updatedAt: new Date(),
+          },
+        });
+
+        // Armazena registro de pagamento
+        await prisma.payment.create({
+          data: {
+            subscriptionId: subscription.id,
+            amount: subscription.plan.price,
+            status:
+              status === MercadoPagoPaymentStatus.REJECTED
+                ? "REJECTED"
+                : ("CANCELLED" as PaymentStatus),
+            paymentDate: new Date(),
+            description: `Tentativa de pagamento de assinatura: ${subscription.plan.name}`,
+            mpPaymentId: paymentId,
+            mpStatus: status,
           },
         });
 
@@ -784,4 +822,5 @@ export class SubscriptionService implements ISubscriptionService {
   }
 }
 
+// Exporta instância do serviço para uso global
 export const subscriptionService = new SubscriptionService();

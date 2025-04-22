@@ -7,7 +7,8 @@ import {
   WebhookProcessResponseDto,
 } from "../../dto/webhook.dto";
 import { MercadoPagoPaymentStatus } from "../../dto/payment.dto";
-import { SubscriptionService } from "../../subscriber/services/subscription.service";
+import { SubscriptionService as OldSubscriptionService } from "../../subscription/services/subscription.service";
+import { SubscriptionService } from "../../subscription/services/subscription.service";
 import { CoursePaymentService } from "../../courses/services/course-payment.service";
 import { AuditService } from "@/shared/services/audit.service";
 import {
@@ -21,11 +22,13 @@ import {
  */
 export class WebhookService {
   private paymentService: PaymentService;
+  private oldSubscriptionService: OldSubscriptionService;
   private subscriptionService: SubscriptionService;
   private coursePaymentService: CoursePaymentService;
 
   constructor() {
     this.paymentService = new PaymentService();
+    this.oldSubscriptionService = new OldSubscriptionService();
     this.subscriptionService = new SubscriptionService();
     this.coursePaymentService = new CoursePaymentService();
   }
@@ -152,11 +155,31 @@ export class WebhookService {
           paymentDetails.metadata?.subscriptionId ||
           paymentDetails.metadata?.subscription_id;
 
-        await this.subscriptionService.processSubscriptionPayment(
-          subscriptionId,
-          paymentId,
-          paymentDetails.status
-        );
+        try {
+          // Primeiro, tentamos processar com o novo serviço de assinaturas
+          await this.subscriptionService.processSubscriptionPayment(
+            subscriptionId,
+            paymentId,
+            paymentDetails.status
+          );
+          logger.info(
+            `Pagamento de assinatura processado pelo novo serviço: ${subscriptionId}`
+          );
+        } catch (error) {
+          // Se falhar, tentamos com o serviço legado
+          logger.warn(
+            `Erro ao processar pagamento com novo serviço, tentando serviço legado`,
+            error
+          );
+          await this.oldSubscriptionService.processSubscriptionPayment(
+            subscriptionId,
+            paymentId,
+            paymentDetails.status
+          );
+          logger.info(
+            `Pagamento de assinatura processado pelo serviço legado: ${subscriptionId}`
+          );
+        }
       } else if (isCourse) {
         // Se for pagamento de curso, atualiza a matrícula
         const courseId =
@@ -307,10 +330,29 @@ export class WebhookService {
     try {
       logger.info(`Processando atualização de assinatura: ${subscriptionId}`);
 
-      await this.subscriptionService.processSubscriptionUpdate(subscriptionId);
+      // Primeiro, tentamos processar com o novo serviço de assinatura
+      try {
+        await this.subscriptionService.processSubscriptionUpdate(
+          subscriptionId
+        );
+        logger.info(
+          `Atualização de assinatura ${subscriptionId} processada com sucesso pelo novo serviço`
+        );
+        return;
+      } catch (error) {
+        // Se a assinatura não for encontrada no novo serviço, tentamos o legado
+        logger.warn(
+          `Assinatura ${subscriptionId} não encontrada no novo serviço, tentando serviço legado`,
+          error
+        );
+      }
 
+      // Tentativa com o serviço legado
+      await this.oldSubscriptionService.processSubscriptionUpdate(
+        subscriptionId
+      );
       logger.info(
-        `Atualização de assinatura ${subscriptionId} processada com sucesso`
+        `Atualização de assinatura ${subscriptionId} processada com sucesso pelo serviço legado`
       );
     } catch (error) {
       logger.error(
@@ -330,9 +372,26 @@ export class WebhookService {
     try {
       logger.info(`Processando atualização de plano: ${planId}`);
 
-      await this.subscriptionService.processPlanUpdate(planId);
+      // Tentamos processar primeiro com o novo serviço
+      try {
+        await this.subscriptionService.processPlanUpdate(planId);
+        logger.info(
+          `Atualização de plano ${planId} processada com sucesso pelo novo serviço`
+        );
+        return;
+      } catch (error) {
+        // Se falhar, tentamos com o serviço legado
+        logger.warn(
+          `Erro ao processar plano com novo serviço, tentando serviço legado`,
+          error
+        );
+      }
 
-      logger.info(`Atualização de plano ${planId} processada com sucesso`);
+      // Tentativa com o serviço legado
+      await this.oldSubscriptionService.processPlanUpdate(planId);
+      logger.info(
+        `Atualização de plano ${planId} processada com sucesso pelo serviço legado`
+      );
     } catch (error) {
       logger.error(`Erro ao processar atualização de plano ${planId}`, error);
       throw error;

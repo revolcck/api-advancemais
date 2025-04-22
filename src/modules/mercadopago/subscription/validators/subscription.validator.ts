@@ -67,3 +67,28 @@ export const listSubscriptionsSchema = Joi.object({
     )
     .allow(null, ""),
 });
+
+/**
+ * Schema para validação de atualização administrativa de assinatura
+ */
+export const adminUpdateSubscriptionSchema = Joi.object({
+  status: Joi.string()
+    .valid(
+      "ACTIVE",
+      "CANCELED",
+      "PENDING",
+      "PAYMENT_FAILED",
+      "PAST_DUE",
+      "TRIAL",
+      "EXPIRED",
+      "ON_HOLD"
+    )
+    .messages({
+      "any.only": "Status de assinatura inválido",
+    }),
+
+  nextBillingDate: Joi.date().iso().messages({
+    "date.base": "Data de próxima cobrança inválida",
+    "date.format": "Data de próxima cobrança deve estar no formato ISO",
+  }),
+});

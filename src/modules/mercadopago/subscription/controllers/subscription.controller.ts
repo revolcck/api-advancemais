@@ -18,7 +18,7 @@ export class SubscriptionController {
 
   /**
    * Cria uma nova assinatura
-   * @route POST /api/mercadopago/subscriber
+   * @route POST /api/mercadopago/subscription
    */
   public createSubscription = async (
     req: Request,
@@ -78,7 +78,7 @@ export class SubscriptionController {
 
   /**
    * Obtém detalhes de uma assinatura
-   * @route GET /api/mercadopago/subscriber/:id
+   * @route GET /api/mercadopago/subscription/:id
    */
   public getSubscription = async (
     req: Request,
@@ -109,7 +109,7 @@ export class SubscriptionController {
 
   /**
    * Cancela uma assinatura
-   * @route POST /api/mercadopago/subscriber/:id/cancel
+   * @route POST /api/mercadopago/subscription/:id/cancel
    */
   public cancelSubscription = async (
     req: Request,
@@ -147,7 +147,7 @@ export class SubscriptionController {
 
   /**
    * Lista as assinaturas de um usuário
-   * @route GET /api/mercadopago/subscriber
+   * @route GET /api/mercadopago/subscription
    */
   public listSubscriptions = async (
     req: Request,
@@ -174,8 +174,79 @@ export class SubscriptionController {
   };
 
   /**
+   * Lista as assinaturas de todos os usuários (apenas para administradores)
+   * @route GET /api/mercadopago/subscription/admin/list
+   */
+  public listAllSubscriptions = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      logger.info("Listando todas as assinaturas (admin)");
+
+      // Busca todas as assinaturas com filtros
+      const subscriptions = await prisma.subscription.findMany({
+        where: {
+          ...(req.query.status && { status: req.query.status as any }),
+          ...(req.query.userId && { userId: req.query.userId as string }),
+          ...(req.query.planId && { planId: req.query.planId as string }),
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              personalInfo: {
+                select: { name: true, cpf: true },
+              },
+              companyInfo: {
+                select: { companyName: true, cnpj: true },
+              },
+            },
+          },
+          plan: true,
+          paymentMethod: true,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      // Formata a resposta
+      const formattedSubscriptions = subscriptions.map((sub) => ({
+        id: sub.id,
+        status: sub.status,
+        startDate: sub.startDate,
+        nextBillingDate: sub.nextBillingDate,
+        user: {
+          id: sub.user.id,
+          email: sub.user.email,
+          name:
+            sub.user.personalInfo?.name ||
+            sub.user.companyInfo?.companyName ||
+            "N/A",
+          document:
+            sub.user.personalInfo?.cpf || sub.user.companyInfo?.cnpj || "N/A",
+        },
+        plan: {
+          id: sub.plan.id,
+          name: sub.plan.name,
+          price: Number(sub.plan.price),
+        },
+        paymentMethod: sub.paymentMethod.name,
+        mpSubscriptionId: sub.mpSubscriptionId,
+        createdAt: sub.createdAt,
+      }));
+
+      // Sucesso: retorna lista de assinaturas
+      ApiResponse.success(res, formattedSubscriptions);
+    } catch (error) {
+      logger.error("Erro ao listar todas as assinaturas", error);
+      throw error;
+    }
+  };
+
+  /**
    * Verifica se um usuário tem assinatura ativa
-   * @route GET /api/mercadopago/subscriber/check
+   * @route GET /api/mercadopago/subscription/check
    */
   public checkActiveSubscription = async (
     req: Request,
@@ -194,6 +265,65 @@ export class SubscriptionController {
       ApiResponse.success(res, activeSubscription);
     } catch (error) {
       logger.error("Erro ao verificar assinatura ativa", error);
+      throw error;
+    }
+  };
+
+  /**
+   * Atualiza uma assinatura (apenas para administradores)
+   * @route POST /api/mercadopago/subscription/admin/:id/update
+   */
+  public updateSubscription = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const subscriptionId = req.params.id;
+      const adminId = req.user!.id;
+      const { status, nextBillingDate } = req.body;
+
+      logger.info(`Atualizando assinatura ${subscriptionId} (admin)`);
+
+      // Verifica se a assinatura existe
+      const subscription = await prisma.subscription.findUnique({
+        where: { id: subscriptionId },
+      });
+
+      if (!subscription) {
+        throw new ValidationError("Assinatura não encontrada");
+      }
+
+      // Atualiza a assinatura
+      const updatedSubscription = await prisma.subscription.update({
+        where: { id: subscriptionId },
+        data: {
+          ...(status && { status: status as any }),
+          ...(nextBillingDate && {
+            nextBillingDate: new Date(nextBillingDate),
+          }),
+          updatedAt: new Date(),
+        },
+      });
+
+      // Registro de auditoria
+      AuditService.log(
+        "subscription_admin_update",
+        "subscription",
+        subscriptionId,
+        adminId,
+        {
+          oldStatus: subscription.status,
+          newStatus: status || subscription.status,
+        },
+        req
+      );
+
+      // Sucesso: retorna dados atualizados
+      ApiResponse.success(res, updatedSubscription, {
+        message: "Assinatura atualizada com sucesso",
+      });
+    } catch (error) {
+      logger.error(`Erro ao atualizar assinatura ${req.params.id}`, error);
       throw error;
     }
   };

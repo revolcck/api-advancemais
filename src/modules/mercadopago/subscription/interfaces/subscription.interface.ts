@@ -4,7 +4,7 @@ import {
   SubscriptionDetailsDto,
   SubscriptionCheckDto,
   CancelSubscriptionResponseDto,
-} from "../../dto/subscription.dto";
+} from "../dto/subscription.dto";
 
 /**
  * Interface para operações do serviço de assinatura
