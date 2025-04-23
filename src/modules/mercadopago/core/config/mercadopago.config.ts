@@ -58,9 +58,23 @@ export class MercadoPagoConfigFactory {
    * Retorna a chave pública para uso no frontend
    */
   public getPublicKey(): string {
-    return this.isProduction
+    // Validação aprimorada de configurações
+    const publicKey = this.isProduction
       ? env.mercadoPago.prodPublicKey
       : env.mercadoPago.publicKey;
+
+    if (!publicKey || publicKey.length < 5) {
+      logger.error(
+        `Chave pública do MercadoPago não configurada corretamente [Modo: ${
+          this.isProduction ? "PRODUÇÃO" : "TESTE"
+        }]`
+      );
+      throw new Error(
+        "Chave pública do MercadoPago não configurada corretamente"
+      );
+    }
+
+    return publicKey;
   }
 
   /**

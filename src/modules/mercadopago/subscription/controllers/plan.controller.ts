@@ -4,6 +4,7 @@ import { logger } from "@/shared/utils/logger.utils";
 import { PlanService } from "../services/plan.service";
 import { AuditService } from "@/shared/services/audit.service";
 import { PlanFilterDTO } from "../dto/plan.dto";
+import { ServiceUnavailableError } from "@/shared/errors/AppError";
 
 /**
  * Controlador para gerenciamento de planos de assinatura
@@ -200,8 +201,9 @@ export class PlanController {
       const filter: PlanFilterDTO = {};
 
       if (req.query.name) filter.name = req.query.name as string;
-      if (req.query.isActive) filter.isActive = req.query.isActive === "true";
-      if (req.query.isPopular)
+      if (req.query.isActive !== undefined)
+        filter.isActive = req.query.isActive === "true";
+      if (req.query.isPopular !== undefined)
         filter.isPopular = req.query.isPopular === "true";
       if (req.query.interval) filter.interval = req.query.interval as any;
       if (req.query.priceMin) filter.priceMin = Number(req.query.priceMin);
@@ -213,11 +215,23 @@ export class PlanController {
         (req.user?.role === "Super Administrador" ||
           req.user?.role === "Administrador");
 
-      // Buscar os planos
-      const plans = await this.planService.listPlans(filter, includeInactive);
+      try {
+        // Buscar os planos
+        const plans = await this.planService.listPlans(filter, includeInactive);
 
-      // Retornar resposta de sucesso
-      ApiResponse.success(res, plans);
+        // Retornar resposta de sucesso
+        ApiResponse.success(res, plans);
+      } catch (error) {
+        logger.error("Erro ao obter planos do serviço", error);
+        throw new ServiceUnavailableError(
+          "Não foi possível listar os planos de assinatura",
+          "PLAN_SERVICE_ERROR",
+          {
+            originalError:
+              error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
     } catch (error) {
       logger.error("Erro ao listar planos de assinatura", error);
       throw error;

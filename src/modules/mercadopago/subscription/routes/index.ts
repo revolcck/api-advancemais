@@ -23,6 +23,73 @@ const router: Router = Router();
 const subscriptionController = new SubscriptionController();
 const planController = new PlanController();
 
+// ==== IMPORTANTE: Rotas de planos ANTES das rotas com parâmetros /:id ====
+// Rotas de planos
+/**
+ * @route GET /api/mercadopago/subscription/plans
+ * @desc Lista todos os planos de assinatura
+ * @access Público
+ */
+router.get("/plans", planController.listPlans);
+
+/**
+ * @route GET /api/mercadopago/subscription/plans/:id
+ * @desc Obtém um plano de assinatura pelo ID
+ * @access Público
+ */
+router.get("/plans/:id", planController.getPlan);
+
+/**
+ * @route POST /api/mercadopago/subscription/plans
+ * @desc Cria um novo plano de assinatura
+ * @access Privado (requer permissão administrativa)
+ */
+router.post(
+  "/plans",
+  authenticate,
+  authorize(PERMISSIONS.ADMIN),
+  validate(createPlanSchema),
+  planController.createPlan
+);
+
+/**
+ * @route PUT /api/mercadopago/subscription/plans/:id
+ * @desc Atualiza um plano de assinatura existente
+ * @access Privado (requer permissão administrativa)
+ */
+router.put(
+  "/plans/:id",
+  authenticate,
+  authorize(PERMISSIONS.ADMIN),
+  validate(updatePlanSchema),
+  planController.updatePlan
+);
+
+/**
+ * @route PATCH /api/mercadopago/subscription/plans/:id/activate
+ * @desc Ativa um plano de assinatura
+ * @access Privado (requer permissão administrativa)
+ */
+router.patch(
+  "/plans/:id/activate",
+  authenticate,
+  authorize(PERMISSIONS.ADMIN),
+  planController.activatePlan
+);
+
+/**
+ * @route PATCH /api/mercadopago/subscription/plans/:id/deactivate
+ * @desc Desativa um plano de assinatura
+ * @access Privado (requer permissão administrativa)
+ */
+router.patch(
+  "/plans/:id/deactivate",
+  authenticate,
+  authorize(PERMISSIONS.ADMIN),
+  planController.deactivatePlan
+);
+
+// ==== Rotas de assinatura (após as rotas de planos) ====
 // Rotas de assinatura
 /**
  * @route POST /api/mercadopago/subscription
@@ -98,70 +165,5 @@ router.post(
   validate(adminUpdateSubscriptionSchema),
   subscriptionController.updateSubscription
 );
-
-// Rotas de planos
-/**
- * @route POST /api/mercadopago/subscription/plans
- * @desc Cria um novo plano de assinatura
- * @access Privado (requer permissão administrativa)
- */
-router.post(
-  "/plans",
-  authenticate,
-  authorize(PERMISSIONS.ADMIN),
-  validate(createPlanSchema),
-  planController.createPlan
-);
-
-/**
- * @route PUT /api/mercadopago/subscription/plans/:id
- * @desc Atualiza um plano de assinatura existente
- * @access Privado (requer permissão administrativa)
- */
-router.put(
-  "/plans/:id",
-  authenticate,
-  authorize(PERMISSIONS.ADMIN),
-  validate(updatePlanSchema),
-  planController.updatePlan
-);
-
-/**
- * @route PATCH /api/mercadopago/subscription/plans/:id/activate
- * @desc Ativa um plano de assinatura
- * @access Privado (requer permissão administrativa)
- */
-router.patch(
-  "/plans/:id/activate",
-  authenticate,
-  authorize(PERMISSIONS.ADMIN),
-  planController.activatePlan
-);
-
-/**
- * @route PATCH /api/mercadopago/subscription/plans/:id/deactivate
- * @desc Desativa um plano de assinatura
- * @access Privado (requer permissão administrativa)
- */
-router.patch(
-  "/plans/:id/deactivate",
-  authenticate,
-  authorize(PERMISSIONS.ADMIN),
-  planController.deactivatePlan
-);
-
-/**
- * @route GET /api/mercadopago/subscription/plans/:id
- * @desc Obtém um plano de assinatura pelo ID
- * @access Público
- */
-router.get("/plans/:id", planController.getPlan);
-
-/**
- * @route GET /api/mercadopago/subscription/plans
- * @desc Lista todos os planos de assinatura
- * @access Público
- */
-router.get("/plans", planController.listPlans);
 
 export default router;

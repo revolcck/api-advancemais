@@ -1,7 +1,11 @@
 import { logger } from "@/shared/utils/logger.utils";
 import { prisma } from "@/config/database";
 import { AuditService } from "@/shared/services/audit.service";
-import { NotFoundError, ValidationError } from "@/shared/errors/AppError";
+import {
+  NotFoundError,
+  ValidationError,
+  ServiceUnavailableError,
+} from "@/shared/errors/AppError"; // Importação adicionada
 import { SubscriptionPlan, BillingInterval } from "@prisma/client";
 import {
   CreatePlanDTO,
@@ -246,7 +250,7 @@ export class PlanService implements IPlanService {
     includeInactive: boolean = false
   ): Promise<PlanResponseDTO[]> {
     try {
-      logger.info("Listando planos de assinatura");
+      logger.info("Listando planos de assinatura", { filter, includeInactive });
 
       // Construir filtros para a consulta
       const where: any = {};
@@ -288,7 +292,13 @@ export class PlanService implements IPlanService {
       return plans.map((plan) => this.mapPlanToResponseDTO(plan));
     } catch (error) {
       logger.error(`Erro ao listar planos de assinatura: ${error}`);
-      throw error;
+      throw new ServiceUnavailableError(
+        "Não foi possível listar os planos de assinatura",
+        "DATABASE_ERROR",
+        {
+          originalError: error instanceof Error ? error.message : String(error),
+        }
+      );
     }
   }
 

@@ -4,6 +4,7 @@ import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../core/config/mercadopago.config";
 import { env } from "@/config/environment";
 import axios from "axios";
+import { ServiceUnavailableError } from "@/shared/errors/AppError";
 
 /**
  * Controlador para verificação de status e configuração do MercadoPago
@@ -76,8 +77,24 @@ export class StatusController {
     try {
       logger.info("Obtendo chave pública do MercadoPago");
 
+      // Verificação de configuração
+      if (!mercadoPagoConfig) {
+        throw new ServiceUnavailableError(
+          "Configuração do MercadoPago não disponível",
+          "MERCADOPAGO_CONFIG_ERROR"
+        );
+      }
+
       // Obtém chave pública do serviço de configuração
       const publicKey = mercadoPagoConfig.getPublicKey();
+
+      if (!publicKey) {
+        throw new ServiceUnavailableError(
+          "Chave pública do MercadoPago não disponível",
+          "MERCADOPAGO_KEY_ERROR"
+        );
+      }
+
       const isProduction = mercadoPagoConfig.isProductionMode();
 
       // Sucesso: retorna a chave pública
@@ -88,7 +105,16 @@ export class StatusController {
       });
     } catch (error) {
       logger.error("Erro ao obter chave pública do MercadoPago", error);
-      throw error;
+
+      // Retorna um erro personalizado para não expor detalhes internos
+      if (error instanceof ServiceUnavailableError) {
+        throw error;
+      } else {
+        throw new ServiceUnavailableError(
+          "Não foi possível obter a chave pública do MercadoPago",
+          "MERCADOPAGO_SERVICE_ERROR"
+        );
+      }
     }
   };
 
