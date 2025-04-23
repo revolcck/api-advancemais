@@ -27,7 +27,7 @@ export const MERCADOPAGO_ROUTES = {
   /**
    * Rotas para assinaturas
    */
-  SUBSCRIBER: "/subscriber",
+  SUBSCRIPTION: "/subscription",
 
   /**
    * Rota de verificação de saúde
@@ -88,7 +88,7 @@ export const COURSE_ROUTES = {
 /**
  * Rotas para assinaturas
  */
-export const SUBSCRIBER_ROUTES = {
+export const SUBSCRIPTION_ROUTES = {
   /**
    * Rota raiz para assinaturas
    */

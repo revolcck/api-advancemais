@@ -12,8 +12,7 @@ import { ApiResponse } from "@/shared/utils/api-response.utils";
 
 // Importação de sub-rotas
 import courseRoutes from "./courses.routes";
-import subscriberRoutes from "./subscriber.routes"; // Rota legacy - será substituída
-import subscriptionRoutes from "../subscription/routes"; // Nova implementação de assinaturas
+import subscriptionRoutes from "../subscription/routes";
 import webhookRoutes from "./webhook.routes";
 import statusRoutes from "./status.routes";
 
@@ -62,7 +61,7 @@ const checkMercadoPagoEnabled = (
         code: "SERVICE_UNAVAILABLE",
       }
     );
-    return; // Adicionado return para evitar que o código continue
+    return;
   }
 
   next();
@@ -100,19 +99,11 @@ router.use(MERCADOPAGO_ROUTES.WEBHOOKS, webhookRoutes);
 router.use(MERCADOPAGO_ROUTES.COURSES, courseRoutes);
 
 /**
- * @route /api/mercadopago/subscriber
- * @desc Rotas legacy para gerenciamento de assinaturas via MercadoPago
- * @deprecated Use /api/mercadopago/subscription em vez disso
- * @access Privado (requer autenticação)
- */
-router.use(MERCADOPAGO_ROUTES.SUBSCRIBER, subscriberRoutes);
-
-/**
  * @route /api/mercadopago/subscription
- * @desc Novas rotas para gerenciamento de assinaturas e planos via MercadoPago
+ * @desc Rotas para gerenciamento de assinaturas e planos via MercadoPago
  * @access Privado (requer autenticação)
  */
-router.use("/subscription", subscriptionRoutes);
+router.use(MERCADOPAGO_ROUTES.SUBSCRIPTION, subscriptionRoutes);
 
 /**
  * @route GET /api/mercadopago/health
@@ -132,3 +123,5 @@ router.get(MERCADOPAGO_ROUTES.HEALTH, (req: Request, res: Response) => {
     }
   );
 });
+
+export default router;

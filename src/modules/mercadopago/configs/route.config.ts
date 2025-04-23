@@ -13,7 +13,7 @@ import {
   MERCADOPAGO_ROUTES,
   STATUS_ROUTES,
   COURSE_ROUTES,
-  SUBSCRIBER_ROUTES,
+  SUBSCRIPTION_ROUTES,
   WEBHOOK_ROUTES,
 } from "../constants/routes.constants";
 
@@ -114,7 +114,7 @@ const mercadoPagoModule: RouteModule = {
 
     // Rotas de Assinatura
     RouteConfigBuilder.create()
-      .path(`${MERCADOPAGO_ROUTES.SUBSCRIBER}${SUBSCRIBER_ROUTES.ROOT}`)
+      .path(`${MERCADOPAGO_ROUTES.SUBSCRIPTION}${SUBSCRIPTION_ROUTES.ROOT}`)
       .post()
       .description("Cria uma nova assinatura")
       .private()
@@ -124,7 +124,9 @@ const mercadoPagoModule: RouteModule = {
       .build(),
 
     RouteConfigBuilder.create()
-      .path(`${MERCADOPAGO_ROUTES.SUBSCRIBER}${SUBSCRIBER_ROUTES.SUBSCRIPTION}`)
+      .path(
+        `${MERCADOPAGO_ROUTES.SUBSCRIPTION}${SUBSCRIPTION_ROUTES.SUBSCRIPTION}`
+      )
       .get()
       .description("Obtém detalhes de uma assinatura específica")
       .private()
@@ -133,7 +135,7 @@ const mercadoPagoModule: RouteModule = {
       .build(),
 
     RouteConfigBuilder.create()
-      .path(`${MERCADOPAGO_ROUTES.SUBSCRIBER}${SUBSCRIBER_ROUTES.ROOT}`)
+      .path(`${MERCADOPAGO_ROUTES.SUBSCRIPTION}${SUBSCRIPTION_ROUTES.ROOT}`)
       .get()
       .description("Lista as assinaturas do usuário autenticado")
       .private()
@@ -142,7 +144,7 @@ const mercadoPagoModule: RouteModule = {
       .build(),
 
     RouteConfigBuilder.create()
-      .path(`${MERCADOPAGO_ROUTES.SUBSCRIBER}${SUBSCRIBER_ROUTES.CANCEL}`)
+      .path(`${MERCADOPAGO_ROUTES.SUBSCRIPTION}${SUBSCRIPTION_ROUTES.CANCEL}`)
       .post()
       .description("Cancela uma assinatura")
       .private()
@@ -152,7 +154,7 @@ const mercadoPagoModule: RouteModule = {
       .build(),
 
     RouteConfigBuilder.create()
-      .path(`${MERCADOPAGO_ROUTES.SUBSCRIBER}${SUBSCRIBER_ROUTES.CHECK}`)
+      .path(`${MERCADOPAGO_ROUTES.SUBSCRIPTION}${SUBSCRIPTION_ROUTES.CHECK}`)
       .get()
       .description("Verifica se o usuário tem assinatura ativa")
       .private()
@@ -161,7 +163,9 @@ const mercadoPagoModule: RouteModule = {
       .build(),
 
     RouteConfigBuilder.create()
-      .path(`${MERCADOPAGO_ROUTES.SUBSCRIBER}${SUBSCRIBER_ROUTES.ADMIN_LIST}`)
+      .path(
+        `${MERCADOPAGO_ROUTES.SUBSCRIPTION}${SUBSCRIPTION_ROUTES.ADMIN_LIST}`
+      )
       .get()
       .description("Lista todas as assinaturas (para administração)")
       .admin()
@@ -171,7 +175,9 @@ const mercadoPagoModule: RouteModule = {
       .build(),
 
     RouteConfigBuilder.create()
-      .path(`${MERCADOPAGO_ROUTES.SUBSCRIBER}${SUBSCRIBER_ROUTES.ADMIN_UPDATE}`)
+      .path(
+        `${MERCADOPAGO_ROUTES.SUBSCRIPTION}${SUBSCRIPTION_ROUTES.ADMIN_UPDATE}`
+      )
       .post()
       .description("Atualiza uma assinatura (para administração)")
       .admin()
@@ -237,5 +243,4 @@ const mercadoPagoModule: RouteModule = {
 // Registra o módulo no serviço de rotas
 RouteService.registerModule(mercadoPagoModule);
 
-// Exporta a configuração
 export default mercadoPagoModule;
