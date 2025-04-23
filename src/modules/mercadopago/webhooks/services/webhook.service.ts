@@ -330,20 +330,37 @@ export class WebhookService {
     try {
       logger.info(`Processando atualização de assinatura: ${subscriptionId}`);
 
-      // Primeiro, tentamos processar com o novo serviço de assinatura
-      try {
-        await this.subscriptionService.processSubscriptionUpdate(
-          subscriptionId
-        );
+      // Importar o detector sob demanda para evitar referência circular
+      const { SubscriptionDetector } = await import(
+        "../utils/subscription-detector.utils"
+      );
+
+      // Detectar qual sistema deve processar esta assinatura
+      const system = await SubscriptionDetector.detectSystem(subscriptionId);
+
+      if (system === "new") {
         logger.info(
-          `Atualização de assinatura ${subscriptionId} processada com sucesso pelo novo serviço`
+          `Processando assinatura ${subscriptionId} com o novo serviço`
         );
-        return;
-      } catch (error) {
-        // Se a assinatura não for encontrada no novo serviço, tentamos o legado
-        logger.warn(
-          `Assinatura ${subscriptionId} não encontrada no novo serviço, tentando serviço legado`,
-          error
+
+        try {
+          await this.subscriptionService.processSubscriptionUpdate(
+            subscriptionId
+          );
+          logger.info(
+            `Atualização de assinatura ${subscriptionId} processada com sucesso pelo novo serviço`
+          );
+          return;
+        } catch (error) {
+          // Se falhar mesmo sendo detectado como novo, tentamos o legado como fallback
+          logger.warn(
+            `Erro ao processar com novo serviço apesar de ser detectado como novo, tentando serviço legado`,
+            error
+          );
+        }
+      } else {
+        logger.info(
+          `Processando assinatura ${subscriptionId} com o serviço legado`
         );
       }
 
@@ -372,19 +389,32 @@ export class WebhookService {
     try {
       logger.info(`Processando atualização de plano: ${planId}`);
 
-      // Tentamos processar primeiro com o novo serviço
-      try {
-        await this.subscriptionService.processPlanUpdate(planId);
-        logger.info(
-          `Atualização de plano ${planId} processada com sucesso pelo novo serviço`
-        );
-        return;
-      } catch (error) {
-        // Se falhar, tentamos com o serviço legado
-        logger.warn(
-          `Erro ao processar plano com novo serviço, tentando serviço legado`,
-          error
-        );
+      // Importar o detector sob demanda para evitar referência circular
+      const { SubscriptionDetector } = await import(
+        "../utils/subscription-detector.utils"
+      );
+
+      // Detectar qual sistema deve processar este plano
+      const system = await SubscriptionDetector.detectPlanSystem(planId);
+
+      if (system === "new") {
+        logger.info(`Processando plano ${planId} com o novo serviço`);
+
+        try {
+          await this.subscriptionService.processPlanUpdate(planId);
+          logger.info(
+            `Atualização de plano ${planId} processada com sucesso pelo novo serviço`
+          );
+          return;
+        } catch (error) {
+          // Se falhar mesmo sendo detectado como novo, tentamos o legado como fallback
+          logger.warn(
+            `Erro ao processar plano com novo serviço apesar de ser detectado como novo, tentando serviço legado`,
+            error
+          );
+        }
+      } else {
+        logger.info(`Processando plano ${planId} com o serviço legado`);
       }
 
       // Tentativa com o serviço legado
