@@ -211,7 +211,7 @@ export class SubscriptionController {
       });
 
       // Formata a resposta
-      const formattedSubscriptions = subscriptions.map((sub) => ({
+      const formattedSubscriptions = subscriptions.map((sub: any) => ({
         id: sub.id,
         status: sub.status,
         startDate: sub.startDate,

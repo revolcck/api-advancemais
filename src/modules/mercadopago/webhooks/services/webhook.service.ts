@@ -1,7 +1,8 @@
 import { PaymentService } from "../../core/services/payment.service";
 import { logger } from "@/shared/utils/logger.utils";
 import { prisma } from "@/config/database";
-import { PaymentStatus } from "@prisma/client";
+// Importamos dos nossos próprios tipos em vez do Prisma
+import { PaymentStatus } from "../../types/prisma-enums";
 import {
   WebhookNotificationDto,
   WebhookProcessResponseDto,

@@ -3,7 +3,7 @@
  * @module modules/mercadopago/subscription/dto/plan.dto
  */
 
-import { BillingInterval } from "@prisma/client";
+import { BillingInterval } from "../../types/prisma-enums";
 
 /**
  * DTO para criação de plano de assinatura

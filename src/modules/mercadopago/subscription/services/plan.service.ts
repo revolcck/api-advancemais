@@ -5,8 +5,9 @@ import {
   NotFoundError,
   ValidationError,
   ServiceUnavailableError,
-} from "@/shared/errors/AppError"; // Importação adicionada
-import { SubscriptionPlan, BillingInterval } from "@prisma/client";
+} from "@/shared/errors/AppError";
+// Importamos dos nossos próprios tipos em vez do Prisma
+import { SubscriptionPlan, BillingInterval } from "../../types/prisma-enums";
 import {
   CreatePlanDTO,
   UpdatePlanDTO,
@@ -42,32 +43,36 @@ export class PlanService implements IPlanService {
         );
       }
 
+      // Usar um objeto de criação com interface compatível com o Prisma
+      const createData: any = {
+        name: data.name,
+        price: data.price,
+        description: data.description,
+        features: data.features,
+        // Corrigido: Usar tipagem compatível com o Prisma
+        interval: (data.interval || BillingInterval.MONTHLY) as string,
+        intervalCount: data.intervalCount || 1,
+        trialDays: data.trialDays,
+        isActive: data.isActive !== undefined ? data.isActive : true,
+        isPopular: data.isPopular || false,
+        mpProductId: data.mpProductId,
+        maxJobOffers: data.maxJobOffers,
+        featuredJobOffers: data.featuredJobOffers,
+        confidentialOffers:
+          data.confidentialOffers !== undefined
+            ? data.confidentialOffers
+            : false,
+        resumeAccess:
+          data.resumeAccess !== undefined ? data.resumeAccess : true,
+        allowPremiumFilters:
+          data.allowPremiumFilters !== undefined
+            ? data.allowPremiumFilters
+            : false,
+      };
+
       // Criar o plano no banco de dados
       const plan = await prisma.subscriptionPlan.create({
-        data: {
-          name: data.name,
-          price: data.price,
-          description: data.description,
-          features: data.features,
-          interval: data.interval || BillingInterval.MONTHLY,
-          intervalCount: data.intervalCount || 1,
-          trialDays: data.trialDays,
-          isActive: data.isActive !== undefined ? data.isActive : true,
-          isPopular: data.isPopular || false,
-          mpProductId: data.mpProductId,
-          maxJobOffers: data.maxJobOffers,
-          featuredJobOffers: data.featuredJobOffers,
-          confidentialOffers:
-            data.confidentialOffers !== undefined
-              ? data.confidentialOffers
-              : false,
-          resumeAccess:
-            data.resumeAccess !== undefined ? data.resumeAccess : true,
-          allowPremiumFilters:
-            data.allowPremiumFilters !== undefined
-              ? data.allowPremiumFilters
-              : false,
-        },
+        data: createData,
       });
 
       // Registro de auditoria
@@ -124,27 +129,49 @@ export class PlanService implements IPlanService {
         }
       }
 
+      // Preparar objeto para atualização compatível com o Prisma
+      const updateData: any = {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.price !== undefined && { price: data.price }),
+        ...(data.description !== undefined && {
+          description: data.description,
+        }),
+        ...(data.features !== undefined && { features: data.features }),
+        // Corrigido: Uso do tipo string para o interval
+        ...(data.interval !== undefined && {
+          interval: data.interval as string,
+        }),
+        ...(data.intervalCount !== undefined && {
+          intervalCount: data.intervalCount,
+        }),
+        ...(data.trialDays !== undefined && { trialDays: data.trialDays }),
+        ...(data.isActive !== undefined && { isActive: data.isActive }),
+        ...(data.isPopular !== undefined && { isPopular: data.isPopular }),
+        ...(data.mpProductId !== undefined && {
+          mpProductId: data.mpProductId,
+        }),
+        ...(data.maxJobOffers !== undefined && {
+          maxJobOffers: data.maxJobOffers,
+        }),
+        ...(data.featuredJobOffers !== undefined && {
+          featuredJobOffers: data.featuredJobOffers,
+        }),
+        ...(data.confidentialOffers !== undefined && {
+          confidentialOffers: data.confidentialOffers,
+        }),
+        ...(data.resumeAccess !== undefined && {
+          resumeAccess: data.resumeAccess,
+        }),
+        ...(data.allowPremiumFilters !== undefined && {
+          allowPremiumFilters: data.allowPremiumFilters,
+        }),
+        updatedAt: new Date(),
+      };
+
       // Atualizar o plano
       const updatedPlan = await prisma.subscriptionPlan.update({
         where: { id },
-        data: {
-          name: data.name,
-          price: data.price,
-          description: data.description,
-          features: data.features !== undefined ? data.features : undefined,
-          interval: data.interval,
-          intervalCount: data.intervalCount,
-          trialDays: data.trialDays,
-          isActive: data.isActive,
-          isPopular: data.isPopular,
-          mpProductId: data.mpProductId,
-          maxJobOffers: data.maxJobOffers,
-          featuredJobOffers: data.featuredJobOffers,
-          confidentialOffers: data.confidentialOffers,
-          resumeAccess: data.resumeAccess,
-          allowPremiumFilters: data.allowPremiumFilters,
-          updatedAt: new Date(),
-        },
+        data: updateData,
       });
 
       // Registro de auditoria
@@ -264,7 +291,8 @@ export class PlanService implements IPlanService {
         if (filter.name) where.name = { contains: filter.name };
         if (filter.isActive !== undefined) where.isActive = filter.isActive;
         if (filter.isPopular !== undefined) where.isPopular = filter.isPopular;
-        if (filter.interval) where.interval = filter.interval;
+        // Corrigido: tratamento do intervalo como string
+        if (filter.interval) where.interval = filter.interval as string;
 
         // Filtros de preço min/max
         if (filter.priceMin !== undefined || filter.priceMax !== undefined) {
@@ -331,7 +359,8 @@ export class PlanService implements IPlanService {
       price: Number(plan.price),
       description: plan.description,
       features: plan.features as Record<string, any>,
-      interval: plan.interval,
+      // Corrigido: garantir conversão para o tipo esperado pelo DTO
+      interval: plan.interval as BillingInterval,
       intervalCount: plan.intervalCount,
       trialDays: plan.trialDays,
       isActive: plan.isActive,

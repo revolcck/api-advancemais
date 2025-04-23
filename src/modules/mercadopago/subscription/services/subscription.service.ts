@@ -2,7 +2,8 @@ import axios from "axios";
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../../core/config/mercadopago.config";
 import { prisma } from "@/config/database";
-import { SubscriptionStatus, PaymentStatus } from "@prisma/client";
+// Importamos dos nossos próprios tipos em vez do Prisma
+import { SubscriptionStatus, PaymentStatus } from "../../types/prisma-enums";
 import { MercadoPagoPaymentStatus } from "../../dto/payment.dto";
 import { AuditService } from "@/shared/services/audit.service";
 import {

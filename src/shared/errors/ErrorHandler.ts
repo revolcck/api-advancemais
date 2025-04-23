@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import { Prisma } from "@prisma/client";
 import {
   AppError,
   ValidationError,
@@ -10,6 +9,35 @@ import {
 import { logger } from "@/shared/utils/logger.utils";
 import { env } from "@/config/environment";
 import { ValidationError as JoiValidationError } from "joi";
+
+// Definimos as classes de erro personalizadas
+export class PrismaClientKnownRequestError extends Error {
+  code: string;
+  meta?: Record<string, any>;
+  clientVersion?: string;
+
+  constructor(
+    message: string,
+    {
+      code,
+      meta,
+      clientVersion,
+    }: { code: string; meta?: Record<string, any>; clientVersion?: string }
+  ) {
+    super(message);
+    this.name = "PrismaClientKnownRequestError";
+    this.code = code;
+    this.meta = meta;
+    this.clientVersion = clientVersion;
+  }
+}
+
+export class PrismaClientValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PrismaClientValidationError";
+  }
+}
 
 /**
  * Interface para resposta de erro padronizada
@@ -27,9 +55,7 @@ interface ErrorResponse {
 /**
  * Processa erros do Prisma e converte para AppError apropriado
  */
-const handlePrismaError = (
-  error: Prisma.PrismaClientKnownRequestError
-): AppError => {
+const handlePrismaError = (error: PrismaClientKnownRequestError): AppError => {
   // Mapeamento detalhado dos códigos de erro do Prisma
   const prismaErrorCodes: Record<string, () => AppError> = {
     // Unique constraint violation
@@ -152,10 +178,10 @@ export class ErrorHandler {
     } else if (error instanceof JoiValidationError) {
       // Erro de validação do Joi
       processedError = handleJoiError(error);
-    } else if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    } else if (error instanceof PrismaClientKnownRequestError) {
       // Erro conhecido do Prisma
       processedError = handlePrismaError(error);
-    } else if (error instanceof Prisma.PrismaClientValidationError) {
+    } else if (error instanceof PrismaClientValidationError) {
       // Erro de validação do Prisma (geralmente problema no código)
       logger.error("Erro de validação do Prisma:", error);
       processedError = new ValidationError(
