@@ -16,30 +16,6 @@ import {
 import { IPlanService } from "../interfaces/plan.interface";
 
 /**
- * Interface para o plano conforme retornado pelo Prisma
- */
-interface PrismaSubscriptionPlan {
-  id: string;
-  name: string;
-  price: any; // Usando any para compatibilidade com Decimal do Prisma
-  description: string | null;
-  features: any;
-  interval: string;
-  intervalCount: number;
-  trialDays: number | null;
-  isActive: boolean;
-  isPopular: boolean;
-  maxJobOffers: number | null;
-  featuredJobOffers: number | null;
-  confidentialOffers: boolean;
-  resumeAccess: boolean;
-  allowPremiumFilters: boolean;
-  mpProductId?: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-/**
  * Serviço para gerenciamento de planos de assinatura
  */
 export class PlanService implements IPlanService {
@@ -66,46 +42,71 @@ export class PlanService implements IPlanService {
         );
       }
 
-      // Usar um objeto de criação com interface compatível com o Prisma
-      const createData: any = {
-        name: data.name,
-        price: data.price,
-        description: data.description,
-        features: data.features,
-        interval: (data.interval || BillingInterval.MONTHLY) as string,
-        intervalCount: data.intervalCount || 1,
-        trialDays: data.trialDays,
-        isActive: data.isActive !== undefined ? data.isActive : true,
-        isPopular: data.isPopular || false,
-        mpProductId: data.mpProductId,
-        maxJobOffers: data.maxJobOffers,
-        featuredJobOffers: data.featuredJobOffers,
-        confidentialOffers:
-          data.confidentialOffers !== undefined
-            ? data.confidentialOffers
-            : false,
-        resumeAccess:
-          data.resumeAccess !== undefined ? data.resumeAccess : true,
-        allowPremiumFilters:
-          data.allowPremiumFilters !== undefined
-            ? data.allowPremiumFilters
-            : false,
-      };
+      // Criar o plano no banco de dados usando a API "unchecked" do Prisma
+      // que permite mais flexibilidade com os tipos
+      const plan = await prisma.$queryRaw`
+        INSERT INTO subscription_plans (
+          name, price, description, features, interval, intervalCount, 
+          trialDays, isActive, isPopular, mpProductId, maxJobOffers, 
+          featuredJobOffers, confidentialOffers, resumeAccess, allowPremiumFilters
+        ) VALUES (
+          ${data.name}, 
+          ${data.price}, 
+          ${data.description}, 
+          ${JSON.stringify(data.features)}, 
+          ${data.interval || BillingInterval.MONTHLY}, 
+          ${data.intervalCount || 1}, 
+          ${data.trialDays}, 
+          ${data.isActive !== undefined ? data.isActive : true}, 
+          ${data.isPopular || false}, 
+          ${data.mpProductId}, 
+          ${data.maxJobOffers}, 
+          ${data.featuredJobOffers}, 
+          ${
+            data.confidentialOffers !== undefined
+              ? data.confidentialOffers
+              : false
+          }, 
+          ${data.resumeAccess !== undefined ? data.resumeAccess : true}, 
+          ${
+            data.allowPremiumFilters !== undefined
+              ? data.allowPremiumFilters
+              : false
+          }
+        ) RETURNING *;
+      `;
 
-      // Criar o plano no banco de dados
-      const plan = await prisma.subscriptionPlan.create({
-        data: createData,
-      });
+      // Como o resultado de $queryRaw é um array, pegamos o primeiro elemento
+      const createdPlan = Array.isArray(plan) ? plan[0] : plan;
 
       // Registro de auditoria
-      AuditService.create("subscription_plan", plan.id, userId, {
-        planName: plan.name,
-        price: plan.price,
+      AuditService.create("subscription_plan", createdPlan.id, userId, {
+        planName: createdPlan.name,
+        price: createdPlan.price,
       });
 
-      logger.info(`Plano de assinatura criado com sucesso: ${plan.id}`);
+      logger.info(`Plano de assinatura criado com sucesso: ${createdPlan.id}`);
 
-      return this.mapPlanToResponseDTO(plan as PrismaSubscriptionPlan);
+      // Mapear para o formato de resposta esperado
+      return {
+        id: createdPlan.id,
+        name: createdPlan.name,
+        price: Number(createdPlan.price),
+        description: createdPlan.description,
+        features: createdPlan.features,
+        interval: createdPlan.interval as BillingInterval,
+        intervalCount: createdPlan.intervalCount,
+        trialDays: createdPlan.trialDays,
+        isActive: createdPlan.isActive,
+        isPopular: createdPlan.isPopular,
+        maxJobOffers: createdPlan.maxJobOffers,
+        featuredJobOffers: createdPlan.featuredJobOffers,
+        confidentialOffers: createdPlan.confidentialOffers,
+        resumeAccess: createdPlan.resumeAccess,
+        allowPremiumFilters: createdPlan.allowPremiumFilters,
+        createdAt: createdPlan.createdAt,
+        updatedAt: createdPlan.updatedAt,
+      };
     } catch (error) {
       logger.error(`Erro ao criar plano de assinatura: ${error}`);
       throw error;
@@ -151,60 +152,117 @@ export class PlanService implements IPlanService {
         }
       }
 
-      // Preparar objeto para atualização compatível com o Prisma
-      const updateData: any = {
-        ...(data.name !== undefined && { name: data.name }),
-        ...(data.price !== undefined && { price: data.price }),
-        ...(data.description !== undefined && {
-          description: data.description,
-        }),
-        ...(data.features !== undefined && { features: data.features }),
-        ...(data.interval !== undefined && {
-          interval: data.interval as string,
-        }),
-        ...(data.intervalCount !== undefined && {
-          intervalCount: data.intervalCount,
-        }),
-        ...(data.trialDays !== undefined && { trialDays: data.trialDays }),
-        ...(data.isActive !== undefined && { isActive: data.isActive }),
-        ...(data.isPopular !== undefined && { isPopular: data.isPopular }),
-        ...(data.mpProductId !== undefined && {
-          mpProductId: data.mpProductId,
-        }),
-        ...(data.maxJobOffers !== undefined && {
-          maxJobOffers: data.maxJobOffers,
-        }),
-        ...(data.featuredJobOffers !== undefined && {
-          featuredJobOffers: data.featuredJobOffers,
-        }),
-        ...(data.confidentialOffers !== undefined && {
-          confidentialOffers: data.confidentialOffers,
-        }),
-        ...(data.resumeAccess !== undefined && {
-          resumeAccess: data.resumeAccess,
-        }),
-        ...(data.allowPremiumFilters !== undefined && {
-          allowPremiumFilters: data.allowPremiumFilters,
-        }),
-        updatedAt: new Date(),
-      };
+      // Construir dinamicamente as partes da query SQL para atualizações
+      let setClause = "";
+      const values: any[] = [];
 
-      // Atualizar o plano
-      const updatedPlan = await prisma.subscriptionPlan.update({
-        where: { id },
-        data: updateData,
-      });
+      if (data.name !== undefined) {
+        setClause += "name = ?, ";
+        values.push(data.name);
+      }
+      if (data.price !== undefined) {
+        setClause += "price = ?, ";
+        values.push(data.price);
+      }
+      if (data.description !== undefined) {
+        setClause += "description = ?, ";
+        values.push(data.description);
+      }
+      if (data.features !== undefined) {
+        setClause += "features = ?, ";
+        values.push(JSON.stringify(data.features));
+      }
+      if (data.interval !== undefined) {
+        setClause += "interval = ?, ";
+        values.push(data.interval);
+      }
+      if (data.intervalCount !== undefined) {
+        setClause += "intervalCount = ?, ";
+        values.push(data.intervalCount);
+      }
+      if (data.trialDays !== undefined) {
+        setClause += "trialDays = ?, ";
+        values.push(data.trialDays);
+      }
+      if (data.isActive !== undefined) {
+        setClause += "isActive = ?, ";
+        values.push(data.isActive);
+      }
+      if (data.isPopular !== undefined) {
+        setClause += "isPopular = ?, ";
+        values.push(data.isPopular);
+      }
+      if (data.mpProductId !== undefined) {
+        setClause += "mpProductId = ?, ";
+        values.push(data.mpProductId);
+      }
+      if (data.maxJobOffers !== undefined) {
+        setClause += "maxJobOffers = ?, ";
+        values.push(data.maxJobOffers);
+      }
+      if (data.featuredJobOffers !== undefined) {
+        setClause += "featuredJobOffers = ?, ";
+        values.push(data.featuredJobOffers);
+      }
+      if (data.confidentialOffers !== undefined) {
+        setClause += "confidentialOffers = ?, ";
+        values.push(data.confidentialOffers);
+      }
+      if (data.resumeAccess !== undefined) {
+        setClause += "resumeAccess = ?, ";
+        values.push(data.resumeAccess);
+      }
+      if (data.allowPremiumFilters !== undefined) {
+        setClause += "allowPremiumFilters = ?, ";
+        values.push(data.allowPremiumFilters);
+      }
+
+      // Adicionar updatedAt
+      setClause += "updatedAt = ?";
+      values.push(new Date());
+
+      // Adicionar id como último valor para a condição WHERE
+      values.push(id);
+
+      // Executar a query SQL
+      const updateQuery = `
+        UPDATE subscription_plans
+        SET ${setClause}
+        WHERE id = ?
+        RETURNING *;
+      `;
+
+      const updatedPlan = await prisma.$queryRawUnsafe(updateQuery, ...values);
+      const plan = Array.isArray(updatedPlan) ? updatedPlan[0] : updatedPlan;
 
       // Registro de auditoria
       AuditService.update("subscription_plan", id, userId, {
-        planName: updatedPlan.name,
-        price: updatedPlan.price,
-        isActive: updatedPlan.isActive,
+        planName: plan.name,
+        price: plan.price,
+        isActive: plan.isActive,
       });
 
       logger.info(`Plano de assinatura atualizado com sucesso: ${id}`);
 
-      return this.mapPlanToResponseDTO(updatedPlan as PrismaSubscriptionPlan);
+      return {
+        id: plan.id,
+        name: plan.name,
+        price: Number(plan.price),
+        description: plan.description,
+        features: plan.features,
+        interval: plan.interval as BillingInterval,
+        intervalCount: plan.intervalCount,
+        trialDays: plan.trialDays,
+        isActive: plan.isActive,
+        isPopular: plan.isPopular,
+        maxJobOffers: plan.maxJobOffers,
+        featuredJobOffers: plan.featuredJobOffers,
+        confidentialOffers: plan.confidentialOffers,
+        resumeAccess: plan.resumeAccess,
+        allowPremiumFilters: plan.allowPremiumFilters,
+        createdAt: plan.createdAt,
+        updatedAt: plan.updatedAt,
+      };
     } catch (error) {
       logger.error(`Erro ao atualizar plano de assinatura ${id}: ${error}`);
       throw error;
@@ -236,14 +294,15 @@ export class PlanService implements IPlanService {
         throw new NotFoundError("Plano de assinatura", "PLAN_NOT_FOUND");
       }
 
-      // Atualizar o status do plano
-      const updatedPlan = await prisma.subscriptionPlan.update({
-        where: { id },
-        data: {
-          isActive: active,
-          updatedAt: new Date(),
-        },
-      });
+      // Atualizar o status usando query bruta para evitar problemas de tipo
+      const updatedPlan = await prisma.$queryRaw`
+        UPDATE subscription_plans
+        SET isActive = ${active}, updatedAt = ${new Date()}
+        WHERE id = ${id}
+        RETURNING *;
+      `;
+
+      const plan = Array.isArray(updatedPlan) ? updatedPlan[0] : updatedPlan;
 
       // Registro de auditoria
       AuditService.log(
@@ -251,14 +310,32 @@ export class PlanService implements IPlanService {
         "subscription_plan",
         id,
         userId,
-        { planName: updatedPlan.name }
+        { planName: plan.name }
       );
 
       logger.info(
         `Status do plano ${id} atualizado para: ${active ? "ativo" : "inativo"}`
       );
 
-      return this.mapPlanToResponseDTO(updatedPlan as PrismaSubscriptionPlan);
+      return {
+        id: plan.id,
+        name: plan.name,
+        price: Number(plan.price),
+        description: plan.description,
+        features: plan.features,
+        interval: plan.interval as BillingInterval,
+        intervalCount: plan.intervalCount,
+        trialDays: plan.trialDays,
+        isActive: plan.isActive,
+        isPopular: plan.isPopular,
+        maxJobOffers: plan.maxJobOffers,
+        featuredJobOffers: plan.featuredJobOffers,
+        confidentialOffers: plan.confidentialOffers,
+        resumeAccess: plan.resumeAccess,
+        allowPremiumFilters: plan.allowPremiumFilters,
+        createdAt: plan.createdAt,
+        updatedAt: plan.updatedAt,
+      };
     } catch (error) {
       logger.error(`Erro ao alterar status do plano ${id}: ${error}`);
       throw error;
@@ -281,7 +358,25 @@ export class PlanService implements IPlanService {
         throw new NotFoundError("Plano de assinatura", "PLAN_NOT_FOUND");
       }
 
-      return this.mapPlanToResponseDTO(plan as PrismaSubscriptionPlan);
+      return {
+        id: plan.id,
+        name: plan.name,
+        price: Number(plan.price),
+        description: plan.description,
+        features: plan.features as Record<string, any>,
+        interval: plan.interval as BillingInterval,
+        intervalCount: plan.intervalCount,
+        trialDays: plan.trialDays,
+        isActive: plan.isActive,
+        isPopular: plan.isPopular,
+        maxJobOffers: plan.maxJobOffers,
+        featuredJobOffers: plan.featuredJobOffers,
+        confidentialOffers: plan.confidentialOffers,
+        resumeAccess: plan.resumeAccess,
+        allowPremiumFilters: plan.allowPremiumFilters,
+        createdAt: plan.createdAt,
+        updatedAt: plan.updatedAt,
+      };
     } catch (error) {
       logger.error(`Erro ao buscar plano de assinatura ${id}: ${error}`);
       throw error;
@@ -312,7 +407,7 @@ export class PlanService implements IPlanService {
         if (filter.name) where.name = { contains: filter.name };
         if (filter.isActive !== undefined) where.isActive = filter.isActive;
         if (filter.isPopular !== undefined) where.isPopular = filter.isPopular;
-        if (filter.interval) where.interval = filter.interval as string;
+        if (filter.interval) where.interval = filter.interval;
 
         // Filtros de preço min/max
         if (filter.priceMin !== undefined || filter.priceMax !== undefined) {
@@ -337,9 +432,25 @@ export class PlanService implements IPlanService {
       logger.debug(`Encontrados ${plans.length} planos de assinatura`);
 
       // Transformar em DTOs de resposta
-      return plans.map((plan) =>
-        this.mapPlanToResponseDTO(plan as PrismaSubscriptionPlan)
-      );
+      return plans.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        price: Number(plan.price),
+        description: plan.description,
+        features: plan.features as Record<string, any>,
+        interval: plan.interval as BillingInterval,
+        intervalCount: plan.intervalCount,
+        trialDays: plan.trialDays,
+        isActive: plan.isActive,
+        isPopular: plan.isPopular,
+        maxJobOffers: plan.maxJobOffers,
+        featuredJobOffers: plan.featuredJobOffers,
+        confidentialOffers: plan.confidentialOffers,
+        resumeAccess: plan.resumeAccess,
+        allowPremiumFilters: plan.allowPremiumFilters,
+        createdAt: plan.createdAt,
+        updatedAt: plan.updatedAt,
+      }));
     } catch (error) {
       logger.error(`Erro ao listar planos de assinatura: ${error}`);
       throw new ServiceUnavailableError(
@@ -368,32 +479,6 @@ export class PlanService implements IPlanService {
       logger.error(`Erro ao verificar status do plano ${planId}: ${error}`);
       return false;
     }
-  }
-
-  /**
-   * Mapear um modelo de plano para o DTO de resposta
-   * @param plan Plano do banco de dados
-   */
-  private mapPlanToResponseDTO(plan: PrismaSubscriptionPlan): PlanResponseDTO {
-    return {
-      id: plan.id,
-      name: plan.name,
-      price: Number(plan.price),
-      description: plan.description,
-      features: plan.features as Record<string, any>,
-      interval: plan.interval as BillingInterval,
-      intervalCount: plan.intervalCount,
-      trialDays: plan.trialDays,
-      isActive: plan.isActive,
-      isPopular: plan.isPopular,
-      maxJobOffers: plan.maxJobOffers,
-      featuredJobOffers: plan.featuredJobOffers,
-      confidentialOffers: plan.confidentialOffers,
-      resumeAccess: plan.resumeAccess,
-      allowPremiumFilters: plan.allowPremiumFilters,
-      createdAt: plan.createdAt,
-      updatedAt: plan.updatedAt,
-    };
   }
 }
 
