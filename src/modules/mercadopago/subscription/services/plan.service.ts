@@ -348,7 +348,25 @@ export class PlanService implements IPlanService {
    * Mapear um modelo de plano para o DTO de resposta
    * @param plan Plano do banco de dados
    */
-  private mapPlanToResponseDTO(plan: SubscriptionPlan): PlanResponseDTO {
+  private mapPlanToResponseDTO(plan: {
+    id: string;
+    name: string;
+    price: number | any;
+    description: string | null;
+    features: any;
+    interval: string;
+    intervalCount: number;
+    trialDays: number | null;
+    isActive: boolean;
+    isPopular: boolean;
+    maxJobOffers: number | null;
+    featuredJobOffers: number | null;
+    confidentialOffers: boolean;
+    resumeAccess: boolean;
+    allowPremiumFilters: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }): PlanResponseDTO {
     return {
       id: plan.id,
       name: plan.name,
