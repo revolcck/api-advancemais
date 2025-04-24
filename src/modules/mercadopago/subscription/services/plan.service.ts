@@ -2,7 +2,7 @@ import { logger } from "@/shared/utils/logger.utils";
 import { prisma } from "@/config/database";
 import { AuditService } from "@/shared/services/audit.service";
 import { BillingInterval } from "../../types/prisma-enums";
-import { SubscriptionPlan as PrismaSubscriptionPlan } from "@prisma/client";
+import { Prisma } from "@prisma/client"; // Importação corrigida
 import {
   NotFoundError,
   ValidationError,
@@ -15,6 +15,30 @@ import {
   PlanFilterDTO,
 } from "../dto/plan.dto";
 import { IPlanService } from "../interfaces/plan.interface";
+
+/**
+ * Tipo para representar o plano de assinatura como retornado pelo Prisma
+ */
+type PrismaSubscriptionPlan = {
+  id: string;
+  name: string;
+  price: any; // Decimal no Prisma
+  description: string | null;
+  features: any;
+  interval: string;
+  intervalCount: number;
+  trialDays: number | null;
+  isActive: boolean;
+  isPopular: boolean;
+  mpProductId: string | null;
+  maxJobOffers: number | null;
+  featuredJobOffers: number | null;
+  confidentialOffers: boolean;
+  resumeAccess: boolean;
+  allowPremiumFilters: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 /**
  * Serviço para gerenciamento de planos de assinatura
@@ -432,7 +456,7 @@ export class PlanService implements IPlanService {
 
       logger.debug(`Encontrados ${plans.length} planos de assinatura`);
 
-      // Transformar em DTOs de resposta - AQUI É ONDE O ERRO ESTAVA
+      // Transformar em DTOs de resposta
       return plans.map((plan: PrismaSubscriptionPlan) => ({
         id: plan.id,
         name: plan.name,
