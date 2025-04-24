@@ -135,7 +135,6 @@ export class PlanService implements IPlanService {
           description: data.description,
         }),
         ...(data.features !== undefined && { features: data.features }),
-        // Corrigido: Uso do tipo string para o interval
         ...(data.interval !== undefined && {
           interval: data.interval as string,
         }),

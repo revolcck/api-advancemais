@@ -331,7 +331,7 @@ export class SubscriptionService implements ISubscriptionService {
       });
 
       // Mapeia para o formato da resposta
-      return subscriptions.map((subscription) => ({
+      return subscriptions.map((subscription: any) => ({
         id: subscription.id,
         mpSubscriptionId: subscription.mpPreapprovalId || "",
         status: subscription.status,
