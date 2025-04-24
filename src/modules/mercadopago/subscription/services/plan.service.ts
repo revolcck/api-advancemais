@@ -1,8 +1,8 @@
 import { logger } from "@/shared/utils/logger.utils";
 import { prisma } from "@/config/database";
 import { AuditService } from "@/shared/services/audit.service";
-// Importar de nosso próprio arquivo de tipos em vez de @prisma/client
-import { SubscriptionPlan, BillingInterval } from "../../types/prisma-enums";
+import { BillingInterval } from "../../types/prisma-enums";
+import { SubscriptionPlan as PrismaSubscriptionPlan } from "@prisma/client";
 import {
   NotFoundError,
   ValidationError,
@@ -433,7 +433,7 @@ export class PlanService implements IPlanService {
       logger.debug(`Encontrados ${plans.length} planos de assinatura`);
 
       // Transformar em DTOs de resposta
-      return plans.map((plan) => ({
+      return plans.map((plan: PrismaSubscriptionPlan) => ({
         id: plan.id,
         name: plan.name,
         price: Number(plan.price),
