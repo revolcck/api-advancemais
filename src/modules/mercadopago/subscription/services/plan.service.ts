@@ -6,7 +6,7 @@ import {
   ValidationError,
   ServiceUnavailableError,
 } from "@/shared/errors/AppError";
-import { SubscriptionPlan, BillingInterval } from "../../types/prisma-enums";
+import { BillingInterval } from "../../types/prisma-enums";
 import {
   CreatePlanDTO,
   UpdatePlanDTO,
@@ -14,6 +14,30 @@ import {
   PlanFilterDTO,
 } from "../dto/plan.dto";
 import { IPlanService } from "../interfaces/plan.interface";
+
+/**
+ * Interface para o plano conforme retornado pelo Prisma
+ */
+interface PrismaSubscriptionPlan {
+  id: string;
+  name: string;
+  price: any; // Usando any para compatibilidade com Decimal do Prisma
+  description: string | null;
+  features: any;
+  interval: string;
+  intervalCount: number;
+  trialDays: number | null;
+  isActive: boolean;
+  isPopular: boolean;
+  maxJobOffers: number | null;
+  featuredJobOffers: number | null;
+  confidentialOffers: boolean;
+  resumeAccess: boolean;
+  allowPremiumFilters: boolean;
+  mpProductId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 /**
  * Serviço para gerenciamento de planos de assinatura
@@ -81,7 +105,7 @@ export class PlanService implements IPlanService {
 
       logger.info(`Plano de assinatura criado com sucesso: ${plan.id}`);
 
-      return this.mapPlanToResponseDTO(plan);
+      return this.mapPlanToResponseDTO(plan as PrismaSubscriptionPlan);
     } catch (error) {
       logger.error(`Erro ao criar plano de assinatura: ${error}`);
       throw error;
@@ -180,7 +204,7 @@ export class PlanService implements IPlanService {
 
       logger.info(`Plano de assinatura atualizado com sucesso: ${id}`);
 
-      return this.mapPlanToResponseDTO(updatedPlan);
+      return this.mapPlanToResponseDTO(updatedPlan as PrismaSubscriptionPlan);
     } catch (error) {
       logger.error(`Erro ao atualizar plano de assinatura ${id}: ${error}`);
       throw error;
@@ -234,7 +258,7 @@ export class PlanService implements IPlanService {
         `Status do plano ${id} atualizado para: ${active ? "ativo" : "inativo"}`
       );
 
-      return this.mapPlanToResponseDTO(updatedPlan);
+      return this.mapPlanToResponseDTO(updatedPlan as PrismaSubscriptionPlan);
     } catch (error) {
       logger.error(`Erro ao alterar status do plano ${id}: ${error}`);
       throw error;
@@ -257,7 +281,7 @@ export class PlanService implements IPlanService {
         throw new NotFoundError("Plano de assinatura", "PLAN_NOT_FOUND");
       }
 
-      return this.mapPlanToResponseDTO(plan);
+      return this.mapPlanToResponseDTO(plan as PrismaSubscriptionPlan);
     } catch (error) {
       logger.error(`Erro ao buscar plano de assinatura ${id}: ${error}`);
       throw error;
@@ -313,7 +337,9 @@ export class PlanService implements IPlanService {
       logger.debug(`Encontrados ${plans.length} planos de assinatura`);
 
       // Transformar em DTOs de resposta
-      return plans.map((plan) => this.mapPlanToResponseDTO(plan));
+      return plans.map((plan) =>
+        this.mapPlanToResponseDTO(plan as PrismaSubscriptionPlan)
+      );
     } catch (error) {
       logger.error(`Erro ao listar planos de assinatura: ${error}`);
       throw new ServiceUnavailableError(
@@ -348,25 +374,7 @@ export class PlanService implements IPlanService {
    * Mapear um modelo de plano para o DTO de resposta
    * @param plan Plano do banco de dados
    */
-  private mapPlanToResponseDTO(plan: {
-    id: string;
-    name: string;
-    price: number | any;
-    description: string | null;
-    features: any;
-    interval: string;
-    intervalCount: number;
-    trialDays: number | null;
-    isActive: boolean;
-    isPopular: boolean;
-    maxJobOffers: number | null;
-    featuredJobOffers: number | null;
-    confidentialOffers: boolean;
-    resumeAccess: boolean;
-    allowPremiumFilters: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-  }): PlanResponseDTO {
+  private mapPlanToResponseDTO(plan: PrismaSubscriptionPlan): PlanResponseDTO {
     return {
       id: plan.id,
       name: plan.name,
