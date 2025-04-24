@@ -1,6 +1,7 @@
 import { logger } from "@/shared/utils/logger.utils";
 import { prisma } from "@/config/database";
 import { AuditService } from "@/shared/services/audit.service";
+import { SubscriptionPlan } from "@prisma/client";
 import {
   NotFoundError,
   ValidationError,
@@ -432,7 +433,7 @@ export class PlanService implements IPlanService {
       logger.debug(`Encontrados ${plans.length} planos de assinatura`);
 
       // Transformar em DTOs de resposta
-      return plans.map((plan) => ({
+      return plans.map((plan: SubscriptionPlan) => ({
         id: plan.id,
         name: plan.name,
         price: Number(plan.price),
