@@ -5,6 +5,14 @@ import { execSync } from "child_process";
 import path from "path";
 import fs from "fs";
 
+// Definição do tipo TransactionIsolationLevel para compatibilidade com Prisma 6.6.0
+type TransactionIsolationLevel =
+  | "ReadUncommitted"
+  | "ReadCommitted"
+  | "RepeatableRead"
+  | "Snapshot"
+  | "Serializable";
+
 /**
  * Tipos de eventos de log do Prisma
  */
@@ -541,7 +549,7 @@ export class DatabaseManager {
       timeout?: number; // Timeout em ms (padrão: 30000)
       maxRetries?: number; // Número máximo de retentativas (padrão: 3)
       retryDelay?: number; // Atraso inicial entre retentativas em ms (padrão: 200)
-      isolationLevel?: Prisma.TransactionIsolationLevel; // Nível de isolamento (se suportado)
+      isolationLevel?: TransactionIsolationLevel; // Nível de isolamento (se suportado)
     } = {}
   ): Promise<T> {
     const {
@@ -644,9 +652,10 @@ export class DatabaseManager {
           txOptions.isolationLevel = isolationLevel;
         }
 
+        // CORREÇÃO - Simplificado para deixar o TypeScript inferir os tipos corretamente
         const transactionPromise = this.prisma.$transaction(
           async (prismaTransaction) => {
-            return await fn(prismaTransaction as unknown as PrismaClient);
+            return await fn(prismaTransaction as any);
           },
           txOptions
         );
@@ -939,9 +948,8 @@ export class DatabaseManager {
     // Trunca cada tabela
     for (const { tablename } of tables) {
       if (tablename !== "_prisma_migrations") {
-        await this.prisma.$executeRaw`TRUNCATE TABLE "public"."${Prisma.raw(
-          tablename
-        )}" CASCADE;`;
+        await this.prisma
+          .$executeRaw`TRUNCATE TABLE "public"."${tablename}" CASCADE;`;
       }
     }
 
@@ -964,9 +972,7 @@ export class DatabaseManager {
 
     // Trunca cada tabela
     for (const { TABLE_NAME } of tables) {
-      await this.prisma.$executeRaw`TRUNCATE TABLE \`${Prisma.raw(
-        TABLE_NAME
-      )}\`;`;
+      await this.prisma.$executeRaw`TRUNCATE TABLE \`${TABLE_NAME}\`;`;
     }
 
     // Reabilita checagem de chaves estrangeiras
@@ -988,7 +994,7 @@ export class DatabaseManager {
 
     // Trunca cada tabela
     for (const { name } of tables) {
-      await this.prisma.$executeRaw`DELETE FROM "${Prisma.raw(name)}";`;
+      await this.prisma.$executeRaw`DELETE FROM "${name}";`;
     }
 
     // Reabilita checagem de chaves estrangeiras
