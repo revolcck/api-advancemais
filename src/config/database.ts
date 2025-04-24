@@ -652,7 +652,7 @@ export class DatabaseManager {
           txOptions.isolationLevel = isolationLevel;
         }
 
-        // CORREÇÃO - Simplificado para deixar o TypeScript inferir os tipos corretamente
+        // CORREÇÃO - Usando "as any" para contornar o problema de tipos
         const transactionPromise = this.prisma.$transaction(
           async (prismaTransaction) => {
             return await fn(prismaTransaction as any);
