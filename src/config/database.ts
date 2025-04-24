@@ -1,6 +1,9 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import { env } from "./environment";
 import { logger } from "@/shared/utils/logger.utils";
+import { execSync } from "child_process";
+import path from "path";
+import fs from "fs";
 
 /**
  * Tipos de eventos de log do Prisma
@@ -75,6 +78,7 @@ export class DatabaseManager {
   private static instance: DatabaseManager | null = null;
   private prisma: PrismaClient;
   private isConnected: boolean = false;
+  private isConnecting: boolean = false;
   private connectionAttempts: number = 0;
   private queryEventCallbacks: QueryEventCallbacks = {};
   private lifecycleEvents: DatabaseLifecycleEvents = {};
@@ -86,6 +90,8 @@ export class DatabaseManager {
     avgResponseTime: 0,
     responseTimeAccumulator: 0,
     connectionEstablishedAt: null as Date | null,
+    lastReconnectAt: null as Date | null,
+    reconnectAttempts: 0,
   };
 
   /**
@@ -117,22 +123,60 @@ export class DatabaseManager {
     // Configura os níveis de log com base no ambiente
     const logLevels = this.getLogLevels();
 
-    // Inicializa o cliente Prisma com as configurações
-    this.prisma = new PrismaClient({
-      log: logLevels,
-      datasources: {
-        db: {
-          url: env.databaseUrl,
+    try {
+      // Verifica se os arquivos de cliente Prisma existem
+      this.verifyPrismaClientExists();
+
+      // Inicializa o cliente Prisma com as configurações
+      this.prisma = new PrismaClient({
+        log: logLevels,
+        datasources: {
+          db: {
+            url: env.databaseUrl,
+          },
         },
-      },
-    });
+      });
 
-    // Em versões específicas do Prisma, a configuração do pool pode ser feita de outras formas
-    // Por exemplo, alguns usam variáveis de ambiente como DATABASE_CONNECTION_LIMIT
+      logger.debug("Cliente Prisma inicializado com sucesso");
+    } catch (error) {
+      // Se falhar na primeira tentativa, tenta regenerar
+      logger.warn("Falha ao inicializar PrismaClient, tentando regenerar...", {
+        error: error instanceof Error ? error.message : String(error),
+      });
 
-    // Comentado o código problemático de eventos do Prisma
-    // Se os eventos forem necessários, será necessário verificar a documentação
-    // específica da versão do Prisma para a forma correta de implementação
+      this.regeneratePrismaClient();
+
+      // Tenta novamente após regenerar
+      try {
+        this.prisma = new PrismaClient({
+          log: logLevels,
+          datasources: {
+            db: {
+              url: env.databaseUrl,
+            },
+          },
+        });
+
+        logger.info("PrismaClient regenerado e inicializado com sucesso");
+      } catch (regenerateError) {
+        logger.error(
+          "Falha crítica ao inicializar PrismaClient, mesmo após regeneração",
+          {
+            error:
+              regenerateError instanceof Error
+                ? regenerateError.message
+                : String(regenerateError),
+          }
+        );
+
+        throw new Error(
+          "Não foi possível inicializar o Prisma Client. Verifique se o esquema do Prisma está correto e tente executar 'prisma generate' manualmente."
+        );
+      }
+    }
+
+    // Configurar middleware para capturar queries, caso os eventos não estejam disponíveis
+    this.setupQueryMiddleware();
 
     logger.info("Gerenciador de banco de dados inicializado", {
       poolSize: `${this.options.minConnections}-${this.options.maxConnections}`,
@@ -142,13 +186,134 @@ export class DatabaseManager {
   }
 
   /**
+   * Configura middleware para capturar queries do Prisma
+   * Esta é uma alternativa ao uso de eventos que pode não ser compatível com todas as versões
+   */
+  private setupQueryMiddleware(): void {
+    if (typeof this.prisma.$use === "function") {
+      this.prisma.$use(async (params: any, next: any) => {
+        const startTime = performance.now();
+
+        try {
+          // Executa a operação original
+          const result = await next(params);
+
+          // Calcula duração e registra métricas
+          const duration = performance.now() - startTime;
+
+          if (this.queryEventCallbacks.onQuery) {
+            this.queryEventCallbacks.onQuery(
+              `${params.model}.${params.action}`,
+              params.args || {},
+              duration
+            );
+          }
+
+          if (this.queryEventCallbacks.onSuccess) {
+            this.queryEventCallbacks.onSuccess(
+              `${params.model}.${params.action}`,
+              params.args || {},
+              duration,
+              result
+            );
+          }
+
+          // Registra métrica
+          this.recordQueryMetric({
+            query: `${params.model}.${params.action}`,
+            duration,
+            success: true,
+          });
+
+          return result;
+        } catch (error) {
+          // Calcula duração e registra erro
+          const duration = performance.now() - startTime;
+
+          if (this.queryEventCallbacks.onError) {
+            this.queryEventCallbacks.onError(
+              `${params.model}.${params.action}`,
+              params.args || {},
+              error instanceof Error ? error : new Error(String(error))
+            );
+          }
+
+          // Registra métrica de erro
+          this.recordQueryMetric({
+            query: `${params.model}.${params.action}`,
+            duration,
+            success: false,
+          });
+
+          throw error;
+        }
+      });
+
+      logger.debug("Middleware de queries do Prisma configurado");
+    }
+  }
+
+  /**
+   * Verifica se os arquivos gerados do Prisma Client existem
+   * Útil para diagnóstico de problemas de inicialização
+   */
+  private verifyPrismaClientExists(): void {
+    // Verificamos o arquivo index.js que deve existir nas instalações do Prisma Client
+    const possiblePaths = [
+      path.resolve(process.cwd(), "node_modules/.prisma/client/index.js"),
+      path.resolve(process.cwd(), "node_modules/@prisma/client/index.js"),
+      path.resolve(
+        process.cwd(),
+        "node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/index.js"
+      ),
+    ];
+
+    const foundPath = possiblePaths.find((p) => fs.existsSync(p));
+
+    if (!foundPath) {
+      logger.warn(
+        "Arquivos do Prisma Client não encontrados nos caminhos esperados",
+        {
+          checkedPaths: possiblePaths,
+        }
+      );
+    } else {
+      logger.debug("Arquivos do Prisma Client encontrados", {
+        path: foundPath,
+      });
+    }
+  }
+
+  /**
+   * Tenta regenerar o Prisma Client executando o comando prisma generate
+   */
+  private regeneratePrismaClient(): void {
+    try {
+      logger.info("Tentando regenerar o Prisma Client");
+      execSync("npx prisma generate", { stdio: "inherit" });
+      logger.info("Regeneração do Prisma Client concluída");
+    } catch (error) {
+      logger.error("Falha ao executar 'prisma generate'", {
+        error: error instanceof Error ? error.message : String(error),
+        command: "npx prisma generate",
+      });
+      throw new Error("Falha na regeneração do Prisma Client");
+    }
+  }
+
+  /**
    * Obtém a instância única do gerenciador de banco de dados (Singleton)
    * @param options Opções de configuração do banco de dados
    * @returns Instância única da classe DatabaseManager
    */
   public static getInstance(options: DatabaseOptions = {}): DatabaseManager {
     if (!DatabaseManager.instance) {
-      DatabaseManager.instance = new DatabaseManager(options);
+      try {
+        DatabaseManager.instance = new DatabaseManager(options);
+      } catch (error) {
+        logger.error("Erro fatal ao criar instância do DatabaseManager", error);
+        throw error;
+      }
     }
     return DatabaseManager.instance;
   }
@@ -159,10 +324,10 @@ export class DatabaseManager {
    */
   private getLogLevels(): any[] {
     // Define logs com base no ambiente e nas opções do usuário
-    const levels: PrismaLogLevel[] = this.options.logLevels || [];
+    const levels: PrismaLogLevel[] = [...this.options.logLevels];
 
     // Em desenvolvimento, adiciona logs de consulta por padrão se não especificado
-    if (env.isDevelopment && !this.options.logLevels) {
+    if (env.isDevelopment && !levels.includes("query")) {
       levels.push("query");
     }
 
@@ -172,7 +337,7 @@ export class DatabaseManager {
     }
 
     // Formato simplificado compatível com diferentes versões do Prisma
-    return levels;
+    return levels.map((level) => ({ level, emit: "event" }));
   }
 
   /**
@@ -181,8 +346,8 @@ export class DatabaseManager {
    */
   public onQueryEvents(callbacks: QueryEventCallbacks): void {
     this.queryEventCallbacks = { ...this.queryEventCallbacks, ...callbacks };
-    // Nota: A implementação real dos eventos depende da versão do Prisma
-    // e pode precisar ser ajustada
+
+    logger.debug("Callbacks de eventos de consulta registrados");
   }
 
   /**
@@ -210,6 +375,14 @@ export class DatabaseManager {
       return;
     }
 
+    // Evita tentativas simultâneas de conexão
+    if (this.isConnecting) {
+      logger.debug("Conexão já em andamento, ignorando solicitação duplicada");
+      return;
+    }
+
+    this.isConnecting = true;
+
     try {
       // Notifica evento antes da conexão
       if (this.lifecycleEvents.onBeforeConnect) {
@@ -221,21 +394,14 @@ export class DatabaseManager {
       await this.prisma.$connect();
 
       this.isConnected = true;
+      this.isConnecting = false;
       this.connectionAttempts = 0;
       this.metrics.connectionEstablishedAt = new Date();
 
       logger.info("Conexão com o banco de dados estabelecida com sucesso");
 
       // Verifica a versão do banco de dados para logging
-      try {
-        // Esta query funciona com PostgreSQL e MySQL, pode precisar ajustar para outros DBs
-        const result = await this.prisma.$queryRaw`SELECT version();`;
-        const versionInfo = Array.isArray(result) ? result[0] : result;
-        logger.info("Versão do banco de dados", { version: versionInfo });
-      } catch (error) {
-        // Não interrompe se não conseguir verificar a versão
-        logger.debug("Não foi possível verificar a versão do banco de dados");
-      }
+      this.logDatabaseVersionInfo();
 
       // Notifica evento após conexão bem-sucedida
       if (this.lifecycleEvents.onConnect) {
@@ -243,7 +409,10 @@ export class DatabaseManager {
       }
     } catch (error) {
       this.isConnected = false;
+      this.isConnecting = false;
       this.connectionAttempts++;
+      this.metrics.reconnectAttempts++;
+      this.metrics.lastReconnectAt = new Date();
 
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -285,6 +454,23 @@ export class DatabaseManager {
   }
 
   /**
+   * Obtém e loga informações sobre a versão do banco de dados
+   */
+  private async logDatabaseVersionInfo(): Promise<void> {
+    try {
+      // Esta query funciona com PostgreSQL e MySQL, pode precisar ajustar para outros DBs
+      const result = await this.prisma.$queryRaw`SELECT version();`;
+      const versionInfo = Array.isArray(result) ? result[0] : result;
+      logger.info("Versão do banco de dados", { version: versionInfo });
+    } catch (error) {
+      // Não interrompe se não conseguir verificar a versão
+      logger.debug("Não foi possível verificar a versão do banco de dados", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
    * Calcula o tempo de espera para reconexão usando backoff exponencial
    * @param attempt Número da tentativa atual
    * @returns Tempo de espera em milissegundos
@@ -294,15 +480,13 @@ export class DatabaseManager {
     const baseDelay = this.options.reconnectInterval;
     const maxDelay = 60000; // 1 minuto
     const exponentialDelay = Math.min(
-      baseDelay * Math.pow(2, attempt - 1),
+      baseDelay * Math.pow(1.5, attempt - 1), // Usando 1.5 para crescimento mais suave
       maxDelay
     );
 
-    // Adiciona jitter (variação aleatória) para evitar que múltiplas instâncias tentem
-    // reconectar ao mesmo tempo após uma falha
     const jitter = Math.random() * 0.3 * exponentialDelay;
 
-    return exponentialDelay + jitter;
+    return Math.floor(exponentialDelay + jitter);
   }
 
   /**
@@ -345,38 +529,188 @@ export class DatabaseManager {
 
   /**
    * Executa uma operação no banco de dados dentro de uma transação
+   * com timeout e retry automático para erros transitórios
+   *
    * @param fn Função que contém as operações a serem executadas na transação
+   * @param options Opções adicionais para a transação
    * @returns Promise com o resultado da função executada
    */
   public async transaction<T>(
-    fn: (prisma: PrismaClient) => Promise<T>
+    fn: (prisma: PrismaClient) => Promise<T>,
+    options: {
+      timeout?: number; // Timeout em ms (padrão: 30000)
+      maxRetries?: number; // Número máximo de retentativas (padrão: 3)
+      retryDelay?: number; // Atraso inicial entre retentativas em ms (padrão: 200)
+      isolationLevel?: Prisma.TransactionIsolationLevel; // Nível de isolamento (se suportado)
+    } = {}
   ): Promise<T> {
-    try {
-      logger.debug("Iniciando transação");
+    const {
+      timeout = 30000,
+      maxRetries = 3,
+      retryDelay = 200,
+      isolationLevel,
+    } = options;
 
-      const startTime = performance.now();
-      const result = await this.prisma.$transaction(
-        async (prismaTransaction: Prisma.TransactionClient) => {
-          return await fn(prismaTransaction as PrismaClient);
-        }
+    let attempt = 0;
+
+    // Lista ampliada e categorizada de erros transitórios que podem ser retentados
+    const retryableErrorCodes = {
+      // Erros de conexão
+      connection: [
+        "P1001", // "Can't reach database server"
+        "P1002", // "Database connection timed out"
+        "P1003", // "Database does not exist at {database_file_path}"
+        "P1010", // "User was denied access on the database"
+        "P1011", // "Error opening a TLS connection"
+        "P1017", // "Server closed the connection"
+      ],
+
+      // Erros de timeout
+      timeout: [
+        "P1008", // "Operations timed out"
+        "P2024", // "Timed out fetching a new connection"
+        "P2034", // "Transaction failed due to timeout"
+      ],
+
+      // Erros de concorrência
+      concurrency: [
+        "P2025", // "Record not found" (pode acontecer em condições de corrida)
+        "P2026", // "The current database transaction cannot be aborted"
+        "P2028", // "Transaction api error"
+        "P2029", // "Concurrent write transaction failed"
+        "P2034", // "Transaction failed due to timeout"
+      ],
+
+      // Erros de conexão de pool
+      pool: [
+        "P2021", // "The connection pool failed to establish a connection"
+        "P2022", // "The connection pool was unable to connect to the database"
+        "P2023", // "Inconsistent query result"
+        "P2024", // "Timed out fetching a new connection from the connection pool"
+      ],
+
+      // Erros MySQL específicos
+      mysql: [
+        "40001", // Deadlock
+        "1205", // Lock wait timeout
+        "1213", // Deadlock
+        "1040", // Too many connections
+        "1053", // Server shutdown
+        "2006", // MySQL server has gone away
+        "2013", // Lost connection during query
+      ],
+
+      // Erros PostgreSQL específicos
+      postgres: [
+        "40001", // Serialization failure
+        "40P01", // Deadlock detected
+        "57014", // Query canceled
+        "57P01", // Admin shutdown
+        "57P02", // Crash shutdown
+        "53300", // Too many connections
+        "53400", // Configuration limit exceeded
+        "08003", // Connection does not exist
+        "08006", // Connection failure
+        "08001", // Unable to connect
+        "08004", // Rejected connection
+      ],
+    };
+
+    // Função utilitária para verificar se um código de erro é retentável
+    const isRetryableError = (code: string): boolean => {
+      if (!code) return false;
+
+      // Verificar em todas as categorias
+      return Object.values(retryableErrorCodes).some((category) =>
+        category.includes(code)
       );
+    };
 
-      const duration = Math.round(performance.now() - startTime);
+    // Função de retentativa com backoff exponencial
+    const executeWithRetry = async (): Promise<T> => {
+      attempt++;
 
-      logger.debug(`Transação concluída com sucesso em ${duration}ms`);
-      return result;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      const errorCode = (error as any).code;
+      try {
+        // Configura o timeout da transação
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`Transação excedeu o timeout de ${timeout}ms`));
+          }, timeout);
+        });
 
-      logger.error(`Erro na transação: ${errorMessage}`, {
-        code: errorCode,
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+        // Executa a transação com as opções configuradas
+        const txOptions: any = {};
+        if (isolationLevel) {
+          txOptions.isolationLevel = isolationLevel;
+        }
 
-      throw error;
-    }
+        const transactionPromise = this.prisma.$transaction(
+          async (prismaTransaction) => {
+            return await fn(prismaTransaction as unknown as PrismaClient);
+          },
+          txOptions
+        );
+
+        // Retorna o primeiro que resolver (transação ou timeout)
+        const startTime = performance.now();
+        const result = await Promise.race([transactionPromise, timeoutPromise]);
+        const duration = Math.round(performance.now() - startTime);
+
+        logger.debug(`Transação concluída com sucesso em ${duration}ms`);
+
+        // Registra métrica de query bem-sucedida
+        this.recordQueryMetric({
+          query: "TRANSACTION",
+          duration,
+          success: true,
+        });
+
+        return result;
+      } catch (error) {
+        const errorObj = error as any;
+        const errorCode = errorObj.code || "";
+        const isRetryable = isRetryableError(errorCode);
+
+        // Registra métrica de query falha
+        this.recordQueryMetric({
+          query: "TRANSACTION",
+          duration: 0,
+          success: false,
+        });
+
+        // Verifica se deve tentar novamente
+        if (isRetryable && attempt < maxRetries) {
+          const nextDelay = retryDelay * Math.pow(2, attempt - 1);
+          logger.warn(
+            `Erro retentável na transação: ${errorObj.message}. Tentando novamente em ${nextDelay}ms (tentativa ${attempt})`,
+            {
+              error: errorObj,
+              code: errorCode,
+              attempt,
+              nextDelay,
+            }
+          );
+
+          // Espera antes de tentar novamente
+          await new Promise((resolve) => setTimeout(resolve, nextDelay));
+          return executeWithRetry();
+        }
+
+        // Erro não retentável ou máximo de tentativas atingido
+        logger.error(
+          `Erro na transação (tentativa ${attempt}/${maxRetries}): ${errorObj.message}`,
+          {
+            code: errorCode,
+            stack: errorObj.stack,
+            retryable: isRetryable,
+          }
+        );
+
+        throw error;
+      }
+    };
+
+    return executeWithRetry();
   }
 
   /**
@@ -402,22 +736,87 @@ export class DatabaseManager {
 
       const responseTime = Math.round(performance.now() - startTime);
 
-      // Informações sobre o pool de conexões
+      // Informações sobre o pool de conexões (aproximadas, pois não há API direta no Prisma)
       const connections = {
         current: 1, // Valor padrão quando não consegue obter o número real
         min: this.options.minConnections,
         max: this.options.maxConnections,
       };
 
-      // Tenta obter a versão do banco de dados
-      let version = undefined;
+      // Tenta obter informações adicionais para diferentes bancos
+      let version: string | undefined;
+      let additionalDetails: Record<string, any> = {};
+
       try {
-        const versionResult = await this.prisma.$queryRaw`SELECT version()`;
-        version = Array.isArray(versionResult)
-          ? (versionResult[0] as any).version || String(versionResult[0])
-          : String(versionResult);
+        // Detecta tipo de banco para consultas específicas
+        const databaseType = this.detectDatabaseType();
+
+        switch (databaseType) {
+          case "postgresql":
+            const pgResult = await this.prisma.$queryRaw`
+              SELECT version(), 
+                     (SELECT count(*) FROM pg_stat_activity) as active_connections;
+            `;
+            if (Array.isArray(pgResult) && pgResult.length > 0) {
+              version = pgResult[0].version;
+              connections.current = parseInt(
+                pgResult[0].active_connections,
+                10
+              );
+
+              // Informações adicionais sobre o banco PostgreSQL
+              const pgStats = await this.prisma.$queryRaw`
+                SELECT sum(xact_commit) as commits, 
+                       sum(xact_rollback) as rollbacks,
+                       sum(blks_read) as disk_reads,
+                       sum(blks_hit) as buffer_hits
+                FROM pg_stat_database;
+              `;
+              if (Array.isArray(pgStats) && pgStats.length > 0) {
+                additionalDetails = pgStats[0];
+              }
+            }
+            break;
+
+          case "mysql":
+            const mysqlResult = await this.prisma.$queryRaw`
+              SELECT VERSION() as version, 
+                     (SELECT COUNT(*) FROM information_schema.processlist) as active_connections;
+            `;
+            if (Array.isArray(mysqlResult) && mysqlResult.length > 0) {
+              version = mysqlResult[0].version;
+              connections.current = parseInt(
+                mysqlResult[0].active_connections,
+                10
+              );
+
+              // Status global para MySQL
+              const mysqlStats = await this.prisma.$queryRaw`
+                SHOW GLOBAL STATUS WHERE Variable_name IN 
+                ('Queries', 'Slow_queries', 'Threads_connected', 'Uptime');
+              `;
+              if (Array.isArray(mysqlStats)) {
+                const statsMap: Record<string, any> = {};
+                for (const row of mysqlStats) {
+                  statsMap[row.Variable_name] = row.Value;
+                }
+                additionalDetails = statsMap;
+              }
+            }
+            break;
+
+          default:
+            // Fallback genérico
+            const genericResult = await this.prisma.$queryRaw`SELECT version()`;
+            version = Array.isArray(genericResult)
+              ? (genericResult[0] as any).version || String(genericResult[0])
+              : String(genericResult);
+        }
       } catch (e) {
-        // Ignora erro ao tentar obter a versão
+        // Ignora erro ao tentar obter informações adicionais
+        logger.debug("Não foi possível obter informações detalhadas do banco", {
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
 
       return {
@@ -437,6 +836,9 @@ export class DatabaseManager {
           failedQueries: this.metrics.failedQueries,
           slowQueries: this.metrics.slowQueries,
           avgResponseTime: Math.round(this.metrics.avgResponseTime),
+          reconnects: this.metrics.reconnectAttempts,
+          lastReconnect: this.metrics.lastReconnectAt,
+          ...additionalDetails,
         },
       };
     } catch (error) {
@@ -461,6 +863,23 @@ export class DatabaseManager {
   }
 
   /**
+   * Tenta detectar o tipo de banco de dados com base na URL
+   */
+  private detectDatabaseType(): string {
+    const url = env.databaseUrl.toLowerCase();
+    if (url.includes("postgresql") || url.includes("postgres")) {
+      return "postgresql";
+    } else if (url.includes("mysql")) {
+      return "mysql";
+    } else if (url.includes("sqlite")) {
+      return "sqlite";
+    } else if (url.includes("sqlserver") || url.includes("mssql")) {
+      return "sqlserver";
+    }
+    return "unknown";
+  }
+
+  /**
    * Limpa todas as tabelas do banco de dados (apenas para ambiente de teste)
    * @throws Erro se tentar executar em ambiente diferente de teste
    */
@@ -477,27 +896,24 @@ export class DatabaseManager {
         "Limpando todas as tabelas do banco de dados (ambiente de teste)"
       );
 
-      // Método para limpar o banco varia de acordo com o tipo de banco
-      // Esta implementação assume PostgreSQL, ajuste conforme necessário
+      // Detecta o tipo de banco para definir o método de limpeza
+      const databaseType = this.detectDatabaseType();
 
-      // Desabilita checagem de chaves estrangeiras temporariamente
-      await this.prisma.$executeRaw`SET session_replication_role = 'replica';`;
-
-      // Obtém lista de tabelas
-      const tables = await this.prisma.$queryRaw<Array<{ tablename: string }>>`
-        SELECT tablename FROM pg_tables WHERE schemaname = 'public';
-      `;
-
-      // Trunca cada tabela
-      for (const { tablename } of tables) {
-        if (tablename !== "_prisma_migrations") {
-          await this.prisma
-            .$executeRaw`TRUNCATE TABLE "public"."${tablename}" CASCADE;`;
-        }
+      switch (databaseType) {
+        case "postgresql":
+          await this.clearPostgreSQLDatabase();
+          break;
+        case "mysql":
+          await this.clearMySQLDatabase();
+          break;
+        case "sqlite":
+          await this.clearSQLiteDatabase();
+          break;
+        default:
+          throw new Error(
+            `Método de limpeza não implementado para ${databaseType}`
+          );
       }
-
-      // Reabilita checagem de chaves estrangeiras
-      await this.prisma.$executeRaw`SET session_replication_role = 'origin';`;
 
       logger.warn("Banco de dados limpo com sucesso");
     } catch (error) {
@@ -506,6 +922,77 @@ export class DatabaseManager {
       logger.error(`Erro ao limpar banco de dados: ${errorMessage}`);
       throw error;
     }
+  }
+
+  /**
+   * Limpa banco PostgreSQL
+   */
+  private async clearPostgreSQLDatabase(): Promise<void> {
+    // Desabilita checagem de chaves estrangeiras temporariamente
+    await this.prisma.$executeRaw`SET session_replication_role = 'replica';`;
+
+    // Obtém lista de tabelas
+    const tables = await this.prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename FROM pg_tables WHERE schemaname = 'public';
+    `;
+
+    // Trunca cada tabela
+    for (const { tablename } of tables) {
+      if (tablename !== "_prisma_migrations") {
+        await this.prisma.$executeRaw`TRUNCATE TABLE "public"."${Prisma.raw(
+          tablename
+        )}" CASCADE;`;
+      }
+    }
+
+    // Reabilita checagem de chaves estrangeiras
+    await this.prisma.$executeRaw`SET session_replication_role = 'origin';`;
+  }
+
+  /**
+   * Limpa banco MySQL
+   */
+  private async clearMySQLDatabase(): Promise<void> {
+    // Desabilita checagem de chaves estrangeiras temporariamente
+    await this.prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 0;`;
+
+    // Obtém lista de tabelas
+    const tables = await this.prisma.$queryRaw<Array<{ TABLE_NAME: string }>>`
+      SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME != '_prisma_migrations';
+    `;
+
+    // Trunca cada tabela
+    for (const { TABLE_NAME } of tables) {
+      await this.prisma.$executeRaw`TRUNCATE TABLE \`${Prisma.raw(
+        TABLE_NAME
+      )}\`;`;
+    }
+
+    // Reabilita checagem de chaves estrangeiras
+    await this.prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 1;`;
+  }
+
+  /**
+   * Limpa banco SQLite
+   */
+  private async clearSQLiteDatabase(): Promise<void> {
+    // Desabilita checagem de chaves estrangeiras temporariamente
+    await this.prisma.$executeRaw`PRAGMA foreign_keys = OFF;`;
+
+    // Obtém lista de tabelas
+    const tables = await this.prisma.$queryRaw<Array<{ name: string }>>`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name != '_prisma_migrations' AND name != 'sqlite_sequence';
+    `;
+
+    // Trunca cada tabela
+    for (const { name } of tables) {
+      await this.prisma.$executeRaw`DELETE FROM "${Prisma.raw(name)}";`;
+    }
+
+    // Reabilita checagem de chaves estrangeiras
+    await this.prisma.$executeRaw`PRAGMA foreign_keys = ON;`;
   }
 
   /**
@@ -555,12 +1042,14 @@ export const prisma = db.getClient();
 /**
  * Função de utilitário para executar uma operação em transação
  * @param fn Função que contém as operações a serem executadas na transação
+ * @param options Opções para a transação
  * @returns Promise com o resultado da função executada
  */
 export async function withTransaction<T>(
-  fn: (prisma: PrismaClient) => Promise<T>
+  fn: (prisma: PrismaClient) => Promise<T>,
+  options?: Parameters<typeof db.transaction>[1]
 ): Promise<T> {
-  return db.transaction(fn);
+  return db.transaction(fn, options);
 }
 
 /**

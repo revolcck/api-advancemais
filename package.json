@@ -4,7 +4,7 @@
   "description": "",
   "main": "dist/server.js",
   "scripts": {
-    "start": "node dist/server.js",
+    "start": "prisma generate && node dist/server.js",
     "dev": "prisma generate && nodemon --exec ts-node -r tsconfig-paths/register --transpile-only src/server.ts",
     "build": "prisma generate && rimraf dist && tsc && tsc-alias",
     "prisma:generate": "prisma generate",
@@ -13,7 +13,8 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
