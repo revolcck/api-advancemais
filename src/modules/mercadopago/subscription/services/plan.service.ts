@@ -432,7 +432,7 @@ export class PlanService implements IPlanService {
 
       logger.debug(`Encontrados ${plans.length} planos de assinatura`);
 
-      // Transformar em DTOs de resposta
+      // Transformar em DTOs de resposta - AQUI É ONDE O ERRO ESTAVA
       return plans.map((plan: PrismaSubscriptionPlan) => ({
         id: plan.id,
         name: plan.name,
