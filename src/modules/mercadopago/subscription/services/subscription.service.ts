@@ -2,7 +2,6 @@ import axios from "axios";
 import { logger } from "@/shared/utils/logger.utils";
 import { mercadoPagoConfig } from "../../core/config/mercadopago.config";
 import { prisma } from "@/config/database";
-// Importamos dos nossos próprios tipos em vez do Prisma
 import { SubscriptionStatus, PaymentStatus } from "../../types/prisma-enums";
 import { MercadoPagoPaymentStatus } from "../../dto/payment.dto";
 import { AuditService } from "@/shared/services/audit.service";
@@ -92,17 +91,13 @@ export class SubscriptionService implements ISubscriptionService {
         throw new ValidationError("Usuário não encontrado");
       }
 
-      // Determina o email e nome conforme o tipo de usuário
+      // Determina o email para o payer
       const email = user.email;
-      const name =
-        user.userType === "PESSOA_FISICA"
-          ? user.personalInfo?.name
-          : user.companyInfo?.companyName;
 
       // Prepara dados de cobrança recorrente
       const recurring: RecurringData = {
         frequency: this.getFrequencyValue(plan.interval),
-        frequency_type: this.getFrequencyType(plan.interval),
+        frequency_type: this.getFrequencyType(),
         transaction_amount: Number(plan.price),
         currency_id: "BRL",
       };
@@ -816,12 +811,12 @@ export class SubscriptionService implements ISubscriptionService {
   }
 
   /**
-   * Converte o intervalo de cobrança para tipo de frequência
+   * Retorna o tipo de frequência para cobrança
+   * Todos os intervalos suportados são em meses
    */
-  private getFrequencyType(interval: string): "days" | "months" {
-    return "months"; // Todos os intervalos suportados são em meses
+  private getFrequencyType(): "days" | "months" {
+    return "months";
   }
 }
 
-// Exporta instância do serviço para uso global
 export const subscriptionService = new SubscriptionService();

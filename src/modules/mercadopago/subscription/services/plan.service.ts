@@ -6,7 +6,6 @@ import {
   ValidationError,
   ServiceUnavailableError,
 } from "@/shared/errors/AppError";
-// Importamos dos nossos próprios tipos em vez do Prisma
 import { SubscriptionPlan, BillingInterval } from "../../types/prisma-enums";
 import {
   CreatePlanDTO,
@@ -49,7 +48,6 @@ export class PlanService implements IPlanService {
         price: data.price,
         description: data.description,
         features: data.features,
-        // Corrigido: Usar tipagem compatível com o Prisma
         interval: (data.interval || BillingInterval.MONTHLY) as string,
         intervalCount: data.intervalCount || 1,
         trialDays: data.trialDays,
@@ -291,7 +289,6 @@ export class PlanService implements IPlanService {
         if (filter.name) where.name = { contains: filter.name };
         if (filter.isActive !== undefined) where.isActive = filter.isActive;
         if (filter.isPopular !== undefined) where.isPopular = filter.isPopular;
-        // Corrigido: tratamento do intervalo como string
         if (filter.interval) where.interval = filter.interval as string;
 
         // Filtros de preço min/max
@@ -359,7 +356,6 @@ export class PlanService implements IPlanService {
       price: Number(plan.price),
       description: plan.description,
       features: plan.features as Record<string, any>,
-      // Corrigido: garantir conversão para o tipo esperado pelo DTO
       interval: plan.interval as BillingInterval,
       intervalCount: plan.intervalCount,
       trialDays: plan.trialDays,

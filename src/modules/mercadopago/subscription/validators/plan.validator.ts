@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { BillingInterval } from "@prisma/client";
+import { BillingInterval } from "../../types/prisma-enums";
 
 /**
  * Schema para validação de criação de plano de assinatura
