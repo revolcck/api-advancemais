@@ -1,7 +1,6 @@
 /**
- * Script de build para ambiente de produção
- * Resolve o problema "command not found" no Render usando npx
- * Versão atualizada para resolver problemas do Prisma
+ * Script de build otimizado para ambiente do Render
+ * Resolve problemas comuns de compilação e problemas do Prisma
  */
 const { execSync } = require("child_process");
 const fs = require("fs");
@@ -21,8 +20,10 @@ const colors = {
  * Executa um comando com output para o console
  * @param {string} command - Comando a ser executado
  * @param {string} label - Rótulo para identificação do comando
+ * @param {boolean} exitOnError - Se deve encerrar o processo em caso de erro
+ * @returns {boolean} - Se o comando foi executado com sucesso
  */
-function executeCommand(command, label) {
+function executeCommand(command, label, exitOnError = true) {
   console.log(`${colors.bright}${colors.blue}==> ${label}${colors.reset}`);
   try {
     execSync(command, { stdio: "inherit" });
@@ -35,13 +36,19 @@ function executeCommand(command, label) {
       `${colors.bright}${colors.red}✗ Erro ao executar ${label}${colors.reset}`
     );
     console.error(`${colors.red}${error.message}${colors.reset}\n`);
+
+    if (exitOnError) {
+      process.exit(1);
+    }
+
     return false;
   }
 }
 
 /**
- * Verifica se um arquivo ou diretório existe
- * @param {string} path - Caminho a ser verificado
+ * Verifica se um arquivo ou diretório existe e cria se necessário
+ * @param {string} filePath - Caminho a ser verificado
+ * @param {boolean} isDirectory - Se é um diretório
  */
 function ensureExists(filePath, isDirectory = false) {
   try {
@@ -72,6 +79,7 @@ function ensureExists(filePath, isDirectory = false) {
 
 /**
  * Copia o loader para o diretório de build
+ * @returns {boolean} - Se a operação foi concluída com sucesso
  */
 function copyPrismaLoader() {
   const sourceFile = path.join(process.cwd(), "scripts", "prisma-loader.js");
@@ -98,18 +106,43 @@ function copyPrismaLoader() {
   }
 }
 
-// Banner de início
-console.log(`
-${colors.bright}${colors.blue}=====================================
-      BUILD DE PRODUÇÃO INICIADO
-=====================================
-${colors.reset}
-`);
+/**
+ * Atualiza o arquivo TSConfig para incluir configurações que evitam problemas comuns
+ */
+function updateTsConfig() {
+  const tsConfigPath = path.join(process.cwd(), "tsconfig.json");
 
-// Inicia o processo de build
-(async function () {
-  // Passo 0: Verifica se o arquivo prisma-loader.js existe
+  try {
+    if (fs.existsSync(tsConfigPath)) {
+      const tsConfig = JSON.parse(fs.readFileSync(tsConfigPath, "utf8"));
+
+      // Atualiza configurações para resolver problemas de importação
+      tsConfig.compilerOptions = {
+        ...tsConfig.compilerOptions,
+        skipLibCheck: true,
+        resolveJsonModule: true,
+        esModuleInterop: true,
+        // Adiciona opções adicionais se necessário
+      };
+
+      fs.writeFileSync(tsConfigPath, JSON.stringify(tsConfig, null, 2));
+      console.log(
+        `${colors.bright}${colors.green}✓ TSConfig atualizado com sucesso${colors.reset}\n`
+      );
+    }
+  } catch (error) {
+    console.error(
+      `${colors.bright}${colors.red}✗ Erro ao atualizar TSConfig: ${error.message}${colors.reset}\n`
+    );
+  }
+}
+
+/**
+ * Cria um arquivo Prisma loader personalizado se não existir
+ */
+function createPrismaLoader() {
   const loaderPath = path.join(process.cwd(), "scripts", "prisma-loader.js");
+
   if (!fs.existsSync(loaderPath)) {
     console.log(
       `${colors.bright}${colors.yellow}⚠️ Arquivo prisma-loader.js não encontrado, criando...${colors.reset}\n`
@@ -198,43 +231,46 @@ module.exports = {
     console.log(
       `${colors.bright}${colors.green}✓ Arquivo prisma-loader.js criado com sucesso${colors.reset}\n`
     );
+
+    return true;
   }
 
+  return false;
+}
+
+// Banner de início
+console.log(`
+${colors.bright}${colors.blue}=====================================
+      BUILD DE PRODUÇÃO OTIMIZADO
+=====================================
+${colors.reset}
+`);
+
+// Inicia o processo de build
+(async function () {
+  // Passo 0: Cria e configura o prisma-loader.js
+  createPrismaLoader();
+
+  // Passo 0.5: Atualiza o tsconfig.json
+  updateTsConfig();
+
   // Passo 1: Gerar cliente Prisma
-  const prismaGenerated = executeCommand(
-    "npx prisma generate",
-    "Geração do Prisma Client"
-  );
-  if (!prismaGenerated) process.exit(1);
+  executeCommand("npx prisma generate", "Geração do Prisma Client");
 
   // Passo 2: Limpar pasta dist
-  const distCleaned = executeCommand(
-    "npx rimraf dist",
-    "Limpeza da pasta dist"
-  );
-  if (!distCleaned) process.exit(1);
+  executeCommand("npx rimraf dist", "Limpeza da pasta dist");
 
   // Passo 3: Executar script de correção do Prisma
-  const prismaFixed = executeCommand(
-    "node scripts/fix-prisma.js",
-    "Correção do Prisma Client"
-  );
-  if (!prismaFixed) process.exit(1);
+  executeCommand("node scripts/fix-prisma.js", "Correção do Prisma Client");
 
   // Passo 4: Compilar TypeScript
-  const tsCompiled = executeCommand("npx tsc", "Compilação do TypeScript");
-  if (!tsCompiled) process.exit(1);
+  executeCommand("npx tsc", "Compilação do TypeScript");
 
   // Passo 5: Processar alias de importação
-  const aliasProcessed = executeCommand(
-    "npx tsc-alias",
-    "Processamento de alias de importação"
-  );
-  if (!aliasProcessed) process.exit(1);
+  executeCommand("npx tsc-alias", "Processamento de alias de importação");
 
   // Passo 6: Copiar o prisma-loader.js para a pasta dist
-  const loaderCopied = copyPrismaLoader();
-  if (!loaderCopied) process.exit(1);
+  copyPrismaLoader();
 
   // Conclusão do build
   console.log(`

@@ -2,7 +2,30 @@ import { prisma } from "@/config/database";
 import { HashUtils } from "@/shared/utils/hash.utils";
 import { ConflictError, ValidationError } from "@/shared/errors/AppError";
 import { logger } from "@/shared/utils/logger.utils";
-import { PrismaClient, Prisma } from "@prisma/client";
+
+/**
+ * Interface para o cliente Prisma em transação
+ * Definimos apenas os métodos que utilizamos dentro das transações
+ */
+interface PrismaTransaction {
+  user: {
+    create: Function;
+    findUnique: Function;
+    update: Function;
+  };
+  personalInfo: {
+    create: Function;
+  };
+  companyInfo: {
+    create: Function;
+  };
+  address: {
+    create: Function;
+  };
+  role: {
+    findFirst: Function;
+  };
+}
 
 // Define enumerações correspondentes ao schema.prisma
 enum Gender {
@@ -262,6 +285,8 @@ export class UserService {
       const cpf = data.cpf.replace(/\D/g, "");
 
       // Cria o usuário com transação para garantir consistência
+      // Utilizamos 'any' temporariamente para o parâmetro tx
+      // Em uma implementação ideal, importaríamos o tipo correto do Prisma
       const result = await prisma.$transaction(async (tx: any) => {
         // Cria o usuário base
         const user = await tx.user.create({
@@ -276,7 +301,7 @@ export class UserService {
         });
 
         // Cria informações pessoais
-        const personalInfo = await tx.personalInfo.create({
+        await tx.personalInfo.create({
           data: {
             name: data.name,
             cpf,
@@ -354,52 +379,54 @@ export class UserService {
       const cnpj = data.cnpj.replace(/\D/g, "");
 
       // Cria o usuário com transação para garantir consistência
-      const result = await prisma.$transaction(async (tx: any) => {
-        // Cria o usuário base
-        const user = await tx.user.create({
-          data: {
-            email: data.email,
-            password: hashedPassword,
-            userType: UserType.PESSOA_JURIDICA,
-            matricula,
-            roleId,
-            isActive: true,
-          },
-        });
-
-        // Cria informações da empresa
-        const companyInfo = await tx.companyInfo.create({
-          data: {
-            companyName: data.companyName,
-            tradeName: data.tradeName,
-            legalName: data.legalName,
-            cnpj,
-            phone: data.phone,
-            website: data.website,
-            userId: user.id,
-          },
-        });
-
-        // Cria endereço se informado
-        if (data.address) {
-          await tx.address.create({
+      const result = await prisma.$transaction(
+        async (tx: PrismaTransaction) => {
+          // Cria o usuário base
+          const user = await tx.user.create({
             data: {
-              ...data.address,
+              email: data.email,
+              password: hashedPassword,
+              userType: UserType.PESSOA_JURIDICA,
+              matricula,
+              roleId,
+              isActive: true,
+            },
+          });
+
+          // Cria informações da empresa
+          await tx.companyInfo.create({
+            data: {
+              companyName: data.companyName,
+              tradeName: data.tradeName,
+              legalName: data.legalName,
+              cnpj,
+              phone: data.phone,
+              website: data.website,
               userId: user.id,
             },
           });
-        }
 
-        // Retorna usuário com suas informações
-        return await tx.user.findUnique({
-          where: { id: user.id },
-          include: {
-            role: true,
-            companyInfo: true,
-            address: true,
-          },
-        });
-      });
+          // Cria endereço se informado
+          if (data.address) {
+            await tx.address.create({
+              data: {
+                ...data.address,
+                userId: user.id,
+              },
+            });
+          }
+
+          // Retorna usuário com suas informações
+          return await tx.user.findUnique({
+            where: { id: user.id },
+            include: {
+              role: true,
+              companyInfo: true,
+              address: true,
+            },
+          });
+        }
+      );
 
       logger.info(
         `Usuário pessoa jurídica criado com sucesso: ${result?.email}`
