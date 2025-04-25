@@ -1,0 +1,46 @@
+services:
+  # API principal
+  - type: web
+    name: api-advancemais
+    env: node
+    plan: starter # Ajuste conforme necessário
+    buildCommand: node scripts/build.js
+    startCommand: node dist/server.js
+    nodeVersion: 18.x # Versão mais estável (ajuste conforme necessário)
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false # Segredo - deve ser configurado manualmente no dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_ENABLED
+        value: true
+      - key: REDIS_HOST
+        fromService:
+          name: redis-advancemais
+          type: redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          name: redis-advancemais
+          type: redis
+          property: port
+      - key: REDIS_PASSWORD
+        fromService:
+          name: redis-advancemais
+          type: redis
+          property: password
+      # Adicione outras variáveis de ambiente conforme necessário
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # Redis para cache e sessões
+  - type: redis
+    name: redis-advancemais
+    ipAllowList: # Especifique os IPs permitidos ou use ["0.0.0.0/0"] para todos
+      - source: 0.0.0.0/0
+        description: everywhere
+    plan: free # Ajuste conforme necessário
