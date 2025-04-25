@@ -1,4 +1,5 @@
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { env } from "./environment";
 import { logger } from "@/shared/utils/logger.utils";
 import { execSync } from "child_process";
@@ -274,6 +275,10 @@ export class DatabaseManager {
         process.cwd(),
         "node_modules/.pnpm/@prisma+client*/node_modules/.prisma/client/index.js"
       ),
+      path.resolve(
+        process.cwd(),
+        "prisma/node_modules/.prisma/client/index.js"
+      ), // Caminho adicional para verificar
     ];
 
     const foundPath = possiblePaths.find((p) => fs.existsSync(p));
@@ -652,11 +657,9 @@ export class DatabaseManager {
           txOptions.isolationLevel = isolationLevel;
         }
 
-        // CORREÇÃO - Usando "as any" para contornar o problema de tipos
+        // Corrigido: usando um tipo mais seguro para evitar erros de tipo
         const transactionPromise = this.prisma.$transaction(
-          async (prismaTransaction) => {
-            return await fn(prismaTransaction as any);
-          },
+          (prismaTransaction) => fn(prismaTransaction as PrismaClient),
           txOptions
         );
 
