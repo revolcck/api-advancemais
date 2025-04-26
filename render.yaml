@@ -4,7 +4,7 @@ services:
     name: api-advancemais
     env: node
     plan: starter # Mantendo o plano original
-    buildCommand: npm install && node scripts/render-prisma-setup.js && node scripts/build.js
+    buildCommand: node scripts/render-deploy.js && npm run build
     startCommand: node dist/server.js
     nodeVersion: 18.x # Mantendo a versão original do Node
     envVars:
@@ -33,7 +33,7 @@ services:
           name: redis-advancemais
           type: redis
           property: password
-      # Outras variáveis de ambiente necessárias para Brevo e MercadoPago
+      # Outras variáveis de ambiente necessárias
       - key: BREVO_API_KEY
         sync: false
       - key: BREVO_SENDER_EMAIL
@@ -52,7 +52,7 @@ services:
   # Redis para cache e sessões
   - type: redis
     name: redis-advancemais
-    ipAllowList: # Especifique os IPs permitidos ou use ["0.0.0.0/0"] para todos
+    ipAllowList:
       - source: 0.0.0.0/0
         description: everywhere
-    plan: free # Mantendo o plano original
+    plan: free
