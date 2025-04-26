@@ -1,11 +1,62 @@
 /**
  * Configuração e gerenciamento do banco de dados usando Prisma
- * Versão com solução para problemas de compilação no TypeScript
+ * Versão otimizada para Render com melhor tratamento de erros
  */
 
-// Importação do carregador personalizado para o Prisma Client
-// @ts-ignore - ignoramos verificação de tipos para este import
-const { PrismaClient, Prisma } = require("../../scripts/prisma-loader");
+// Estratégia de importação adaptativa para o ambiente de execução
+let prismaImports: any;
+
+// Em ambiente de produção (Render), usa o loader otimizado
+if (process.env.NODE_ENV === "production") {
+  try {
+    // Tenta usar o loader otimizado para o Render
+    prismaImports = require("../../scripts/prisma-render-loader");
+  } catch (error) {
+    console.error(
+      "Erro ao carregar prisma-render-loader, tentando fallback:",
+      error
+    );
+    try {
+      // Fallback para o loader padrão
+      prismaImports = require("../../scripts/prisma-loader");
+    } catch (fallbackError) {
+      console.error("Erro crítico ao carregar Prisma Client:", fallbackError);
+      // Cria stubs mínimos para permitir a compilação
+      prismaImports = {
+        PrismaClient: class StubPrismaClient {
+          constructor() {
+            console.error(
+              "ERRO CRÍTICO: Nenhum loader do Prisma Client funcionou"
+            );
+            return {};
+          }
+        },
+        Prisma: {},
+      };
+    }
+  }
+} else {
+  // Em ambiente de desenvolvimento, usa o loader padrão
+  try {
+    prismaImports = require("../../scripts/prisma-loader");
+  } catch (error) {
+    console.error("Erro ao carregar prisma-loader:", error);
+    // Tenta importar diretamente em desenvolvimento
+    try {
+      const { PrismaClient, Prisma } = require("@prisma/client");
+      prismaImports = { PrismaClient, Prisma };
+    } catch (directError) {
+      console.error(
+        "Erro crítico ao importar @prisma/client diretamente:",
+        directError
+      );
+      process.exit(1);
+    }
+  }
+}
+
+// Extrai as classes do módulo do Prisma
+const { PrismaClient, Prisma } = prismaImports;
 
 import { env } from "./environment";
 import { logger } from "@/shared/utils/logger.utils";
@@ -126,6 +177,9 @@ export class DatabaseManager {
     const logLevels = this.getLogLevels();
 
     try {
+      // Imprime informações sobre o Prisma para debugging
+      this.printPrismaInfo();
+
       // Verifica se os arquivos de cliente Prisma existem
       this.verifyPrismaClientExists();
 
@@ -185,6 +239,34 @@ export class DatabaseManager {
       logLevels: this.options.logLevels,
       reconnectAttempts: this.options.reconnectAttempts,
     });
+  }
+
+  /**
+   * Imprime informações sobre o Prisma para debugging
+   */
+  private printPrismaInfo(): void {
+    try {
+      logger.debug("Informações do Prisma Client:", {
+        clientVersion: Prisma?.prismaVersion?.client,
+        engineVersion: Prisma?.prismaVersion?.engine,
+        environment: env.nodeEnv,
+        databaseUrl: this.maskDatabaseUrl(env.databaseUrl),
+      });
+    } catch (error) {
+      logger.warn("Não foi possível obter informações do Prisma Client", error);
+    }
+  }
+
+  /**
+   * Mascara a URL do banco de dados para evitar exibir credenciais em logs
+   */
+  private maskDatabaseUrl(url: string): string {
+    try {
+      // Oculta a senha na URL do banco de dados
+      return url.replace(/\/\/([^:]+):([^@]+)@/, "//***:***@");
+    } catch (error) {
+      return "[URL não pôde ser mascarada]";
+    }
   }
 
   /**

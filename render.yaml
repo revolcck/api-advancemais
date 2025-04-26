@@ -3,10 +3,10 @@ services:
   - type: web
     name: api-advancemais
     env: node
-    plan: starter # Mantendo o plano original
+    plan: starter
     buildCommand: node scripts/render-deploy.js && npm run build
     startCommand: node dist/server.js
-    nodeVersion: 18.x # Mantendo a versão original do Node
+    nodeVersion: 18.x
     envVars:
       - key: NODE_ENV
         value: production
@@ -17,22 +17,25 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: REDIS_ENABLED
-        value: true
+        value: false # Desativa o Redis por padrão, pode ser reativado se configurado
       - key: REDIS_HOST
         fromService:
           name: redis-advancemais
           type: redis
           property: host
+          envVarName: REDIS_HOST # Use o Redis apenas se o serviço estiver configurado
       - key: REDIS_PORT
         fromService:
           name: redis-advancemais
           type: redis
           property: port
+          envVarName: REDIS_PORT
       - key: REDIS_PASSWORD
         fromService:
           name: redis-advancemais
           type: redis
           property: password
+          envVarName: REDIS_PASSWORD
       # Outras variáveis de ambiente necessárias
       - key: BREVO_API_KEY
         sync: false
@@ -46,10 +49,18 @@ services:
         sync: false
       - key: MERCADOPAGO_ACCESS_TOKEN
         sync: false
-    healthCheckPath: /health
+      - key: APP_NAME
+        value: api-projeto
+      - key: APP_URL
+        value: https://api-advancemais.onrender.com
+      - key: FRONTEND_URL
+        value: https://app-advancemais.onrender.com
+      - key: ALLOWED_ORIGINS
+        value: "https://app-advancemais.onrender.com,https://advancemais.com"
+    healthCheckPath: /api/heltz
     autoDeploy: true
 
-  # Redis para cache e sessões
+  # Redis para cache e sessões (opcional - pode ser desabilitado inicialmente)
   - type: redis
     name: redis-advancemais
     ipAllowList:

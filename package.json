@@ -4,10 +4,10 @@
   "description": "",
   "main": "dist/server.js",
   "scripts": {
-    "start": "prisma generate && node dist/server.js",
+    "start": "node dist/server.js",
     "dev": "prisma generate && nodemon --exec ts-node -r tsconfig-paths/register --transpile-only src/server.ts",
-    "build": "node scripts/build.js && node scripts/render-prisma-setup.js",
-    "fix:prisma": "node ./scripts/fix-prisma.js",
+    "build": "rimraf dist && prisma generate && tsc && tsc-alias",
+    "build:render": "node scripts/render-deploy.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
@@ -27,13 +27,15 @@
     "@prisma/client": "^6.6.0",
     "axios": "^1.8.4",
     "bcryptjs": "^3.0.2",
-    "chalk": "^5.4.1",
+    "chalk": "^4.1.2",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
     "express-async-errors": "^3.1.1",
     "express-rate-limit": "^7.5.0",
+    "find-up": "^5.0.0",
+    "glob": "^8.1.0",
     "helmet": "^8.1.0",
     "joi": "^17.13.3",
     "jose": "^6.0.10",
@@ -63,6 +65,9 @@
     "tsc-alias": "^1.8.15",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18.x"
   },
   "pnpm": {
     "overrides": {

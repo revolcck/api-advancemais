@@ -137,8 +137,19 @@ class Server {
    * Inicia o servidor HTTP
    */
   private startHttpServer(): void {
-    this.server = this.app.listen(env.port, () => {
-      logger.info(`🚀 Servidor rodando em http://localhost:${env.port}`);
+    // Garante que a porta está definida e é um número
+    const port = Number(env.port) || Number(process.env.PORT) || 3000;
+
+    // Validação e log explícito da porta
+    if (isNaN(port)) {
+      logger.error("Porta inválida, usando porta 3000 como fallback");
+    }
+
+    logger.info(`📡 Configurando servidor para escutar na porta ${port}`);
+
+    // Inicia o servidor na porta especificada
+    this.server = this.app.listen(port, () => {
+      logger.info(`🚀 Servidor rodando em http://localhost:${port}`);
       logger.info(`🌎 Ambiente: ${env.nodeEnv}`);
 
       // Registra métricas iniciais
@@ -150,11 +161,28 @@ class Server {
           heapUsed: `${(memUsage.heapUsed / 1024 / 1024).toFixed(2)} MB`,
         },
         cpu: process.cpuUsage(),
+        portConfig: {
+          envPort: env.port,
+          processEnvPort: process.env.PORT,
+          actualPort: port,
+        },
       });
     });
 
     // Configura timeout do servidor
     this.server.timeout = 30000; // 30 segundos
+
+    // Adiciona listener para erros de inicialização de servidor
+    this.server.on("error", (error: any) => {
+      if (error.code === "EADDRINUSE") {
+        logger.error(
+          `❌ A porta ${port} já está em uso. Não foi possível iniciar o servidor.`
+        );
+      } else {
+        logger.error("❌ Erro ao iniciar o servidor:", error);
+      }
+      process.exit(1);
+    });
   }
 
   /**

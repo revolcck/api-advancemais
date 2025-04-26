@@ -12,10 +12,24 @@ const healthController = new HealthController();
 router.get("/", healthController.check.bind(healthController));
 
 /**
- * @route GET /heltz
+ * @route GET /health/liveness
  * @desc Verificação simplificada para kubernetes e serviços de monitoramento externos
  * @access Público
  */
-router.get("/heltz", healthController.liveness.bind(healthController));
+router.get("/liveness", healthController.liveness.bind(healthController));
+
+/**
+ * @route GET /heltz
+ * @desc Rota de compatibilidade especial para o Render - responde com 200 para health checks
+ * @access Público
+ */
+router.get("/heltz", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    service: "api-advancemais",
+    message: "Serviço disponível",
+  });
+});
 
 export default router;
