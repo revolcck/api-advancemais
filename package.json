@@ -6,7 +6,7 @@
   "scripts": {
     "start": "prisma generate && node dist/server.js",
     "dev": "prisma generate && nodemon --exec ts-node -r tsconfig-paths/register --transpile-only src/server.ts",
-    "build": "node scripts/build.js",
+    "build": "node scripts/build.js && node scripts/render-prisma-setup.js",
     "fix:prisma": "node ./scripts/fix-prisma.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -15,7 +15,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "seed": "ts-node prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "render:setup": "node scripts/render-prisma-setup.js"
   },
   "keywords": [],
   "author": "",
