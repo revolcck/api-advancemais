@@ -1,8 +1,13 @@
+/**
+ * Serviço para gerenciamento de planos de assinatura
+ */
 import { logger } from "@/shared/utils/logger.utils";
 import { prisma } from "@/config/database";
 import { AuditService } from "@/shared/services/audit.service";
 import { BillingInterval } from "../../types/prisma-enums";
-import { Prisma } from "@prisma/client"; // Importação corrigida
+// Removida a importação problemática: import { Prisma } from "@prisma/client";
+// Importamos o namespace Prisma do nosso próprio tipo em vez do Prisma Client
+import { PrismaClientKnownRequestError } from "@/shared/errors/PrismaErrors";
 import {
   NotFoundError,
   ValidationError,
