@@ -1,0 +1,22 @@
+services:
+  # API principal
+  - type: web
+    name: api-advancemais
+    env: node
+    plan: starter
+    buildCommand: npm run build
+    startCommand: node dist/server.js
+    nodeVersion: 18.x
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false # Segredo - deve ser configurado manualmente no dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_ENABLED
+        value: false
+    healthCheckPath: /api/health
+    autoDeploy: true
