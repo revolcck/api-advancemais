@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "pnpm exec prisma generate && nodemon",
-    "build": "npx prisma generate && tsc && tsc-alias",
+    "build": "npx prisma generate && npm rebuild argon2 && tsc && tsc-alias",
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate dev",
     "prisma:studio": "npx prisma studio",
