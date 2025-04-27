@@ -1,16 +1,25 @@
-import bcryptjs from "bcryptjs";
+import { randomBytes } from "crypto";
+import argon2 from "argon2";
 
 /**
  * Classe para manipulação de hashes de senha
  * Encapsula a lógica de geração e verificação de senhas hasheadas
+ * Utiliza o algoritmo Argon2id, vencedor da competição de hashing de senhas
  */
 export class HashUtils {
   /**
-   * Número de rounds para o bcryptjs
-   * Valores mais altos são mais seguros, mas mais lentos
-   * 12 é um bom equilíbrio entre segurança e performance
+   * Configurações para o Argon2
+   * - type: Argon2id combina resistência contra ataques de canal lateral e ataques de GPU
+   * - memoryCost: Quantidade de memória usada (em KiB)
+   * - timeCost: Número de iterações
+   * - parallelism: Número de threads paralelos
    */
-  private static readonly SALT_ROUNDS = 12;
+  private static readonly HASH_OPTIONS = {
+    type: argon2.argon2id,
+    memoryCost: 19456, // 19MB
+    timeCost: 2,
+    parallelism: 1,
+  };
 
   /**
    * Gera um hash para uma senha
@@ -18,7 +27,7 @@ export class HashUtils {
    * @returns Senha hasheada
    */
   public static async hash(password: string): Promise<string> {
-    return bcryptjs.hash(password, this.SALT_ROUNDS);
+    return argon2.hash(password, this.HASH_OPTIONS);
   }
 
   /**
@@ -31,7 +40,7 @@ export class HashUtils {
     password: string,
     hash: string
   ): Promise<boolean> {
-    return bcryptjs.compare(password, hash);
+    return argon2.verify(hash, password);
   }
 
   /**
@@ -85,10 +94,13 @@ export class HashUtils {
       Math.floor(Math.random() * specialChars.length)
     );
 
-    // Completa o restante da senha com caracteres aleatórios
-    for (let i = password.length; i < length; i++) {
-      password += allChars.charAt(Math.floor(Math.random() * allChars.length));
-    }
+    // Utiliza randomBytes para gerar o restante dos caracteres de forma mais segura
+    const randomChars = randomBytes(length - 4)
+      .toString("base64")
+      .replace(/[+/=]/g, "")
+      .slice(0, length - 4);
+
+    password += randomChars;
 
     // Embaralha os caracteres para evitar um padrão previsível
     return password
