@@ -3,7 +3,6 @@ import { env } from "@/config/environment";
 import { db } from "@/config/database";
 import { redisService } from "@/config/redis";
 import { logger } from "@/shared/utils/logger.utils";
-import { ServerBannerUtils } from "@/shared/utils/server-banner.utils";
 
 class Server {
   /**
@@ -27,9 +26,6 @@ class Server {
       // Inicia o servidor HTTP
       this.startHttpServer();
 
-      // Configura relatório periódico de status em desenvolvimento
-      this.setupPeriodicReporting();
-
       // Configura handlers para encerramento gracioso
       this.setupShutdownHandlers();
     } catch (error) {
@@ -49,23 +45,11 @@ class Server {
       // Variáveis para status das conexões
       let databaseConnected = false;
       let redisConnected = false;
-      let databaseConnections = 0;
 
       try {
         // Verifica se a conexão com o banco foi bem sucedida
-        const result = await db.getClient().$queryRaw`SELECT 1`;
+        await db.getClient().$queryRaw`SELECT 1`;
         databaseConnected = true;
-
-        // Obtém o número de conexões do pool MySQL
-        try {
-          const poolStats = await db.getClient()
-            .$queryRaw`SHOW STATUS LIKE 'Threads_connected'`;
-          if (Array.isArray(poolStats) && poolStats.length > 0) {
-            databaseConnections = Number(poolStats[0].Value) || 0;
-          }
-        } catch (poolError) {
-          databaseConnections = 1; // Assume pelo menos 1 conexão
-        }
       } catch (error) {
         databaseConnected = false;
         logger.error("Erro ao verificar conexão com banco de dados", error);
@@ -85,19 +69,8 @@ class Server {
         }
       }
 
-      // Exibe banner com informações do sistema e status das conexões
-      ServerBannerUtils.showBanner({
-        database: databaseConnected,
-        redis: redisConnected,
-        databaseConnections,
-      });
-
-      // Logs adicionais sobre conexões para o arquivo de log
-      this.logConnectionStatus(
-        databaseConnected,
-        redisConnected,
-        databaseConnections
-      );
+      // Exibe informações de status
+      this.logConnectionStatus(databaseConnected, redisConnected);
     } catch (error) {
       logger.error("Falha ao inicializar conexões", error);
       throw error;
@@ -109,13 +82,11 @@ class Server {
    */
   private logConnectionStatus(
     databaseConnected: boolean,
-    redisConnected: boolean,
-    databaseConnections: number
+    redisConnected: boolean
   ): void {
     if (databaseConnected) {
       logger.info("✅ Conexão com banco de dados estabelecida com sucesso", {
         type: "mysql",
-        connections: databaseConnections,
         url: env.databaseUrl.replace(/\/\/([^:]+):([^@]+)@/, "//***:***@"), // Oculta credenciais
       });
     }
@@ -138,35 +109,12 @@ class Server {
    */
   private startHttpServer(): void {
     // Garante que a porta está definida e é um número
-    const port = Number(env.port) || Number(process.env.PORT) || 3000;
-
-    // Validação e log explícito da porta
-    if (isNaN(port)) {
-      logger.error("Porta inválida, usando porta 3000 como fallback");
-    }
-
-    logger.info(`📡 Configurando servidor para escutar na porta ${port}`);
+    const port = Number(env.port) || 3000;
 
     // Inicia o servidor na porta especificada
     this.server = this.app.listen(port, () => {
       logger.info(`🚀 Servidor rodando em http://localhost:${port}`);
       logger.info(`🌎 Ambiente: ${env.nodeEnv}`);
-
-      // Registra métricas iniciais
-      const memUsage = process.memoryUsage();
-      logger.debug("Métricas iniciais", {
-        memory: {
-          rss: `${(memUsage.rss / 1024 / 1024).toFixed(2)} MB`,
-          heapTotal: `${(memUsage.heapTotal / 1024 / 1024).toFixed(2)} MB`,
-          heapUsed: `${(memUsage.heapUsed / 1024 / 1024).toFixed(2)} MB`,
-        },
-        cpu: process.cpuUsage(),
-        portConfig: {
-          envPort: env.port,
-          processEnvPort: process.env.PORT,
-          actualPort: port,
-        },
-      });
     });
 
     // Configura timeout do servidor
@@ -183,16 +131,6 @@ class Server {
       }
       process.exit(1);
     });
-  }
-
-  /**
-   * Configura relatório periódico de status em desenvolvimento
-   */
-  private setupPeriodicReporting(): void {
-    if (env.isDevelopment) {
-      // A cada 15 minutos, exibe um relatório de status
-      setInterval(ServerBannerUtils.generateStatusReport, 15 * 60 * 1000);
-    }
   }
 
   /**
@@ -222,11 +160,6 @@ class Server {
         if (redisService.isConnected()) {
           await redisService.disconnect();
           logger.info("🔌 Conexão com Redis fechada");
-        }
-
-        // Fecha streams de log
-        if (logger.closeStreams) {
-          logger.closeStreams();
         }
 
         logger.info("✅ Conexões encerradas com sucesso");

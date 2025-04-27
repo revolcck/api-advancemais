@@ -1,13 +1,12 @@
 {
   "name": "api-advancemais",
   "version": "1.0.0",
-  "description": "",
+  "description": "API para o projeto AdvanceMais",
   "main": "dist/server.js",
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "prisma generate && nodemon --exec ts-node -r tsconfig-paths/register --transpile-only src/server.ts",
+    "dev": "prisma generate && nodemon",
     "build": "rimraf dist && prisma generate && tsc && tsc-alias",
-    "build:render": "node scripts/render-deploy.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
@@ -16,7 +15,7 @@
     "test:coverage": "jest --coverage",
     "seed": "ts-node prisma/seed.ts",
     "postinstall": "prisma generate",
-    "render:setup": "node scripts/render-prisma-setup.js"
+    "clear-prisma": "rm -rf node_modules/.prisma"
   },
   "keywords": [],
   "author": "",
